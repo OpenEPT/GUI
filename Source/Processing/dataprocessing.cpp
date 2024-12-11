@@ -336,6 +336,8 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
 //                consumptionKeysDataCollected[lastBufferUsedPositionIndex] = keyStartValue + (double)j;
             }
             currentDataCollected[lastBufferUsedPositionIndex] = currentValue;
+            lastCumulativeCurrentConsumptionValue += currentValue*(samplingPeriod)/3600000;
+            cumulativeConsumptionDataCollected[lastBufferUsedPositionIndex] = lastCumulativeCurrentConsumptionValue;
             /*currentConsumptionDataCollected[lastBufferUsedPositionIndex] = swapDataCurrent*(samplingPeriod)/3600000; //mAh
             lastCumulativeCurrentConsumptionValue += swapDataCurrent*(samplingPeriod)/3600000;                         //This value remember last consumption in case when buffers are restarted
             cumulativeConsumptionDataCollected[lastBufferUsedPositionIndex] = lastCumulativeCurrentConsumptionValue;    */
@@ -363,22 +365,22 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
         processSignalWithFFT(currentDataCollected, 0.5, currentDataCollectedFiltered, fftDataCollectedCurrent, samplingPeriod, fftKeysDataCollected, minMax);
         if(minMax[0] > maxCurrentF) maxCurrentF = minMax[0];
         if(minMax[1] < minCurrentF) minCurrentF = minMax[1];
-        for(int i = 0; i < lastBufferUsedPositionIndex; i++)
-        {
-            double current = 0;
-            if(filteringEnable == 1)
-            {
-                current = currentDataCollectedFiltered[i];
-            }
-            else
-            {
-                current = currentDataCollected[i];
-            }
-            currentConsumptionDataCollected[i] = current*(samplingPeriod)/3600000; //mAh
-            lastCumulativeCurrentConsumptionValue += current*(samplingPeriod)/3600000;                         //This value remember last consumption in case when buffers are restarted
-            cumulativeConsumptionDataCollected[i] = lastCumulativeCurrentConsumptionValue;
+//        for(int i = 0; i < lastBufferUsedPositionIndex; i++)
+//        {
+//            double current = 0;
+//            if(filteringEnable == 1)
+//            {
+//                current = currentDataCollectedFiltered[i];
+//            }
+//            else
+//            {
+//                current = currentDataCollected[i];
+//            }
+//            currentConsumptionDataCollected[i] = current*(samplingPeriod)/3600000; //mAh
+//            lastCumulativeCurrentConsumptionValue += current*(samplingPeriod)/3600000;                         //This value remember last consumption in case when buffers are restarted
+//            cumulativeConsumptionDataCollected[i] = lastCumulativeCurrentConsumptionValue;
 
-        }
+//        }
 //        qDebug() << "MinVF, MaxVF =" << QString::number(minVoltageF) << "," <<  QString::number(maxVoltageF);
 //        qDebug() << "MinCF, MaxCF =" << QString::number(minCurrentF) << "," <<  QString::number(maxCurrentF);
 //        qDebug() << "V-DevF =" << QString::number(maxVoltageF - minVoltageF);

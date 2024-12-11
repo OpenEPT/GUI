@@ -46,9 +46,11 @@ private:
 
     QVector<double> xData;
     QVector<double> yData;
+    QVector<QCPItemText *> textData;
 
     bool        enableTracking;
     bool        replotActive;
+    bool        scatterGraphAdded;
 
     void        setButtonStyle();
 
