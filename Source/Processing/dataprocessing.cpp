@@ -18,6 +18,8 @@ DataProcessing::DataProcessing(QObject *parent)
     maxNumberOfBuffers              = DATAPROCESSING_DEFAULT_NUMBER_OF_BUFFERS;
     samplesBufferSize               = DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE/2;
 
+    filteringEnable                 = DATAPROCESSING_DEFAULT_FILTERING_ENABLE;
+
     voltageStat.average             = 0;
     currentStat.average             = 0;
     voltageStat.max                 = -10;
@@ -363,7 +365,15 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
         if(minMax[1] < minCurrentF) minCurrentF = minMax[1];
         for(int i = 0; i < lastBufferUsedPositionIndex; i++)
         {
-            double current = currentDataCollectedFiltered[i];
+            double current = 0;
+            if(filteringEnable == 1)
+            {
+                current = currentDataCollectedFiltered[i];
+            }
+            else
+            {
+                current = currentDataCollected[i];
+            }
             currentConsumptionDataCollected[i] = current*(samplingPeriod)/3600000; //mAh
             lastCumulativeCurrentConsumptionValue += current*(samplingPeriod)/3600000;                         //This value remember last consumption in case when buffers are restarted
             cumulativeConsumptionDataCollected[i] = lastCumulativeCurrentConsumptionValue;
@@ -398,8 +408,16 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
             }
             break;
         case DATAPROCESSING_CONSUMPTION_MODE_CUMULATIVE:
-            emit sigNewVoltageCurrentSamplesReceived(voltageDataCollectedFiltered, currentDataCollectedFiltered, voltageKeysDataCollected, currentKeysDataCollected);
-            emit sigNewConsumptionDataReceived(cumulativeConsumptionDataCollected, consumptionKeysDataCollected, DATAPROCESSING_CONSUMPTION_MODE_CUMULATIVE);
+            if(filteringEnable == 1)
+            {
+                emit sigNewVoltageCurrentSamplesReceived(voltageDataCollectedFiltered, currentDataCollectedFiltered, voltageKeysDataCollected, currentKeysDataCollected);
+                emit sigNewConsumptionDataReceived(cumulativeConsumptionDataCollected, consumptionKeysDataCollected, DATAPROCESSING_CONSUMPTION_MODE_CUMULATIVE);
+            }
+            else
+            {
+                emit sigNewVoltageCurrentSamplesReceived(voltageDataCollected, currentDataCollected, voltageKeysDataCollected, currentKeysDataCollected);
+                emit sigNewConsumptionDataReceived(cumulativeConsumptionDataCollected, consumptionKeysDataCollected, DATAPROCESSING_CONSUMPTION_MODE_CUMULATIVE);
+            }
             break;
         }
         emit sigEBP(ebpValue, ebpValueKey);

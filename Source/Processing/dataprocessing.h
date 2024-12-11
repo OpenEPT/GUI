@@ -14,6 +14,7 @@
 #define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_OFF          3.2
 #define DATAPROCESSING_DEFAULT_SHUNT                    0.045
 #define DATAPROCESSING_DEFAULT_GAIN                     10
+#define DATAPROCESSING_DEFAULT_FILTERING_ENABLE         0
 
 typedef enum
 {
@@ -140,6 +141,7 @@ private:
     double                              minVoltageF;
     double                              minCurrentF;
     QVector<double>                     minMax;
+    bool                                filteringEnable;
 
 
     /**/
