@@ -159,7 +159,7 @@ bool DataProcessing::setSamplingTime(double aSamplingTime)
 bool DataProcessing::setResolution(double aResolution)
 {
     if(acquisitionStatus == DATAPROCESSING_ACQUISITION_STATUS_ACTIVE) return false;
-    voltageInc = (double)DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF/qPow(2,aResolution);
+    voltageInc = (double)DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF/qPow(2,aResolution)*DATAPROCESSING_DEFAULT_ADC_VOLTAGE_K;
     currentInc = (double)DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF/qPow(2,aResolution);
     return true;
 }
@@ -291,8 +291,8 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
         keyStartValue = packetID*rawData.size()/2*samplingPeriod;
         for(; i < halfSize;)
         {
-            double rawVoltage = rawData[i];
-            double rawCurrent= rawData[i+halfSize];
+            double rawCurrent = rawData[i];
+            double rawVoltage= rawData[i+halfSize];
             short a = (((short) rawVoltage) >> 8) & 0x00FF;
             short b = (((short) rawVoltage) << 8) & 0xFF00;
             short c = a | b;
@@ -304,7 +304,7 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
             d = (int) c;
             double swapDataCurrent = (double)d;
             double voltageValue = DATAPROCESSING_DEFAULT_ADC_VOLTAGE_OFF + swapDataVoltage*voltageInc;
-            double currentValue = swapDataCurrent*currentInc/(DATAPROCESSING_DEFAULT_SHUNT*DATAPROCESSING_DEFAULT_GAIN)*1000.0; //mA
+            double currentValue = (swapDataCurrent*currentInc-1.63)/(DATAPROCESSING_DEFAULT_SHUNT*DATAPROCESSING_DEFAULT_GAIN)*1000.0; //mA
             if(voltageValue > voltageStat.max) voltageStat.max = voltageValue;
             if(voltageValue < voltageStat.min) voltageStat.min = voltageValue;
             if(currentValue > currentStat.max) currentStat.max = currentValue;
