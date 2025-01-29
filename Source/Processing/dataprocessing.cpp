@@ -304,7 +304,7 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
             d = (int) c;
             double swapDataCurrent = (double)d;
             double voltageValue = DATAPROCESSING_DEFAULT_ADC_VOLTAGE_OFF + swapDataVoltage*voltageInc;
-            double currentValue = (swapDataCurrent*currentInc-1.63)/(DATAPROCESSING_DEFAULT_SHUNT*DATAPROCESSING_DEFAULT_GAIN)*1000.0; //mA
+            double currentValue = (swapDataCurrent*currentInc-1.621)/(DATAPROCESSING_DEFAULT_SHUNT*DATAPROCESSING_DEFAULT_GAIN)*1000.0; //mA
             if(voltageValue > voltageStat.max) voltageStat.max = voltageValue;
             if(voltageValue < voltageStat.min) voltageStat.min = voltageValue;
             if(currentValue > currentStat.max) currentStat.max = currentValue;
