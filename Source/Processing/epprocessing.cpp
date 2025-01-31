@@ -12,30 +12,34 @@ EPProcessing::EPProcessing(QObject *parent)
 
 void EPProcessing::onNewEPValueReceived(unsigned int PacketID, double value, double key)
 {
-    for(int i = 0; i < epList.size(); i++)
-    {
-        if(*epList[i] == PacketID)
-        {
-            epList[i]->assignValue(value, key);
-            emit sigEPProcessed(epList[i]->getValue(), epList[i]->getKey(), epList[i]->getName());
-            return;
-        }
-    }
+//    for(int i = 0; i < epList.size(); i++)
+//    {
+//        if(*epList[i] == PacketID)
+//        {
+//            epList[i]->assignValue(value, key);
+//            emit sigEPProcessed(epList[i]->getValue(), epList[i]->getKey(), epList[i]->getName());
+//            epList.removeAt(i);
+//            return;
+//        }
+//    }
     epList.append(new EPInfo(PacketID, value, key));
 }
 
-void EPProcessing::onNewEPNameReceived(unsigned int PacketID, QString name)
+void EPProcessing::onNewEPNameReceived(unsigned int PacketID, uint DMAID, QString name)
 {
-    for(int i = 0; i < epList.size(); i++)
-    {
-        if(*epList[i] == PacketID)
-        {
-            epList[i]->assignName(name);
-            emit sigEPProcessed(epList[i]->getValue(), epList[i]->getKey(), epList[i]->getName());
-            return;
-        }
-    }
-    epList.append(new EPInfo(PacketID, name));
+    int samplePosition = DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE/2*PacketID + (DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE - DMAID);
+    emit sigEPProcessed(0, samplePosition, name);
+//    for(int i = 0; i < epList.size(); i++)
+//    {
+//        if(*epList[i] == PacketID)
+//        {
+//            epList[i]->assignName(name);
+//            emit sigEPProcessed(epList[i]->getValue(), epList[i]->getKey(), epList[i]->getName());
+//            epList.removeAt(i);
+//            return;
+//        }
+//    }
+//    epList.append(new EPInfo(PacketID, name));
 }
 
 EPInfo::EPInfo(unsigned int aPacketID, double aValue, double aKey)

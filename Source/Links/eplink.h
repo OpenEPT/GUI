@@ -17,7 +17,7 @@ public:
 
 signals:
     void                    sigNewClientConnected(QString ip);
-    void                    sigNewEPNameReceived(unsigned int ebpid, QString name);
+    void                    sigNewEPNameReceived(unsigned int ebpid, unsigned int ebpdmaid, QString name);
 
 public slots:
     void                    onServerStarted();

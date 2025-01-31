@@ -142,7 +142,14 @@ void Plot::scatterAddData(QVector<double> data, QVector<double> keys)
 
 void Plot::scatterAddDataWithName(double value, double keys, QString name)
 {
-    plot->graph(1)->addData(keys, value);
+    if(keys >= xData.size() || keys >= yData.size())
+    {
+        qDebug() << "Corresponding data not arrived";
+        epDataKey.append(keys);
+        epDataName.append(name);
+        return;
+    }
+    plot->graph(1)->addData(xData[keys], yData[keys]);
     QCPItemText *textLabel = new QCPItemText(plot);
 
     // Set text label position above each point
@@ -159,6 +166,37 @@ void Plot::scatterAddDataWithName(double value, double keys, QString name)
 
     plot->yAxis->rescale(true);
     plot->replot();
+}
+
+void Plot::scatterReplotDataWithName()
+{
+    int key;
+    double value;
+    for(int i = 0; i < epDataKey.size(); i++)
+    {
+        if(epDataKey[i] > xData.size() || epDataKey[i] > yData.size()) break;
+        key = epDataKey[i];
+        value = yData[key];
+        plot->graph(1)->addData(xData[key], yData[key]);
+        QCPItemText *textLabel = new QCPItemText(plot);
+
+        // Set text label position above each point
+        textLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
+        textLabel->position->setType(QCPItemPosition::ptPlotCoords);  // Position in plot coordinates
+        textLabel->position->setCoords(xData[key], value - 0.01*qAbs(value));  // Set position slightly above the point
+
+        // Set text style and content
+        textLabel->setText(epDataName[i]);  // Set the text (label)
+        textLabel->setFont(QFont("Times", 10));  // Set font and size
+        textLabel->setColor(Qt::blue);  // Set text color
+
+        textData.push_back(textLabel);
+
+        plot->yAxis->rescale(true);
+        plot->replot();
+        epDataKey.removeAt(i);
+        epDataName.removeAt(i);
+    }
 }
 void        Plot::setData(QVector<double> data, QVector<double> keys)
 {
@@ -190,6 +228,7 @@ void        Plot::appendData(QVector<double> data, QVector<double> keys)
         plot->xAxis->setRange(minxValue, maxxValue);
         plot->yAxis->rescale(true);
         plot->replot();
+        scatterReplotDataWithName();
     }
 
 }
@@ -222,10 +261,15 @@ void        Plot::clear()
 {
     plot->graph(0)->data()->clear();
     if(scatterGraphAdded)
-    plot->graph(1)->data()->clear();
+    {
+        plot->graph(1)->data()->clear();
+        for(int i =0; i < textData.size(); i++)
+        {
+            plot->removeItem(textData[i]);
+        }
+    }
     xData.clear();
     yData.clear();
-    textData.clear();
     plot->replot();
 
 }

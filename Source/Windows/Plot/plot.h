@@ -13,6 +13,7 @@ public:
     void        scatterAddGraph();
     void        scatterAddData(QVector<double> data, QVector<double> keys);
     void        scatterAddDataWithName(double value, double keys, QString name);
+    void        scatterReplotDataWithName();
     void        setData(QVector<double> data, QVector<double> keys);
     void        appendData(QVector<double> data, QVector<double> keys);
     void        setYRange(double min, double max);
@@ -46,6 +47,8 @@ private:
 
     QVector<double> xData;
     QVector<double> yData;
+    QVector<double> epDataKey;
+    QVector<QString> epDataName;
     QVector<QCPItemText *> textData;
 
     bool        enableTracking;

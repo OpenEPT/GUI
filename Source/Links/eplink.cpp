@@ -49,15 +49,47 @@ void EPLink::onNewConnectionAdded()
 
 void EPLink::onReadPendingData()
 {
-    char message[EP_LINK_BUFFER_SIZE];
-    unsigned int id = 0;
-    memset(message, 0, EP_LINK_BUFFER_SIZE);
-    QString clientIp;
+//    char message[EP_LINK_BUFFER_SIZE];
+//    unsigned int id = 0;
+//    unsigned int dmaID = 0;
+//    memset(message, 0, EP_LINK_BUFFER_SIZE);
+//    QString clientIp;
+//    QTcpSocket *clientSocket = qobject_cast<QTcpSocket*>(sender());
+//    clientIp = QHostAddress(clientSocket->peerAddress().toIPv4Address()).toString();
+//    while(clientSocket->read(message, EP_LINK_BUFFER_SIZE) != 0)
+//    {
+//        id = *((unsigned int*)&message[0]);
+//        dmaID = *((unsigned int*)&message[4]);
+//        qDebug() << "ID: " << "DMA: " << dmaID << "Message: " << QString(&message[8]);
+//        emit sigNewEPNameReceived(id, dmaID, QString(&message[8]));
+//    }
+    static QByteArray buffer;  // Buffer to store incomplete messages
     QTcpSocket *clientSocket = qobject_cast<QTcpSocket*>(sender());
-    clientIp = QHostAddress(clientSocket->peerAddress().toIPv4Address()).toString();
-    while(clientSocket->read(message, EP_LINK_BUFFER_SIZE) != 0)
-    {
-        id = *((unsigned int*)&message[0]);
-        emit sigNewEPNameReceived(id, QString(&message[4]));
+    if (!clientSocket) return;
+
+    buffer.append(clientSocket->readAll()); // Read all available data into buffer
+
+    while (true) {
+        int endIndex = buffer.indexOf("\r"); // Find message delimiter
+        if (endIndex == -1) {
+            // No complete message found, wait for more data
+            break;
+        }
+
+        // Extract a full message
+        QByteArray message = buffer.left(endIndex);
+        buffer.remove(0, endIndex + 1); // Remove processed message from buffer
+
+        if (message.size() < 8) {
+            qWarning() << "Received incomplete header, discarding";
+            continue;
+        }
+
+        unsigned int id = *reinterpret_cast<unsigned int*>(message.data());
+        unsigned int dmaID = *reinterpret_cast<unsigned int*>(message.data() + 4);
+        QString payload = QString::fromUtf8(message.mid(8));
+
+        qDebug() << "ID:" << id << "DMA:" << dmaID << "Message:" << payload;
+        emit sigNewEPNameReceived(id, dmaID, payload);
     }
 }

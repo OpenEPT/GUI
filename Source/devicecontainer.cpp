@@ -734,7 +734,7 @@ void DeviceContainer::onDeviceNewEBP(QVector<double> ebpValues, QVector<double> 
 void DeviceContainer::onDeviceNewEBPFull(double value, double key, QString name)
 {
     deviceWnd->plotConsumptionEBPWithName(value, key, name);
-    log->printLogMessage("New Energy point received", LOG_MESSAGE_TYPE_INFO);
+    log->printLogMessage("New Energy point received (Value: " + QString::number(value) + "; Key: " + QString::number(key) + "; Name: " + name + ")", LOG_MESSAGE_TYPE_INFO);
 }
 
 device_adc_resolution_t DeviceContainer::getAdcResolutionFromString(QString resolution)

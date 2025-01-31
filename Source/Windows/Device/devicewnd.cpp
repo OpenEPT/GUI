@@ -132,6 +132,8 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     currentChart->setYLabel("[mA]");
     currentChart->setXLabel("[ms]");
 
+    currentChart->scatterAddGraph();
+
 
     consumptionChart         = new Plot(PLOT_MINIMUM_SIZE_WIDTH, PLOT_MINIMUM_SIZE_HEIGHT);
     consumptionChart->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -749,6 +751,7 @@ bool DeviceWnd::plotConsumptionEBP(QVector<double> values, QVector<double> keys)
 bool DeviceWnd::plotConsumptionEBPWithName(double value, double key, QString name)
 {
     consumptionChart->scatterAddDataWithName(value, key, name);
+    currentChart->scatterAddDataWithName(value, key, name);
     return true;
 }
 

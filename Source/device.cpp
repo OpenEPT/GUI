@@ -133,7 +133,7 @@ void Device::epLinkServerCreate()
 {
     energyPointLink  = new EPLink();
     energyPointLink->startServer();
-    connect(energyPointLink, SIGNAL(sigNewEPNameReceived(uint,QString)), energyPointProcessing, SLOT(onNewEPNameReceived(uint,QString)), Qt::QueuedConnection);
+    connect(energyPointLink, SIGNAL(sigNewEPNameReceived(uint,uint,QString)), energyPointProcessing, SLOT(onNewEPNameReceived(uint,uint,QString)), Qt::QueuedConnection);
     connect(dataProcessing, SIGNAL(sigEBPValue(uint,double,double)), energyPointProcessing, SLOT(onNewEPValueReceived(uint,double,double)), Qt::QueuedConnection);
     connect(energyPointProcessing, SIGNAL(sigEPProcessed(double,double,QString)), this, SLOT(onNewEBPFull(double,double,QString)), Qt::QueuedConnection);
 }
@@ -800,5 +800,8 @@ void Device::onNewEBP(QVector<double> ebpValues, QVector<double> ebpKeys)
 
 void Device::onNewEBPFull(double value, double key, QString name)
 {
-    emit sigNewEBPFull(value, key, name);
+    if(dataProcessing->getAcquisitionStatus() == DATAPROCESSING_ACQUISITION_STATUS_ACTIVE)
+    {
+        emit sigNewEBPFull(value, key, name);
+    }
 }

@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QThread>
+#include "dataprocessing.h"
 
 class EPInfo
 {
@@ -41,7 +42,7 @@ signals:
 
 public slots:
     void    onNewEPValueReceived(unsigned int PacketID, double value, double key);
-    void    onNewEPNameReceived(unsigned int PacketID, QString name);
+    void    onNewEPNameReceived(unsigned int PacketID, uint DMAID, QString name);
 
 private:
     QThread                          *epProcessingThread;

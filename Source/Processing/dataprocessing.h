@@ -69,6 +69,7 @@ public:
     bool                                setMeasurementMode(dataprocessing_measurement_mode_t aMeasurementMode);
 
     bool                                setAcquisitionStatus(dataprocessing_acquisition_status_t aAcquisitionStatus);
+    dataprocessing_acquisition_status_t getAcquisitionStatus();
 
 signals:
     void                                sigNewVoltageCurrentSamplesReceived(QVector<double> voltage, QVector<double> current, QVector<double> voltageKeys, QVector<double> currentKeys);

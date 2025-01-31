@@ -213,6 +213,11 @@ bool DataProcessing::setAcquisitionStatus(dataprocessing_acquisition_status_t aA
     return true;
 }
 
+dataprocessing_acquisition_status_t DataProcessing::getAcquisitionStatus()
+{
+    return acquisitionStatus;
+}
+
 void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int packetID, int magic)
 {
     double          keyStartValue = 0; ;
@@ -225,7 +230,7 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
 
     if(ebp != 0)
     {
-        qDebug() << "EBP detected: " + ebpNo;
+        qDebug() << "EBP detected: " + QString::number(ebpNo) + "\r\n";
         ebpNo += 1;
     }
 
@@ -264,12 +269,12 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
                 voltageKeysDataCollected[lastBufferUsedPositionIndex] = keyStartValue;
                 currentKeysDataCollected[lastBufferUsedPositionIndex] = keyStartValue + samplingTime;
                 consumptionKeysDataCollected[lastBufferUsedPositionIndex] = keyStartValue + samplingTime;
-                if(ebp != 0 && ebpNo > 0)
-                {
-                    ebpValue.append(lastCumulativeCurrentConsumptionValue);
-                    ebpValueKey.append(keyStartValue);
-                    emit sigEBPValue(packetID, lastCumulativeCurrentConsumptionValue, keyStartValue);
-                }
+//                if(ebp != 0 && ebpNo > 0)
+//                {
+//                    ebpValue.append(lastCumulativeCurrentConsumptionValue);
+//                    ebpValueKey.append(keyStartValue);
+//                    emit sigEBPValue(packetID, lastCumulativeCurrentConsumptionValue, keyStartValue);
+//                }
             }
             else
             {
@@ -319,12 +324,12 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
                 voltageKeysDataCollected[lastBufferUsedPositionIndex] = keyStartValue;
                 currentKeysDataCollected[lastBufferUsedPositionIndex] = keyStartValue;
                 consumptionKeysDataCollected[lastBufferUsedPositionIndex] = keyStartValue;
-                if(ebp != 0 && ebpNo > 0)
-                {
-                    ebpValue.append(lastCumulativeCurrentConsumptionValue);
-                    ebpValueKey.append(keyStartValue);
-                    emit sigEBPValue(packetID, lastCumulativeCurrentConsumptionValue, keyStartValue);
-                }
+//                if(ebp != 0 && ebpNo > 0)
+//                {
+//                    ebpValue.append(lastCumulativeCurrentConsumptionValue);
+//                    ebpValueKey.append(keyStartValue);
+//                    emit sigEBPValue(packetID, lastCumulativeCurrentConsumptionValue, keyStartValue);
+//                }
             }
             else
             {
@@ -422,7 +427,7 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
             }
             break;
         }
-        emit sigEBP(ebpValue, ebpValueKey);
+        //emit sigEBP(ebpValue, ebpValueKey);
         emit sigSamplesBufferReceiveStatistics(dropRate, dropPacketsNo, receivedPacketCounter, lastReceivedPacketID, ebpNo);
         emit sigSignalStatistics(voltageStat, currentStat, consumptionStat);
         initBuffers();
