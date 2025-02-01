@@ -23,6 +23,36 @@ namespace Ui {
 class DataAnalyzer;
 }
 
+class DataAnalyzerWorker : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit DataAnalyzerWorker(QObject *parent = nullptr);
+    bool     setLimits(int limitsNumber);
+
+public slots:
+    void processVoltCurConData(const QString &wsDirPath, const QString &selectedConsumptionProfile);
+    void processEPData(const QString &wsDirPath, const QString &selectedConsumptionProfile);
+
+signals:
+    void processingVolCurConFinished(QVector<QVector<double> > voltage, QVector<QVector<double>> current);
+    void processingEPFinished(QVector<QPair<QString, int>> epata);
+    void progressUpdated(int percentage);
+    void updateProgressText(QString text);
+
+private:
+    QVector<QVector<double>>            parseVCData(const QString &filePath);
+    QVector<QVector<double>>            parseConsumptionData(const QString &filePath);
+    QVector<QPair<QString, int>>        parseEPFile(const QString &filePath);
+
+    int     vcDataProcessingStartPercentage;
+    int     consumptionDataProcessingStartPercentage;
+    int     epDataProcessingStartPercentage;
+    double  range;
+};
+
+
 class DataAnalyzer : public QWidget
 {
     Q_OBJECT
@@ -36,6 +66,13 @@ public slots:
     void    onRealoadConsumptionProfiles();
     void    onConsumptionProfileChanged(int index);
     void    onLoadConsumptionProfileData();
+    void    updateProgress(int percentage);
+    void    updateProgressText(QString text);
+    void    processingVolCurConDone(QVector<QVector<double> > vc, QVector<QVector<double>> cons);
+    void    processingEPDone(QVector<QPair<QString, int>> epData);
+signals:
+    void    processVolCurConRequest(const QString &filePath, const QString &selectedConsumptionProfile);
+    void    processEPRequest(const QString &filePath, const QString &selectedConsumptionProfile);
 
 private:
     Ui::DataAnalyzer                    *ui;
@@ -51,8 +88,13 @@ private:
     bool                                epEnabledFlag;
     bool                                graphLoad;
 
+    QProgressDialog                     *progressDialog;
+
 
     QString                             selectedConsumptionProfile;
+
+    QThread                             *thread;
+    DataAnalyzerWorker                  *dataProcesingClass;
 
     void                                createVoltageSubWin();
     void                                createCurrentSubWin();
@@ -61,9 +103,6 @@ private:
     QComboBox                           *consumptionProfilesCB;
     QStringList                         consumptionProfilesName;
 
-    QVector<QVector<double>>            parseVCData(const QString &filePath);
-    QVector<QVector<double>>            parseConsumptionData(const QString &filePath);
-    QVector<QPair<QString, int>>        parseEPFile(const QString &filePath);
     QVector<QPair<QString, QString>>    parseSummaryFile(const QString &filePath);
     QStringList                         listConsumptionProfiles();
     QString                             getValueForKey(const QVector<QPair<QString, QString> > &parsedData, const QString &key);
