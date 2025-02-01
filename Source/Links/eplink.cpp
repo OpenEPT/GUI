@@ -70,7 +70,7 @@ void EPLink::onReadPendingData()
     buffer.append(clientSocket->readAll()); // Read all available data into buffer
 
     while (true) {
-        int endIndex = buffer.indexOf("\r"); // Find message delimiter
+        int endIndex = buffer.indexOf("\r\n"); // Find message delimiter
         if (endIndex == -1) {
             // No complete message found, wait for more data
             break;
@@ -78,7 +78,7 @@ void EPLink::onReadPendingData()
 
         // Extract a full message
         QByteArray message = buffer.left(endIndex);
-        buffer.remove(0, endIndex + 1); // Remove processed message from buffer
+        buffer.remove(0, endIndex + 2); // Remove processed message from buffer
 
         if (message.size() < 8) {
             qWarning() << "Received incomplete header, discarding";

@@ -181,6 +181,7 @@ void DeviceContainer::onDeviceWndConsumptionProfileNameChanged(QString aConsumpt
         fileProcessing->setSamplesFileHeader("Voltage and Current samples");
         fileProcessing->setConsumptionFileHeader("Consumption samples");
         fileProcessing->setSummaryFileHeader("Acquisition info");
+        fileProcessing->setEPFileHeader("Energy point info");
         consumptionProfileNameExists = true;
         return;
     }
@@ -190,6 +191,7 @@ void DeviceContainer::onDeviceWndConsumptionProfileNameChanged(QString aConsumpt
         fileProcessing->setSamplesFileHeader("Voltage and Current samples");
         fileProcessing->setConsumptionFileHeader("Consumption samples");
         fileProcessing->setSummaryFileHeader("Acquisition info");
+        fileProcessing->setEPFileHeader("Energy point info");
         consumptionProfileNameExists = false;
     }
     else
@@ -400,6 +402,7 @@ void DeviceContainer::onDeviceWndAcquisitionStart()
         log->printLogMessage("Acquisition sucessfully started", LOG_MESSAGE_TYPE_INFO);        
         if(savetoFileEnabled)
         {
+            fileProcessing->appendSummaryFile("EP Enabled: 1");
             fileProcessing->appendSummaryFile("Acquisiton start: " + QDateTime::currentDateTime().toString());
         }
     }
@@ -734,6 +737,7 @@ void DeviceContainer::onDeviceNewEBP(QVector<double> ebpValues, QVector<double> 
 void DeviceContainer::onDeviceNewEBPFull(double value, double key, QString name)
 {
     deviceWnd->plotConsumptionEBPWithName(value, key, name);
+    fileProcessing->appendEPQueued(name, key);
     log->printLogMessage("New Energy point received (Value: " + QString::number(value) + "; Key: " + QString::number(key) + "; Name: " + name + ")", LOG_MESSAGE_TYPE_INFO);
 }
 

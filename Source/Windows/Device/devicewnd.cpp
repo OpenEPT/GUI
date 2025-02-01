@@ -210,6 +210,11 @@ void    DeviceWnd::onNewControlMsgRcvd(QString text)
     emit sigNewControlMessageRcvd(text);
 }
 
+void DeviceWnd::onPlotScatterNameAndKey(QString name, double key)
+{
+    emit sigScatterNameAndKey(name, key);
+}
+
 void DeviceWnd::onSetConsumptionName()
 {    
     emit sigConsumptionProfileNameChanged(ui->consNameLine->text());

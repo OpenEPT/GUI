@@ -15,6 +15,7 @@ bool FileProcessing::open(fileprocessing_type_t aType, QString aPath)
     summaryFile = new QFile(summaryFilePath);
     samplesFilePath = aPath + "/vc.csv";
     consumptionFilePath = aPath + "/cons.csv";
+    epFilePath = aPath + "/ep.csv";
     type = aType;
     switch(type)
     {
@@ -101,6 +102,20 @@ bool FileProcessing::setSummaryFileHeader(QString header)
     summaryFile->close();
     return true;
 }
+bool FileProcessing::setEPFileHeader(QString header)
+{
+    if(!epFile->isOpen())
+    {
+        if(!epFile->open(QIODevice::WriteOnly | QIODevice::Text)) return false;
+    }
+    QTextStream out(epFile);
+    epFileHeader = header;
+    out << header << "\n";
+    out << "------------\n";
+    epFile->close();
+    return true;
+}
+
 
 bool FileProcessing::appendSummaryFile(QString content)
 {
@@ -150,6 +165,19 @@ bool FileProcessing::appendConsumptionData(QVector<double> *consumption, QVector
     return true;
 }
 
+bool FileProcessing::appendEPData(QString name, int key)
+{
+    if(!epFile->isOpen())
+    {
+        if(!epFile->open(QIODevice::WriteOnly | QIODevice::Text| QIODevice::Append)) return false;
+    }
+    QTextStream out(epFile);
+    out << name <<  ",";
+    out << QString::number(key)  << "\n";
+    epFile->close();
+    return true;
+}
+
 bool FileProcessing::appendSampleDataQueued(QVector<double> voltage, QVector<double> voltageKeys, QVector<double> current, QVector<double> currentKeys)
 {
     emit sigAppendSampleData(voltage, voltageKeys, current, currentKeys);
@@ -159,6 +187,12 @@ bool FileProcessing::appendSampleDataQueued(QVector<double> voltage, QVector<dou
 bool FileProcessing::appendConsumptionQueued(QVector<double> consumption, QVector<double> consumptionKeys)
 {
     emit sigAppendConsumptionData(consumption, consumptionKeys);
+    return true;
+}
+
+bool FileProcessing::appendEPQueued(QString name, int key)
+{
+    emit sigAppendEPData(name, key);
     return true;
 }
 
@@ -186,6 +220,11 @@ bool FileProcessing::reOpenFiles()
         summaryFile->remove();
         setSummaryFileHeader(summaryFileHeader);
     }
+    if(epFile->exists())
+    {
+        epFile->remove();
+        setSummaryFileHeader(summaryFileHeader);
+    }
     return true;
 }
 
@@ -200,12 +239,19 @@ void FileProcessing::onThreadStart()
     case FILEPROCESSING_TYPE_SAMPLES:
         samplesFile = new QFile(samplesFilePath);
         consumptionFile = new QFile(consumptionFilePath);
+        epFile = new QFile(epFilePath);
         samplesFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append);
         consumptionFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append);
+        epFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append);
         qDebug() << samplesFile;
         qRegisterMetaType<QVector<int> >("QVector<double>");
-        connect(this, SIGNAL(sigAppendSampleData(QVector<double>,QVector<double>,QVector<double>,QVector<double>)), this, SLOT(onAppendSampleData(QVector<double>,QVector<double>,QVector<double>,QVector<double>)), Qt::QueuedConnection);
-        connect(this, SIGNAL(sigAppendConsumptionData(QVector<double>,QVector<double>)),                            this, SLOT(onAppendConsumptionData(QVector<double>,QVector<double>)), Qt::QueuedConnection);
+        connect(this, SIGNAL(sigAppendSampleData(QVector<double>,QVector<double>,QVector<double>,QVector<double>)),
+                this, SLOT(onAppendSampleData(QVector<double>,QVector<double>,QVector<double>,QVector<double>)), Qt::QueuedConnection);
+        connect(this, SIGNAL(sigAppendConsumptionData(QVector<double>,QVector<double>)),
+                this, SLOT(onAppendConsumptionData(QVector<double>,QVector<double>)), Qt::QueuedConnection);
+        connect(this, SIGNAL(sigAppendEPData(QString,int)),
+                this, SLOT(onAppendEPData(QString,int)), Qt::QueuedConnection);
+
         sync->release();
         break;
     }
@@ -219,4 +265,9 @@ void FileProcessing::onAppendSampleData(QVector<double> voltage, QVector<double>
 void FileProcessing::onAppendConsumptionData(QVector<double> consumption, QVector<double> consumptionKeys)
 {
     appendConsumptionData(&consumption, &consumptionKeys);
+}
+
+void FileProcessing::onAppendEPData(QString name, int key)
+{
+    appendEPData(name, key);
 }

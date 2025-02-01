@@ -98,6 +98,9 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     replotActive        = true;
     scatterGraphAdded   = false;
 
+    scatterPlot = new QFont("Times", 10);
+    scatterPlot->setBold(true);
+
     connect(zoomIn, SIGNAL(pressed()), this, SLOT(onZoomIn()));
     connect(zoomOut, SIGNAL(pressed()), this, SLOT(onZoomOut()));
     connect(zoomExpand, SIGNAL(pressed()), this, SLOT(onZoomExpand()));
@@ -135,6 +138,31 @@ void Plot::scatterAddData(QVector<double> data, QVector<double> keys)
         textLabel->setText(QString::number(i));  // Set the text (label)
         textLabel->setFont(QFont("Arial", 10));  // Set font and size
         textLabel->setColor(Qt::blue);  // Set text color
+    }
+
+    plot->replot();
+}
+
+void Plot::scatterAddAllDataWithName(QVector<QPair<QString, int>> data)
+{
+    for(int i = 0; i < data.size(); i++)
+    {
+        if(data[i].second >=  xData.size()) break;
+        plot->graph(1)->addData(xData[data[i].second], yData[data[i].second]);
+        QCPItemText *textLabel = new QCPItemText(plot);
+
+        // Set text label position above each point
+        textLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
+        textLabel->position->setType(QCPItemPosition::ptPlotCoords);  // Position in plot coordinates
+        textLabel->position->setCoords(xData[data[i].second], yData[data[i].second]);  // Set position slightly above the point
+
+        // Set text style and content
+        textLabel->setText(data[i].first);  // Set the text (label)
+        textLabel->setFont(QFont("Arial", 10));  // Set font and size
+        textLabel->setColor(Qt::blue);  // Set text color
+
+
+        textData.push_back(textLabel);
     }
 
     plot->replot();
@@ -187,8 +215,8 @@ void Plot::scatterReplotDataWithName()
 
         // Set text style and content
         textLabel->setText(epDataName[i]);  // Set the text (label)
-        textLabel->setFont(QFont("Times", 10));  // Set font and size
-        textLabel->setColor(Qt::blue);  // Set text color
+        textLabel->setFont(*scatterPlot);  // Set font and size
+        textLabel->setColor(Qt::black);  // Set text color
 
         textData.push_back(textLabel);
 
@@ -271,6 +299,8 @@ void        Plot::clear()
     xData.clear();
     yData.clear();
     plot->replot();
+    epDataKey.clear();
+    epDataName.clear();
 
 }
 void        Plot::onZoomIn()

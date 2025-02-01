@@ -78,6 +78,9 @@ DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
     createCurrentSubWin();
     createConsumptionSubWin();
 
+    epEnabledFlag = false;
+    graphLoad = false;
+
 }
 
 void DataAnalyzer::createVoltageSubWin() {
@@ -261,6 +264,49 @@ QVector<QVector<double> > DataAnalyzer::parseConsumptionData(const QString &file
     return data;
 }
 
+QVector<QPair<QString, int>> DataAnalyzer::parseEPFile(const QString &filePath)
+{
+    // QVector to store name (QString) and key (int)
+    QVector<QPair<QString, int>> data;
+
+    // Open the CSV file
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "Failed to open file:" << filePath;
+        return data;
+    }
+
+    QTextStream in(&file);
+
+    // Skip the first two lines (header)
+    in.readLine();
+    in.readLine();
+
+    // Read and parse the data line by line
+    while (!in.atEnd()) {
+        QString line = in.readLine();
+        QStringList values = line.split(',');
+
+        // Ensure there are exactly two columns
+        if (values.size() == 2) {
+            QString name = values[0].trimmed(); // Trim any whitespace
+            bool ok;
+            int key = values[1].toInt(&ok);
+
+            if (ok) {
+                data.append(qMakePair(name, key));
+            } else {
+                qWarning() << "Invalid key value in line:" << line;
+            }
+        } else {
+            qWarning() << "Unexpected number of columns in line:" << line;
+        }
+    }
+
+    file.close();
+    return data;
+}
+
 QStringList DataAnalyzer::listConsumptionProfiles()
 {
     QStringList subdirectories;
@@ -323,14 +369,84 @@ void DataAnalyzer::onConsumptionProfileChanged(int index)
 void DataAnalyzer::loadConsumptionProfileData()
 {
 
+    QString summaryFilePath = wsDirPath + "/" + selectedConsumptionProfile + "/OpenEPT.txt";
     QString voltageCurrentPath = wsDirPath + "/" + selectedConsumptionProfile + "/vc.csv";
     QString consPath = wsDirPath + "/" + selectedConsumptionProfile + "/cons.csv";
-    QVector<QVector<double> > vcData = parseVCData(voltageCurrentPath);
-    QVector<QVector<double> > consData = parseConsumptionData(consPath);
+    QString epPath = wsDirPath + "/" + selectedConsumptionProfile + "/ep.csv";
+
+    QVector<QPair<QString, QString>>    summaryInfo = parseSummaryFile(summaryFilePath);
+    QVector<QVector<double> >           vcData = parseVCData(voltageCurrentPath);
+    QVector<QVector<double> >           consData = parseConsumptionData(consPath);
+
+    if(graphLoad)
+    {
+        voltageChart->clear();
+        currentChart->clear();
+        consumptionChart->clear();
+        graphLoad = false;
+    }
 
     voltageChart->setData(vcData[0],vcData[1]);
     currentChart->setData(vcData[2],vcData[3]);
     consumptionChart->setData(consData[0], consData[1]);
+
+    graphLoad = true;
+    epEnabledFlag = false;
+
+    QString epEnabled   = getValueForKey(summaryInfo, "EP Enabled");
+    if(epEnabled == "1") epEnabledFlag = true;
+
+    if(epEnabledFlag){
+        QVector<QPair<QString, int>>        epData = parseEPFile(epPath);
+        consumptionChart->scatterAddGraph();
+        consumptionChart->scatterAddAllDataWithName(epData);
+    }
+}
+
+QString DataAnalyzer::getValueForKey(const QVector<QPair<QString, QString>> &parsedData, const QString &key)
+{
+    for (const auto &pair : parsedData) {
+        if (pair.first == key) {
+            return pair.second;  // Return the corresponding value
+        }
+    }
+    return "";  // Return empty string if key is not found
+}
+
+QVector<QPair<QString, QString>> DataAnalyzer::parseSummaryFile(const QString &filePath)
+{
+    QVector<QPair<QString, QString>> data;  // Store key-value pairs
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "Failed to open file:" << filePath;
+        return data;
+    }
+
+    QTextStream in(&file);
+
+    // Skip the first two lines (header)
+    in.readLine();
+    in.readLine();
+
+    // Read and parse key-value pairs
+    while (!in.atEnd()) {
+        QString line = in.readLine().trimmed();  // Read and remove extra spaces
+        if (line.isEmpty()) continue;  // Skip empty lines
+
+        QStringList parts = line.split(":", Qt::SkipEmptyParts);  // Split at ':'
+        if (parts.size() == 2) {
+            QString key = parts[0].trimmed();   // Extract and trim key
+            QString value = parts[1].trimmed(); // Extract and trim value
+
+            data.append(qMakePair(key, value));
+        } else {
+            qWarning() << "Invalid format in line:" << line;
+        }
+    }
+
+    file.close();
+    return data;
 }
 void DataAnalyzer::onLoadConsumptionProfileData()
 {

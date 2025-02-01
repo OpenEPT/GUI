@@ -133,6 +133,7 @@ signals:
     void            sigMaxNumberOfBuffersChanged(unsigned int maxNumberOfBuffers);
     void            sigConsumptionTypeChanged(QString consumptionType);
     void            sigMeasurementTypeChanged(QString consumptionType);
+    void            sigScatterNameAndKey(QString name, double key);
 protected:
     void            closeEvent(QCloseEvent *event);
 
@@ -166,6 +167,8 @@ public slots:
 
 
     void            onNewControlMsgRcvd(QString text);
+
+    void            onPlotScatterNameAndKey(QString name, double key);
 
 private:
     Ui::DeviceWnd               *ui;
