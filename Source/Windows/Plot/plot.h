@@ -48,7 +48,7 @@ private:
     QPushButton *moveGraph;
     QPushButton *trackGraph;
 
-    QFont       *scatterPlot;
+    QFont       *scatterFont;
 
     QCPTextElement *title;
 

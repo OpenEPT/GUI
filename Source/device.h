@@ -96,6 +96,7 @@ public:
     bool        establishEPLink(QString ip);
     void        sendControlMsg(QString msg);
     bool        setADC(device_adc_t aAdc);
+    bool        setEPEnable(bool aEPEnable);
     bool        setResolution(device_adc_resolution_t resolution);
     bool        getResolution(device_adc_resolution_t* resolution = NULL);
     bool        setClockDiv(device_adc_clock_div_t clockDiv);
@@ -183,6 +184,9 @@ private:
     QString                         adcInputClk;
     /*This should be removed when stream link is defined*/
     int                             streamID;
+
+    /**/
+    bool                            epEnabled;
 
 };
 

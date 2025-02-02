@@ -39,6 +39,7 @@ public slots:
     void    onDeviceWndNewConfiguration(QVariant newConfig);
     void    onDeviceWndClosed();
     void    onDeviceWndSaveToFileChanged(bool saveToFile);
+    void    onDeviceWndEPEnable(bool aEpEnabled);
     void    onDeviceWndMaxNumberOfBuffersChanged(unsigned int maxNumber);
     void    onDeviceWndConsumptionTypeChanged(QString aConsumptionType);
     void    onDeviceWndMeasurementTypeChanged(QString aMeasurementType);
@@ -96,6 +97,7 @@ private:
     bool                            consumptionProfileNameSet;
     bool                            consumptionProfileNameExists;
     bool                            savetoFileEnabled; //Mark that for one consumption profile data are stored in file
+    bool                            epEnabled; //
 
 };
 

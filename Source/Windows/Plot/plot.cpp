@@ -98,8 +98,8 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     replotActive        = true;
     scatterGraphAdded   = false;
 
-    scatterPlot = new QFont("Times", 10);
-    scatterPlot->setBold(true);
+    scatterFont = new QFont("Times", 10);
+    scatterFont->setBold(true);
 
     connect(zoomIn, SIGNAL(pressed()), this, SLOT(onZoomIn()));
     connect(zoomOut, SIGNAL(pressed()), this, SLOT(onZoomOut()));
@@ -158,8 +158,8 @@ void Plot::scatterAddAllDataWithName(QVector<QPair<QString, int>> data)
 
         // Set text style and content
         textLabel->setText(data[i].first);  // Set the text (label)
-        textLabel->setFont(QFont("Arial", 10));  // Set font and size
-        textLabel->setColor(Qt::blue);  // Set text color
+        textLabel->setFont(*scatterFont);  // Set font and size
+        textLabel->setColor(Qt::black);  // Set text color
 
 
         textData.push_back(textLabel);
@@ -183,7 +183,7 @@ void Plot::scatterAddDataWithName(double value, double keys, QString name)
     // Set text label position above each point
     textLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
     textLabel->position->setType(QCPItemPosition::ptPlotCoords);  // Position in plot coordinates
-    textLabel->position->setCoords(keys, value - 0.01*qAbs(value));  // Set position slightly above the point
+    textLabel->position->setCoords(xData[keys], yData[keys]);  // Set position slightly above the point
 
     // Set text style and content
     textLabel->setText(name);  // Set the text (label)
@@ -211,11 +211,11 @@ void Plot::scatterReplotDataWithName()
         // Set text label position above each point
         textLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
         textLabel->position->setType(QCPItemPosition::ptPlotCoords);  // Position in plot coordinates
-        textLabel->position->setCoords(xData[key], value - 0.01*qAbs(value));  // Set position slightly above the point
+        textLabel->position->setCoords(xData[key], value);  // Set position slightly above the point
 
         // Set text style and content
         textLabel->setText(epDataName[i]);  // Set the text (label)
-        textLabel->setFont(*scatterPlot);  // Set font and size
+        textLabel->setFont(*scatterFont);  // Set font and size
         textLabel->setColor(Qt::black);  // Set text color
 
         textData.push_back(textLabel);

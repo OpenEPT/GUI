@@ -43,13 +43,14 @@ signals:
 
 private:
     QVector<QVector<double>>            parseVCData(const QString &filePath);
-    QVector<QVector<double>>            parseConsumptionData(const QString &filePath);
+     QVector<QVector<double>>           parseConsumptionData(const QString &filePath);
     QVector<QPair<QString, int>>        parseEPFile(const QString &filePath);
 
     int     vcDataProcessingStartPercentage;
     int     consumptionDataProcessingStartPercentage;
     int     epDataProcessingStartPercentage;
     double  range;
+
 };
 
 

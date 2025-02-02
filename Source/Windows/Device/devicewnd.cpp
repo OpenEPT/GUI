@@ -178,6 +178,7 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     setDeviceInterfaceSelectionState(DEVICE_INTERFACE_SELECTION_STATE_UNDEFINED);
 
     connect(ui->saveToFileCheb, SIGNAL(stateChanged(int)), this, SLOT(onSaveToFileChanged(int)));
+    connect(ui->EPControlEnableCheb, SIGNAL(stateChanged(int)), this, SLOT(onEPEnableChanged(int)));
     connect(ui->consNamePusb, SIGNAL(clicked(bool)), this, SLOT(onSetConsumptionName()));
     connect(ui->startPusb, SIGNAL(clicked(bool)), this, SLOT(onStartAcquisition()));
     connect(ui->pausePusb, SIGNAL(clicked(bool)), this, SLOT(onPauseAcquisition()));
@@ -244,6 +245,11 @@ void DeviceWnd::onMaxNumberOfBuffersChanged()
     QString maxNumberOfSamplesBuffers = ui->maxNumOfPacketsLine->text();
     emit sigMaxNumberOfBuffersChanged(maxNumberOfSamplesBuffers.toInt());
 
+}
+
+void DeviceWnd::onEPEnableChanged(int value)
+{
+    emit sigEPEnable(ui->EPControlEnableCheb->isChecked());
 }
 
 void DeviceWnd::onConsumptionProfileNameChanged()
@@ -446,6 +452,7 @@ void DeviceWnd::setDeviceInterfaceSelectionState(device_interface_selection_stat
     {
     case DEVICE_INTERFACE_SELECTION_STATE_UNDEFINED:
         ui->adcComb->setEnabled(false);
+        ui->EPControlEnableCheb->setEnabled(false);
         ui->samplingPeriodLine->setEnabled(false);
         ui->resolutionComb->setEnabled(false);
         ui->clockDivComb->setEnabled(false);
@@ -460,6 +467,7 @@ void DeviceWnd::setDeviceInterfaceSelectionState(device_interface_selection_stat
         break;
     case DEVICE_INTERFACE_SELECTION_STATE_SELECTED:
         ui->adcComb->setEnabled(true);
+        ui->EPControlEnableCheb->setEnabled(true);
         ui->samplingPeriodLine->setEnabled(true);
         ui->resolutionComb->setEnabled(true);
         ui->clockDivComb->setEnabled(true);

@@ -14,6 +14,7 @@ DeviceContainer::DeviceContainer(QObject *parent,  DeviceWnd* aDeviceWnd, Device
     consumptionProfileNameSet = false;
     consumptionProfileNameExists = false;
     savetoFileEnabled   = false;
+    epEnabled           = false;
 
     elapsedTime     = 0;
     timer           = new QTimer();
@@ -24,6 +25,7 @@ DeviceContainer::DeviceContainer(QObject *parent,  DeviceWnd* aDeviceWnd, Device
     /*Device window signals*/
     connect(deviceWnd,  SIGNAL(sigWndClosed()),                                     this, SLOT(onDeviceWndClosed()));
     connect(deviceWnd,  SIGNAL(sigSaveToFileEnabled(bool)),                         this, SLOT(onDeviceWndSaveToFileChanged(bool)));
+    connect(deviceWnd,  SIGNAL(sigEPEnable(bool)),                                  this, SLOT(onDeviceWndEPEnable(bool)));
     connect(deviceWnd,  SIGNAL(sigNewControlMessageRcvd(QString)),                  this, SLOT(onConsoleWndMessageRcvd(QString)));
     connect(deviceWnd,  SIGNAL(sigADCChanged(QString)),                             this, SLOT(onDeviceWndADCChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigResolutionChanged(QString)),                      this, SLOT(onDeviceWndResolutionChanged(QString)));
@@ -120,6 +122,19 @@ void DeviceContainer::onDeviceWndSaveToFileChanged(bool saveToFile)
     consumptionProfileName = "";
     consumptionProfileNameSet = false;
     consumptionProfileNameExists = false;
+}
+
+void DeviceContainer::onDeviceWndEPEnable(bool aEpEnabled)
+{
+    epEnabled = aEpEnabled;
+    if(!device->setEPEnable(epEnabled))
+    {
+        log->printLogMessage("Unable to set EP State", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("EP State successfully set", LOG_MESSAGE_TYPE_INFO);
+    }
 }
 
 void DeviceContainer::onDeviceWndMaxNumberOfBuffersChanged(unsigned int maxNumber)
@@ -402,7 +417,7 @@ void DeviceContainer::onDeviceWndAcquisitionStart()
         log->printLogMessage("Acquisition sucessfully started", LOG_MESSAGE_TYPE_INFO);        
         if(savetoFileEnabled)
         {
-            fileProcessing->appendSummaryFile("EP Enabled: 1");
+            fileProcessing->appendSummaryFile("EP Enabled: " + QString::number(epEnabled));
             fileProcessing->appendSummaryFile("Acquisiton start: " + QDateTime::currentDateTime().toString());
         }
     }

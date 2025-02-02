@@ -48,7 +48,9 @@ ConsoleWnd::ConsoleWnd(QWidget *parent) :
         "device load disable",
         "device bat enable",
         "device bat disable",
-        "device rgb setcolor"
+        "device rgb setcolor",
+        "device ep enable",
+        "device ep disable"
     };
 
     completer = new QCompleter(commandList);

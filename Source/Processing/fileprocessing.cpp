@@ -37,6 +37,12 @@ bool FileProcessing::open(fileprocessing_type_t aType, QString aPath)
     return true;
 }
 
+bool FileProcessing::setEPEnabled(bool aEPEnable)
+{
+    epEnabled = aEPEnable;
+    return true;
+}
+
 bool FileProcessing::setSamplesFileHeader(QString header)
 {
     if(!samplesFile->isOpen())

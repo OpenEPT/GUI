@@ -17,6 +17,7 @@ Device::Device(QObject *parent)
     energyPointLink         = NULL;
     dataProcessing          = new DataProcessing();
     energyPointProcessing   = new EPProcessing();
+    epEnabled               = false;
 }
 
 Device::~Device()
@@ -166,6 +167,12 @@ bool Device::setADC(device_adc_t aAdc)
 {
    adc = aAdc;
    return true;
+}
+
+bool Device::setEPEnable(bool aEPEnable)
+{
+    epEnabled = aEPEnable;
+    return true;
 }
 
 bool Device::setResolution(device_adc_resolution_t resolution)
@@ -800,7 +807,7 @@ void Device::onNewEBP(QVector<double> ebpValues, QVector<double> ebpKeys)
 
 void Device::onNewEBPFull(double value, double key, QString name)
 {
-    if(dataProcessing->getAcquisitionStatus() == DATAPROCESSING_ACQUISITION_STATUS_ACTIVE)
+    if((dataProcessing->getAcquisitionStatus() == DATAPROCESSING_ACQUISITION_STATUS_ACTIVE) && (epEnabled == true))
     {
         emit sigNewEBPFull(value, key, name);
     }

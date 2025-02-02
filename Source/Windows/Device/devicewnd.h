@@ -121,6 +121,7 @@ signals:
     void            sigVOffsetChanged(QString off);
     void            sigCOffsetChanged(QString off);
     void            sigSaveToFileEnabled(bool enableStatus);
+    void            sigEPEnable(bool enableStatus);
     void            sigNewInterfaceSelected(QString interfaceIp);
     void            sigStartAcquisition();
     void            sigPauseAcquisition();
@@ -155,6 +156,7 @@ public slots:
     void            onAdvConfigurationChanged(QVariant aConfig);
     void            onAdvConfigurationReqested(void);
     void            onMaxNumberOfBuffersChanged();
+    void            onEPEnableChanged(int value);
 
 
     void            onConsumptionProfileNameChanged();

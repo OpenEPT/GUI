@@ -377,6 +377,10 @@ void DataAnalyzer::processingEPDone(QVector<QPair<QString, int> > epData)
 {
     consumptionChart->scatterAddGraph();
     consumptionChart->scatterAddAllDataWithName(epData);
+    voltageChart->scatterAddGraph();
+    voltageChart->scatterAddAllDataWithName(epData);
+    currentChart->scatterAddGraph();
+    currentChart->scatterAddAllDataWithName(epData);
     if (progressDialog) {
         progressDialog->close();
     }
@@ -405,6 +409,8 @@ DataAnalyzerWorker::DataAnalyzerWorker(QObject *parent) : QObject(parent)
     vcDataProcessingStartPercentage = 0;
     consumptionDataProcessingStartPercentage = 0;
     epDataProcessingStartPercentage = 0;
+
+
 }
 
 bool DataAnalyzerWorker::setLimits(int limitsNumber)
@@ -443,6 +449,7 @@ void DataAnalyzerWorker::processVoltCurConData(const QString &wsDirPath, const Q
 
     emit progressUpdated(consumptionDataProcessingStartPercentage);
     emit updateProgressText("Load Consumption Data");
+
     QVector<QVector<double> >           consData = parseConsumptionData(consPath);
 
     // Emit a signal when processing is complete
@@ -521,7 +528,7 @@ QVector<QVector<double> > DataAnalyzerWorker::parseVCData(const QString &filePat
     return data;
 }
 
-QVector<QVector<double> > DataAnalyzerWorker::parseConsumptionData(const QString &filePath)
+ QVector<QVector<double>> DataAnalyzerWorker::parseConsumptionData(const QString &filePath)
 {
     // Create a QVector to store each column
     QVector<QVector<double>> data(2);  // Initialize with 4 QVectors

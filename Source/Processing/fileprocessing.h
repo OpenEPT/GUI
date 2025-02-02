@@ -22,6 +22,7 @@ public:
     explicit                FileProcessing(QObject *parent = nullptr);
 
     bool                    open(fileprocessing_type_t aType, QString aPath);
+    bool                    setEPEnabled(bool aEPEnable);
     bool                    setSamplesFileHeader(QString header);
     bool                    setConsumptionFileHeader(QString header);
     bool                    setSummaryFileHeader(QString header);
@@ -66,6 +67,7 @@ private:
     QString                 samplesFileHeader;
     QString                 summaryFileHeader;
     QString                 epFileHeader;
+    bool                    epEnabled;
 
 };
 
