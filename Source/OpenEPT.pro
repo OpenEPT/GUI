@@ -14,7 +14,7 @@ LIBS     += "C:\Users\Haris\Documents\OpenEPT\OpenEPT\GUI\OpenEPT\Processing\fft
 SOURCES += \
     Chart/qcustomplot.cpp \
     Links/controllink.cpp \
-    Links/eplink.cpp \
+    Links/edlink.cpp \
     Links/statuslink.cpp \
     Links/streamlink.cpp \
     Processing/dataprocessing.cpp \
@@ -37,7 +37,7 @@ SOURCES += \
 HEADERS += \
     Chart/qcustomplot.h \
     Links/controllink.h \
-    Links/eplink.h \
+    Links/edlink.h \
     Links/statuslink.h \
     Links/streamlink.h \
     Processing/dataprocessing.h \

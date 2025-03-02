@@ -1,10 +1,10 @@
-#include "eplink.h"
+#include "edlink.h"
 
 
 #define EP_LINK_SERVER_PORT         8000
 #define EP_LINK_BUFFER_SIZE         1500
 
-EPLink::EPLink(QObject *parent)
+EDLink::EDLink(QObject *parent)
     : QObject{parent}
 {
     port = EP_LINK_SERVER_PORT;
@@ -13,17 +13,17 @@ EPLink::EPLink(QObject *parent)
     connect(tcpServerThread, SIGNAL(started()),this,SLOT(onServerStarted()));
 }
 
-void EPLink::startServer()
+void EDLink::startServer()
 {
     tcpServerThread->start();
 }
 
-quint16 EPLink::getPort()
+quint16 EDLink::getPort()
 {
     return port;
 }
 
-void EPLink::onServerStarted()
+void EDLink::onServerStarted()
 {
     tcpServer   = new QTcpServer();
 
@@ -35,7 +35,7 @@ void EPLink::onServerStarted()
 
 }
 
-void EPLink::onNewConnectionAdded()
+void EDLink::onNewConnectionAdded()
 {
     QTcpSocket* tmpSocket;
     while(tcpServer->hasPendingConnections())
@@ -47,22 +47,8 @@ void EPLink::onNewConnectionAdded()
     }
 }
 
-void EPLink::onReadPendingData()
+void EDLink::onReadPendingData()
 {
-//    char message[EP_LINK_BUFFER_SIZE];
-//    unsigned int id = 0;
-//    unsigned int dmaID = 0;
-//    memset(message, 0, EP_LINK_BUFFER_SIZE);
-//    QString clientIp;
-//    QTcpSocket *clientSocket = qobject_cast<QTcpSocket*>(sender());
-//    clientIp = QHostAddress(clientSocket->peerAddress().toIPv4Address()).toString();
-//    while(clientSocket->read(message, EP_LINK_BUFFER_SIZE) != 0)
-//    {
-//        id = *((unsigned int*)&message[0]);
-//        dmaID = *((unsigned int*)&message[4]);
-//        qDebug() << "ID: " << "DMA: " << dmaID << "Message: " << QString(&message[8]);
-//        emit sigNewEPNameReceived(id, dmaID, QString(&message[8]));
-//    }
     static QByteArray buffer;  // Buffer to store incomplete messages
     QTcpSocket *clientSocket = qobject_cast<QTcpSocket*>(sender());
     if (!clientSocket) return;

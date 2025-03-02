@@ -25,21 +25,10 @@ void EPProcessing::onNewEPValueReceived(unsigned int PacketID, double value, dou
     epList.append(new EPInfo(PacketID, value, key));
 }
 
-void EPProcessing::onNewEPNameReceived(unsigned int PacketID, uint DMAID, QString name)
+void EPProcessing::onNewEPNameReceived(unsigned int PacketID, unsigned int SampleID, QString name)
 {
-    int samplePosition = DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE/2*PacketID + (DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE - DMAID);
+    int samplePosition = DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE/2*PacketID + (DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE - SampleID);
     emit sigEPProcessed(0, samplePosition, name);
-//    for(int i = 0; i < epList.size(); i++)
-//    {
-//        if(*epList[i] == PacketID)
-//        {
-//            epList[i]->assignName(name);
-//            emit sigEPProcessed(epList[i]->getValue(), epList[i]->getKey(), epList[i]->getName());
-//            epList.removeAt(i);
-//            return;
-//        }
-//    }
-//    epList.append(new EPInfo(PacketID, name));
 }
 
 EPInfo::EPInfo(unsigned int aPacketID, double aValue, double aKey)

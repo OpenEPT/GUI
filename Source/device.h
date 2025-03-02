@@ -7,7 +7,7 @@
 #include "Links/statuslink.h"
 #include "Links/streamlink.h"
 #include "Processing/dataprocessing.h"
-#include "Links/eplink.h"
+#include "Links/edlink.h"
 #include "Processing/epprocessing.h"
 
 /* Resolution sample time offset based on STM32H755ZI offset */
@@ -176,7 +176,7 @@ private:
     ControlLink*                    controlLink;
     StatusLink*                     statusLink;
     StreamLink*                     streamLink;
-    EPLink*                         energyPointLink;
+    EDLink*                         energyPointLink;
     DataProcessing*                 dataProcessing;
     EPProcessing*                   energyPointProcessing;
     QString                         voltageOffset;

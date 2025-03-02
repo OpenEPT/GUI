@@ -1,23 +1,23 @@
-#ifndef EPLINK_H
-#define EPLINK_H
+#ifndef EDLINK_H
+#define EDLINK_H
 
 #include <QObject>
 #include <QTcpSocket>
 #include <QTcpServer>
 #include <QThread>
 
-class EPLink : public QObject
+class EDLink : public QObject
 {
     Q_OBJECT
 public:
-    explicit EPLink(QObject *parent = nullptr);
+    explicit EDLink(QObject *parent = nullptr);
 
     void                    startServer();
     quint16                 getPort();
 
 signals:
     void                    sigNewClientConnected(QString ip);
-    void                    sigNewEPNameReceived(unsigned int ebpid, unsigned int ebpdmaid, QString name);
+    void                    sigNewEPNameReceived(unsigned int PacketID, unsigned int SampleID, QString name);
 
 public slots:
     void                    onServerStarted();
@@ -33,4 +33,4 @@ private:
 
 };
 
-#endif // EPLINK_H
+#endif // EDLINK_H

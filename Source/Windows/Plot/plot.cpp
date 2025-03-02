@@ -98,7 +98,7 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     replotActive        = true;
     scatterGraphAdded   = false;
 
-    scatterFont = new QFont("Times", 10);
+    scatterFont = new QFont("Times", 14);
     scatterFont->setBold(true);
 
     connect(zoomIn, SIGNAL(pressed()), this, SLOT(onZoomIn()));
@@ -216,7 +216,7 @@ void Plot::scatterReplotDataWithName()
         // Set text style and content
         textLabel->setText(epDataName[i]);  // Set the text (label)
         textLabel->setFont(*scatterFont);  // Set font and size
-        textLabel->setColor(Qt::black);  // Set text color
+        textLabel->setColor(Qt::red);  // Set text color
 
         textData.push_back(textLabel);
 

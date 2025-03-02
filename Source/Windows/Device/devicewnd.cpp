@@ -125,6 +125,7 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     voltageChart->setTitle("Voltage");
     voltageChart->setYLabel("[V]");
     voltageChart->setXLabel("[ms]");
+    voltageChart->scatterAddGraph();
     /* Make plot for consumption presentation */
     currentChart         = new Plot(PLOT_MINIMUM_SIZE_WIDTH/2, PLOT_MINIMUM_SIZE_HEIGHT);
     currentChart->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -765,6 +766,7 @@ bool DeviceWnd::plotConsumptionEBPWithName(double value, double key, QString nam
 {
     consumptionChart->scatterAddDataWithName(value, key, name);
     currentChart->scatterAddDataWithName(value, key, name);
+    voltageChart->scatterAddDataWithName(value, key, name);
     return true;
 }
 

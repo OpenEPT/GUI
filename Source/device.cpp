@@ -132,7 +132,7 @@ bool  Device::establishEPLink(QString ip)
 }
 void Device::epLinkServerCreate()
 {
-    energyPointLink  = new EPLink();
+    energyPointLink  = new EDLink();
     energyPointLink->startServer();
     connect(energyPointLink, SIGNAL(sigNewEPNameReceived(uint,uint,QString)), energyPointProcessing, SLOT(onNewEPNameReceived(uint,uint,QString)), Qt::QueuedConnection);
     connect(dataProcessing, SIGNAL(sigEBPValue(uint,double,double)), energyPointProcessing, SLOT(onNewEPValueReceived(uint,double,double)), Qt::QueuedConnection);

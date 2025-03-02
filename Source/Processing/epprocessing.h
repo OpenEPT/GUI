@@ -42,7 +42,7 @@ signals:
 
 public slots:
     void    onNewEPValueReceived(unsigned int PacketID, double value, double key);
-    void    onNewEPNameReceived(unsigned int PacketID, uint DMAID, QString name);
+    void    onNewEPNameReceived(unsigned int PacketID, unsigned int SampleID, QString name);
 
 private:
     QThread                          *epProcessingThread;
