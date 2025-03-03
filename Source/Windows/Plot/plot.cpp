@@ -136,8 +136,8 @@ void Plot::scatterAddData(QVector<double> data, QVector<double> keys)
 
         // Set text style and content
         textLabel->setText(QString::number(i));  // Set the text (label)
-        textLabel->setFont(QFont("Arial", 10));  // Set font and size
-        textLabel->setColor(Qt::blue);  // Set text color
+        textLabel->setFont(QFont("Times", 14));  // Set font and size
+        textLabel->setColor(Qt::red);  // Set text color
     }
 
     plot->replot();
@@ -187,8 +187,8 @@ void Plot::scatterAddDataWithName(double value, double keys, QString name)
 
     // Set text style and content
     textLabel->setText(name);  // Set the text (label)
-    textLabel->setFont(QFont("Times", 10));  // Set font and size
-    textLabel->setColor(Qt::blue);  // Set text color
+    textLabel->setFont(QFont("Times", 14));  // Set font and size
+    textLabel->setColor(Qt::red);  // Set text color
 
     textData.push_back(textLabel);
 
