@@ -1,6 +1,6 @@
 QT       += core gui uitools opengl concurrent
 QT       += network
-LIBS     += -lws2_32
+#LIBS     += -lws2_32
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport
 
@@ -9,7 +9,7 @@ CONFIG += c++17
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
-LIBS     += "C:\Users\Haris\Documents\OpenEPT\OpenEPT\GUI\OpenEPT\Processing\fftw\libfftw3-3.lib"
+LIBS     += "/home/elektronika/Desktop/Projects/OpenEPT/GUI/Source/libs/linux/libfftw3.a"
 
 SOURCES += \
     Chart/qcustomplot.cpp \

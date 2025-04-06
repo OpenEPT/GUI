@@ -4,7 +4,7 @@ StatusLink::StatusLink(QObject *parent)
     : QObject{parent}
 {
     tcpServerThread = new QThread(this);
-    tcpServerThread->setObjectName("Status link server");
+    tcpServerThread->setObjectName("OpenEPT - Status link server");
     connect(tcpServerThread, SIGNAL(started()),this,SLOT(onServerStarted()));
 }
 

@@ -10,7 +10,6 @@
 
 namespace Ui {
 class AdvanceConfigurationWnd;
-enum    loadProfileType_t;
 }
 
 typedef enum loadProfileType_t

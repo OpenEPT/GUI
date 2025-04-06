@@ -28,6 +28,7 @@ bool FileProcessing::open(fileprocessing_type_t aType, QString aPath)
     case FILEPROCESSING_TYPE_SAMPLES:
         thread = new QThread(this);
         this->moveToThread(thread);
+        thread->setObjectName("OpenEPT - File processing thread");
         connect(thread, SIGNAL(started()), this, SLOT(onThreadStart()));
         thread->start();
         /*Wait until files are created*/

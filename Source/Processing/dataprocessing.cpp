@@ -10,7 +10,7 @@ DataProcessing::DataProcessing(QObject *parent)
 {
     dataProcessingThread = new QThread(this);
     this->moveToThread(dataProcessingThread);
-    dataProcessingThread->setObjectName("Data processing thread");
+    dataProcessingThread->setObjectName("OpenEPT - Data processing thread");
     dataProcessingThread->start();
     currentNumberOfBuffers          = 0;
     lastBufferUsedPositionIndex     = 0;
@@ -309,7 +309,7 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
             d = (int) c;
             double swapDataCurrent = (double)d;
             double voltageValue = DATAPROCESSING_DEFAULT_ADC_VOLTAGE_OFF + swapDataVoltage*voltageInc;
-            double currentValue = (swapDataCurrent*currentInc-1.621)/(DATAPROCESSING_DEFAULT_SHUNT*DATAPROCESSING_DEFAULT_GAIN)*1000.0; //mA
+            double currentValue = (swapDataCurrent*currentInc-DATAPROCESSING_DEFAULT_CURRENT_OFF)/(DATAPROCESSING_DEFAULT_SHUNT*DATAPROCESSING_DEFAULT_GAIN)*1000.0*DATAPROCESSING_DEFAULT_CURRENT_K; //mA
             if(voltageValue > voltageStat.max) voltageStat.max = voltageValue;
             if(voltageValue < voltageStat.min) voltageStat.min = voltageValue;
             if(currentValue > currentStat.max) currentStat.max = currentValue;

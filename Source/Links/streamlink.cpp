@@ -2,8 +2,6 @@
 #include <QNetworkDatagram>
 #include <QDebug>
 #include "streamlink.h"
-#include <winsock2.h>
-#include <ws2tcpip.h>
 
 StreamLink::StreamLink(QObject *parent)
     : QObject{parent}
@@ -12,7 +10,7 @@ StreamLink::StreamLink(QObject *parent)
     id  = 0;
     udpThread = new QThread(this);
     this->moveToThread(udpThread);
-    udpThread->setObjectName("UDP Thread");
+    udpThread->setObjectName("OpenEPT - UDP Thread");
     QObject::connect(udpThread, &QThread::started, this, &StreamLink::initStreamLinkThread, Qt::QueuedConnection);
 }
 
@@ -49,8 +47,8 @@ void StreamLink::initStreamLinkThread()
     int socketDesc = udpSocket->socketDescriptor();
     int ret = 0;
     udpSocket->setReadBufferSize(rcvbufsize);
-    ret = setsockopt(socketDesc,SOL_SOCKET,SO_RCVBUF,(char*)&rcvbufsize,sizeof(rcvbufsize));
-    qDebug()<< ret ;
+    // ret = setsockopt(socketDesc,SOL_SOCKET,SO_RCVBUF,(char*)&rcvbufsize,sizeof(rcvbufsize));
+    // qDebug()<< ret ;
     connect(udpSocket, SIGNAL(readyRead()), this, SLOT(readPendingData()));
 }
 

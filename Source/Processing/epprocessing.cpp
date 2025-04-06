@@ -6,7 +6,7 @@ EPProcessing::EPProcessing(QObject *parent)
 
     epProcessingThread = new QThread(this);
     this->moveToThread(epProcessingThread);
-    epProcessingThread->setObjectName("Data processing thread");
+    epProcessingThread->setObjectName("OpenEPT - EP processing thread");
     epProcessingThread->start();
 }
 
