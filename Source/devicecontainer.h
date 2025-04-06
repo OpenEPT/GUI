@@ -72,6 +72,9 @@ public slots:
     void    onDeviceNewEBP(QVector<double> ebpValues, QVector<double> keys);
     void    onDeviceNewEBPFull(double value, double key, QString name);
 
+private slots:
+    void    onDeviceWndCalibrationUpdated();
+
 
 
 private:

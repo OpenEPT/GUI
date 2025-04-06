@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QThread>
 #include "fftw/fftw3.h"
+#include "calibrationdata.h"
 
 
 #define DATAPROCESSING_DEFAULT_NUMBER_OF_BUFFERS        100
@@ -11,7 +12,6 @@
 #define DATAPROCESSING_DEFAULT_SAMPLE_SIZE              2
 #define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF          2*4.09
 #define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_K            1.335
-//#define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF          3.28
 #define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_OFF          0
 #define DATAPROCESSING_DEFAULT_SHUNT                    0.045
 #define DATAPROCESSING_DEFAULT_GAIN                     9.5
@@ -73,6 +73,10 @@ public:
     bool                                setAcquisitionStatus(dataprocessing_acquisition_status_t aAcquisitionStatus);
     dataprocessing_acquisition_status_t getAcquisitionStatus();
 
+    CalibrationData*                    getCalibrationData();
+
+    void                                calibrationDataUpdated();
+
 signals:
     void                                sigNewVoltageCurrentSamplesReceived(QVector<double> voltage, QVector<double> current, QVector<double> voltageKeys, QVector<double> currentKeys);
     void                                sigNewConsumptionDataReceived(QVector<double> consumption, QVector<double> keys, dataprocessing_consumption_mode_t consumptionMode);
@@ -113,6 +117,7 @@ private:
     double                              samplingTime;           //ms
     double                              voltageInc;
     double                              currentInc;
+    double                              adcResolution;
 
     /* */
     unsigned int                        maxNumberOfBuffers;
@@ -147,12 +152,22 @@ private:
     QVector<double>                     minMax;
     bool                                filteringEnable;
 
+    /**/
+    double                              adcVoltageRef;
+    double                              adcVoltageK;
+    double                              adcVOltageOff;
+    double                              adcCurrentK;
+    double                              adcCurrentOff;
+
 
     /**/
     dataprocessing_acquisition_status_t acquisitionStatus;
     dataprocessing_consumption_mode_t   consumptionMode;
     dataprocessing_measurement_mode_t   measurementMode;
     dataprocessing_device_mode_t        deviceMode;
+
+    /**/
+    CalibrationData                     *calData;
 
 };
 

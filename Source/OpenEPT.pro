@@ -17,6 +17,7 @@ SOURCES += \
     Links/edlink.cpp \
     Links/statuslink.cpp \
     Links/streamlink.cpp \
+    Processing/calibrationdata.cpp \
     Processing/dataprocessing.cpp \
     Processing/epprocessing.cpp \
     Processing/fileprocessing.cpp \
@@ -25,6 +26,7 @@ SOURCES += \
     Windows/Console/consolewnd.cpp \
     Windows/DataAnalyzer/dataanalyzer.cpp \
     Windows/Device/advanceconfigurationwnd.cpp \
+    Windows/Device/calibrationwnd.cpp \
     Windows/Device/datastatistics.cpp \
     Windows/Device/devicewnd.cpp \
     Windows/Plot/plot.cpp \
@@ -40,6 +42,7 @@ HEADERS += \
     Links/edlink.h \
     Links/statuslink.h \
     Links/streamlink.h \
+    Processing/calibrationdata.h \
     Processing/dataprocessing.h \
     Processing/epprocessing.h \
     Processing/fftw/fftw3.h \
@@ -49,6 +52,7 @@ HEADERS += \
     Windows/Console/consolewnd.h \
     Windows/DataAnalyzer/dataanalyzer.h \
     Windows/Device/advanceconfigurationwnd.h \
+    Windows/Device/calibrationwnd.h \
     Windows/Device/datastatistics.h \
     Windows/Device/devicewnd.h \
     Windows/Plot/plot.h \
@@ -62,6 +66,7 @@ FORMS += \
     Windows/Console/consolewnd.ui \
     Windows/DataAnalyzer/dataanalyzer.ui \
     Windows/Device/advanceconfigurationwnd.ui \
+    Windows/Device/calibrationwnd.ui \
     Windows/Device/datastatistics.ui \
     Windows/Device/devicewnd.ui \
     Windows/WSSelection/selectworkspace.ui \

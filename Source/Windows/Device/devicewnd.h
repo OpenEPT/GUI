@@ -9,6 +9,7 @@
 #include "Windows/Console/consolewnd.h"
 #include "Windows/Device/advcofigurationdata.h"
 #include "Windows/Device/datastatistics.h"
+#include "Windows/Device/calibrationwnd.h"
 
 #define     DEVICEWND_DEFAULT_MAX_NUMBER_OF_BUFFERS 100
 
@@ -103,6 +104,8 @@ public:
 
     bool            setWorkingSpaceDir(QString aWsPath);
 
+    void            setCalibrationData(CalibrationData* data);
+
 
     QStringList*    getChSamplingTimeOptions();
     QStringList*    getChAvgRationOptions();
@@ -135,6 +138,8 @@ signals:
     void            sigConsumptionTypeChanged(QString consumptionType);
     void            sigMeasurementTypeChanged(QString consumptionType);
     void            sigScatterNameAndKey(QString name, double key);
+
+    void            sigCalibrationUpdated();
 protected:
     void            closeEvent(QCloseEvent *event);
 
@@ -167,10 +172,15 @@ public slots:
 
     void            onAdvanceConfigurationButtonPressed(bool pressed);
 
+    void            onCalibrationButtonPressed(bool pressed);
+
 
     void            onNewControlMsgRcvd(QString text);
 
     void            onPlotScatterNameAndKey(QString name, double key);
+
+private slots:
+    void            onCalibrationUpdated();
 
 private:
     Ui::DeviceWnd               *ui;
@@ -179,6 +189,7 @@ private:
 
     ConsoleWnd                  *consoleWnd;
     DataStatistics              *dataAnalyzer;
+    CalibrationWnd              *calibrationWnd;
     Plot                        *voltageChart;
     Plot                        *currentChart;
     Plot                        *consumptionChart;

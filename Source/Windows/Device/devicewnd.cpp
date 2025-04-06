@@ -118,6 +118,7 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     dataAnalyzer            = new DataStatistics();
 
 
+
     connect(ui->advanceOptionPusb, SIGNAL(clicked(bool)), this, SLOT(onAdvanceConfigurationButtonPressed(bool)));
 
     voltageChart             = new Plot(PLOT_MINIMUM_SIZE_WIDTH/2, PLOT_MINIMUM_SIZE_HEIGHT);
@@ -173,6 +174,8 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
 
     consoleWnd  = new ConsoleWnd();
 
+    calibrationWnd = new CalibrationWnd();
+
     ui->GraphicsTopHorl->addWidget(voltageChart);
     ui->GraphicsTopHorl->addWidget(currentChart);
     ui->GraphicsBottomVerl->addWidget(consumptionChart, Qt::AlignCenter);
@@ -202,8 +205,11 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     connect(advanceConfigurationWnd, SIGNAL(sigAdvConfigurationChanged(QVariant)), this, SLOT(onAdvConfigurationChanged(QVariant)));
     connect(advanceConfigurationWnd, SIGNAL(sigAdvConfigurationRequested()), this, SLOT(onAdvConfigurationReqested()));
 
-
     connect(consoleWnd, SIGNAL(sigControlMsgSend(QString)), this, SLOT(onNewControlMsgRcvd(QString)));
+
+    connect(calibrationWnd, SIGNAL(sigCalibrationDataUpdated()), this, SLOT(onCalibrationUpdated()));
+
+    connect(ui->dischargeControlPusb1, SIGNAL(clicked(bool)), this, SLOT(onCalibrationButtonPressed(bool)));
 }
 
 void    DeviceWnd::onNewControlMsgRcvd(QString text)
@@ -215,6 +221,11 @@ void    DeviceWnd::onNewControlMsgRcvd(QString text)
 void DeviceWnd::onPlotScatterNameAndKey(QString name, double key)
 {
     emit sigScatterNameAndKey(name, key);
+}
+
+void DeviceWnd::onCalibrationUpdated()
+{
+    emit sigCalibrationUpdated();
 }
 
 void DeviceWnd::onSetConsumptionName()
@@ -332,6 +343,11 @@ void DeviceWnd::onSamplingPeriodChanged()
 void    DeviceWnd::onAdvanceConfigurationButtonPressed(bool pressed)
 {
     advanceConfigurationWnd->show();
+}
+
+void DeviceWnd::onCalibrationButtonPressed(bool pressed)
+{
+    calibrationWnd->showWnd();
 }
 
 void    DeviceWnd::onSaveToFileChanged(int value)
@@ -783,4 +799,9 @@ bool DeviceWnd::setWorkingSpaceDir(QString aWsPath)
     wsPath = aWsPath;
     ui->consNameLine->setText(wsPath);
     return true;
+}
+
+void DeviceWnd::setCalibrationData(CalibrationData *data)
+{
+    calibrationWnd->setCalibrationData(data);
 }

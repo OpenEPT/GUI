@@ -9,6 +9,7 @@
 #include "Processing/dataprocessing.h"
 #include "Links/edlink.h"
 #include "Processing/epprocessing.h"
+#include "Processing/calibrationdata.h"
 
 /* Resolution sample time offset based on STM32H755ZI offset */
 #define     DEVICE_ADC_RESOLUTION_16BIT_STIME_OFFSET    8.5
@@ -118,6 +119,9 @@ public:
     bool        setDataProcessingMaxNumberOfBuffers(unsigned int maxNumber);
     bool        setDataProcessingConsumptionType(dataprocessing_consumption_mode_t aConsumptionMode);
     bool        setDataProcessingMeasurementType(dataprocessing_measurement_mode_t aMeasurementMode);
+
+    CalibrationData* getCalibrationData();
+    void        calibrationUpdated();
 
 
 signals:

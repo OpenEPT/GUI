@@ -20,6 +20,19 @@ DataProcessing::DataProcessing(QObject *parent)
 
     filteringEnable                 = DATAPROCESSING_DEFAULT_FILTERING_ENABLE;
 
+    calData                         = new CalibrationData();
+
+    calData->currentGain             = DATAPROCESSING_DEFAULT_GAIN;
+    calData->currentShunt            = DATAPROCESSING_DEFAULT_SHUNT;
+    calData->currentCorrection       = DATAPROCESSING_DEFAULT_CURRENT_K;
+
+    calData->voltageCurrOffset       = DATAPROCESSING_DEFAULT_CURRENT_OFF;
+    calData->voltageCorr             = DATAPROCESSING_DEFAULT_ADC_VOLTAGE_K;
+    calData->voltageOff              = DATAPROCESSING_DEFAULT_ADC_VOLTAGE_OFF;
+
+    calData->adcVoltageRef           = DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF;
+
+
     voltageStat.average             = 0;
     currentStat.average             = 0;
     voltageStat.max                 = -10;
@@ -159,8 +172,10 @@ bool DataProcessing::setSamplingTime(double aSamplingTime)
 bool DataProcessing::setResolution(double aResolution)
 {
     if(acquisitionStatus == DATAPROCESSING_ACQUISITION_STATUS_ACTIVE) return false;
-    voltageInc = (double)DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF/qPow(2,aResolution)*DATAPROCESSING_DEFAULT_ADC_VOLTAGE_K;
-    currentInc = (double)DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF/qPow(2,aResolution);
+    adcResolution = aResolution;
+    voltageInc = (double)calData->adcVoltageRef/qPow(2,adcResolution)*calData->voltageCorr;
+    currentInc = (double)calData->adcVoltageRef/qPow(2,adcResolution);
+
     return true;
 }
 
@@ -216,6 +231,17 @@ bool DataProcessing::setAcquisitionStatus(dataprocessing_acquisition_status_t aA
 dataprocessing_acquisition_status_t DataProcessing::getAcquisitionStatus()
 {
     return acquisitionStatus;
+}
+
+CalibrationData *DataProcessing::getCalibrationData()
+{
+    return calData;
+}
+
+void DataProcessing::calibrationDataUpdated()
+{
+    voltageInc = (double)calData->adcVoltageRef/qPow(2,adcResolution)*calData->voltageCorr;
+    currentInc = (double)calData->adcVoltageRef/qPow(2,adcResolution);
 }
 
 void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int packetID, int magic)
@@ -308,8 +334,8 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
             c = a | b;
             d = (int) c;
             double swapDataCurrent = (double)d;
-            double voltageValue = DATAPROCESSING_DEFAULT_ADC_VOLTAGE_OFF + swapDataVoltage*voltageInc;
-            double currentValue = (swapDataCurrent*currentInc-DATAPROCESSING_DEFAULT_CURRENT_OFF)/(DATAPROCESSING_DEFAULT_SHUNT*DATAPROCESSING_DEFAULT_GAIN)*1000.0*DATAPROCESSING_DEFAULT_CURRENT_K; //mA
+            double voltageValue = calData->voltageOff  + swapDataVoltage*voltageInc;
+            double currentValue = (swapDataCurrent*currentInc-calData->voltageCurrOffset)/(calData->currentShunt*calData->currentGain)*1000.0*calData->currentCorrection; //mA
             if(voltageValue > voltageStat.max) voltageStat.max = voltageValue;
             if(voltageValue < voltageStat.min) voltageStat.min = voltageValue;
             if(currentValue > currentStat.max) currentStat.max = currentValue;

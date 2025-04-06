@@ -750,6 +750,16 @@ bool Device::setDataProcessingMeasurementType(dataprocessing_measurement_mode_t 
     return dataProcessing->setMeasurementMode(aMeasurementMode);
 }
 
+CalibrationData *Device::getCalibrationData()
+{
+    return dataProcessing->getCalibrationData();
+}
+
+void Device::calibrationUpdated()
+{
+    dataProcessing->calibrationDataUpdated();
+}
+
 void Device::onControlLinkConnected()
 {
     emit sigControlLinkConnected();
