@@ -390,10 +390,10 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
 //        qDebug() << "MinC, MaxC =" << QString::number(minCurrent) << "," <<  QString::number(maxCurrent);
 //        qDebug() << "V-Dev =" << QString::number(maxVoltage - minVoltage);
 //        qDebug() << "I-Dev =" << QString::number(maxCurrent - minCurrent);
-        processSignalWithFFT(voltageDataCollected, 0.0005, voltageDataCollectedFiltered, fftDataCollectedVoltage, samplingPeriod, fftKeysDataCollected, minMax);
+        //processSignalWithFFT(voltageDataCollected, 0.0005, voltageDataCollectedFiltered, fftDataCollectedVoltage, samplingPeriod, fftKeysDataCollected, minMax);
         if(minMax[0] > maxVoltageF) maxVoltageF = minMax[0];
         if(minMax[1] < minVoltageF) minVoltageF = minMax[1];
-        processSignalWithFFT(currentDataCollected, 0.5, currentDataCollectedFiltered, fftDataCollectedCurrent, samplingPeriod, fftKeysDataCollected, minMax);
+        //processSignalWithFFT(currentDataCollected, 0.5, currentDataCollectedFiltered, fftDataCollectedCurrent, samplingPeriod, fftKeysDataCollected, minMax);
         if(minMax[0] > maxCurrentF) maxCurrentF = minMax[0];
         if(minMax[1] < minCurrentF) minCurrentF = minMax[1];
 //        for(int i = 0; i < lastBufferUsedPositionIndex; i++)
@@ -417,9 +417,9 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
 //        qDebug() << "V-DevF =" << QString::number(maxVoltageF - minVoltageF);
 //        qDebug() << "I-DevF =" << QString::number(maxCurrentF - minCurrentF);
 
-        voltageStat.average /= (lastBufferUsedPositionIndex + 1);
-        currentStat.average /= (lastBufferUsedPositionIndex + 1);
-        consumptionStat.average = 0;
+        voltageStat.average /= (lastBufferUsedPositionIndex);
+        currentStat.average /= (lastBufferUsedPositionIndex);
+        consumptionStat.average = lastCumulativeCurrentConsumptionValue;
         consumptionStat.max = lastCumulativeCurrentConsumptionValue;
         consumptionStat.min = 0;
 

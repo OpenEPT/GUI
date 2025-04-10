@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1164</width>
-    <height>1100</height>
+    <width>735</width>
+    <height>507</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -46,6 +46,15 @@
       <property name="frameShadow">
        <enum>QFrame::Raised</enum>
       </property>
+      <property name="verticalScrollBarPolicy">
+       <enum>Qt::ScrollBarAsNeeded</enum>
+      </property>
+      <property name="horizontalScrollBarPolicy">
+       <enum>Qt::ScrollBarAsNeeded</enum>
+      </property>
+      <property name="sizeAdjustPolicy">
+       <enum>QAbstractScrollArea::AdjustToContents</enum>
+      </property>
       <property name="background">
        <brush brushstyle="SolidPattern">
         <color alpha="255">
@@ -56,7 +65,7 @@
        </brush>
       </property>
       <property name="viewMode">
-       <enum>QMdiArea::TabbedView</enum>
+       <enum>QMdiArea::SubWindowView</enum>
       </property>
       <property name="documentMode">
        <bool>true</bool>
@@ -76,7 +85,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1164</width>
+     <width>735</width>
      <height>22</height>
     </rect>
    </property>

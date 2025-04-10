@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1360</width>
-    <height>1489</height>
+    <width>1302</width>
+    <height>1026</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,11 +18,11 @@
   </property>
   <layout class="QHBoxLayout" name="horizontalLayout">
    <item>
-    <layout class="QGridLayout" name="mainGril">
+    <layout class="QVBoxLayout" name="verticalLayout">
      <property name="sizeConstraint">
       <enum>QLayout::SetMaximumSize</enum>
      </property>
-     <item row="0" column="0">
+     <item>
       <layout class="QVBoxLayout" name="mainGrilFullVerl">
        <property name="sizeConstraint">
         <enum>QLayout::SetMaximumSize</enum>
@@ -30,7 +30,7 @@
        <item>
         <layout class="QHBoxLayout" name="FullVerlTopVerl">
          <property name="sizeConstraint">
-          <enum>QLayout::SetMaximumSize</enum>
+          <enum>QLayout::SetMinimumSize</enum>
          </property>
          <item>
           <layout class="QVBoxLayout" name="topVerlGraphsVerl">
@@ -38,10 +38,18 @@
             <enum>QLayout::SetDefaultConstraint</enum>
            </property>
            <item>
-            <layout class="QHBoxLayout" name="GraphicsTopHorl"/>
+            <layout class="QHBoxLayout" name="GraphicsTopHorl">
+             <property name="sizeConstraint">
+              <enum>QLayout::SetMinimumSize</enum>
+             </property>
+            </layout>
            </item>
            <item>
-            <layout class="QVBoxLayout" name="GraphicsBottomVerl"/>
+            <layout class="QVBoxLayout" name="GraphicsBottomVerl">
+             <property name="sizeConstraint">
+              <enum>QLayout::SetMinimumSize</enum>
+             </property>
+            </layout>
            </item>
           </layout>
          </item>
@@ -1946,7 +1954,7 @@
        <item>
         <layout class="QVBoxLayout" name="FullVerlBottomHorl">
          <property name="sizeConstraint">
-          <enum>QLayout::SetMaximumSize</enum>
+          <enum>QLayout::SetMinimumSize</enum>
          </property>
          <item>
           <layout class="QHBoxLayout" name="bottomHorlStatisticsVerl">

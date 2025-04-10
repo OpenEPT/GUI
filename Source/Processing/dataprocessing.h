@@ -16,7 +16,7 @@
 #define DATAPROCESSING_DEFAULT_SHUNT                    0.045
 #define DATAPROCESSING_DEFAULT_GAIN                     9.3
 #define DATAPROCESSING_DEFAULT_CURRENT_K                1
-#define DATAPROCESSING_DEFAULT_CURRENT_OFF              1.638
+#define DATAPROCESSING_DEFAULT_CURRENT_OFF              1.6265
 #define DATAPROCESSING_DEFAULT_FILTERING_ENABLE         0
 
 typedef enum

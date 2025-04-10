@@ -6,8 +6,8 @@
 #include <QOpenGLWidget>
 
 /*TODO: Declare this in config file*/
-#define PLOT_MINIMUM_SIZE_WIDTH     600
-#define PLOT_MINIMUM_SIZE_HEIGHT    200
+#define PLOT_MINIMUM_SIZE_WIDTH     200
+#define PLOT_MINIMUM_SIZE_HEIGHT    100
 
 
 DeviceWnd::DeviceWnd(QWidget *parent) :
