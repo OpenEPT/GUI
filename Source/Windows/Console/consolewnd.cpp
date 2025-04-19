@@ -48,9 +48,15 @@ ConsoleWnd::ConsoleWnd(QWidget *parent) :
         "device load disable",
         "device bat enable",
         "device bat disable",
+        "device ppath enable",
+        "device ppath disable",
         "device rgb setcolor",
         "device ep enable",
-        "device ep disable"
+        "device ep disable",
+        "charger charging enable",
+        "charger charging disable",
+        "charger charging current set",
+        "charger reg read"
     };
 
     completer = new QCompleter(commandList);

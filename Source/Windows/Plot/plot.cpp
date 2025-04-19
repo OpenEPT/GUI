@@ -242,11 +242,11 @@ void        Plot::appendData(QVector<double> data, QVector<double> keys)
     //plot->graph(0)->addData(keys, data);
     xData.append(keys);
     yData.append(data);
-    if(xData.size() > 10000000)
-    {
-        xData.remove(0,data.size());
-        yData.remove(0,data.size());
-    }
+//    if(xData.size() > 10000000)
+//    {
+//        xData.remove(0,data.size());
+//        yData.remove(0,data.size());
+//    }
     if(replotActive)
     {
         double minxValue = keys.at(keys.size()-1) - 10000 ;

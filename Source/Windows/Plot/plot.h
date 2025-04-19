@@ -54,6 +54,8 @@ private:
 
     QVector<double> xData;
     QVector<double> yData;
+    QVector<double> plotXData;
+    QVector<double> plotYData;
     QVector<double> epDataKey;
     QVector<QString> epDataName;
     QVector<QCPItemText *> textData;
