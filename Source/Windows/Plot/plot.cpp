@@ -242,19 +242,22 @@ void        Plot::appendData(QVector<double> data, QVector<double> keys)
     //plot->graph(0)->addData(keys, data);
     xData.append(keys);
     yData.append(data);
-//    if(xData.size() > 10000000)
-//    {
-//        xData.remove(0,data.size());
-//        yData.remove(0,data.size());
-//    }
+    plotXData.append(keys);
+    plotYData.append(data);
+    if(plotXData.at(plotXData.size()-1) > 10000)
+    {
+        plotXData.remove(0,data.size());
+        plotYData.remove(0,data.size());
+    }
     if(replotActive)
     {
-        double minxValue = keys.at(keys.size()-1) - 10000 ;
-        if(minxValue < 0) minxValue = 0;
-        double maxxValue = keys.at(keys.size()-1);
-        plot->graph(0)->setData(xData, yData, true);
-        plot->xAxis->setRange(minxValue, maxxValue);
+//        double minxValue = keys.at(keys.size()-1) - 10000;
+//        if(minxValue < 0) minxValue = 0;
+//        double maxxValue = keys.at(keys.size()-1);
+        plot->graph(0)->setData(plotXData, plotYData, true);
+        //plot->xAxis->setRange(minxValue, maxxValue);
         plot->yAxis->rescale(true);
+        plot->xAxis->rescale(true);
         plot->replot();
         scatterReplotDataWithName();
     }
@@ -301,6 +304,10 @@ void        Plot::clear()
     plot->replot();
     epDataKey.clear();
     epDataName.clear();
+    plotXData.clear();
+    plotYData.clear();
+    plot->xAxis->setRange(0, 1000);
+    plot->replot();
 
 }
 void        Plot::onZoomIn()
@@ -323,6 +330,7 @@ void        Plot::onZoomOut()
 }
 void        Plot::onZoomExpand()
 {
+    plot->graph(0)->setData(xData, yData, true);
     plot->setInteraction(QCP::iRangeDrag, false);
     plot->setInteraction(QCP::iRangeZoom, false);
     plot->rescaleAxes(true);
@@ -376,5 +384,4 @@ void Plot::setButtonStyle()
         zoomExpand->setEnabled(true);
         zoomArea->setEnabled(true);
     }
-
 }
