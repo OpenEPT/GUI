@@ -91,9 +91,10 @@ public:
     bool        getName(QString* aDeviceName);
     void        controlLinkAssign(ControlLink* link);
     bool        createStreamLink(QString ip, quint16 port, int* id);
-    void        statusLinkCreate();
+    bool        establishStatusLink(QString ip);
     void        controlLinkReconnect();
     void        epLinkServerCreate();
+    void        statusLinkServerCreate();
     bool        establishEPLink(QString ip);
     void        sendControlMsg(QString msg);
     bool        setADC(device_adc_t aAdc);

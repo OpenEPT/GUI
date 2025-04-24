@@ -80,7 +80,7 @@ DeviceContainer::DeviceContainer(QObject *parent,  DeviceWnd* aDeviceWnd, Device
     deviceWnd->setCalibrationData(device->getCalibrationData());
 
     log->printLogMessage("Device container successfully created", LOG_MESSAGE_TYPE_INFO);
-    device->statusLinkCreate();
+    device->statusLinkServerCreate();
     device->epLinkServerCreate();
 
 }
@@ -338,6 +338,14 @@ void DeviceContainer::onDeviceWndInterfaceChanged(QString interfaceIp)
         deviceWnd->setDeviceInterfaceSelectionState(DEVICE_INTERFACE_SELECTION_STATE_SELECTED);
         deviceWnd->setAdc("Int");
         device->acquireDeviceConfiguration(DEVICE_ADC_INTERNAL);
+        if(!device->establishStatusLink(interfaceIp))
+        {
+            log->printLogMessage("Unable to create status link: ", LOG_MESSAGE_TYPE_ERROR);
+        }
+        else
+        {
+            log->printLogMessage("Status link ( port="+ QString::number(8818) + " ) sucessfully created: ", LOG_MESSAGE_TYPE_INFO);
+        }
     }
 }
 

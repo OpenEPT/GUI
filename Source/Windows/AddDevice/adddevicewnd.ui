@@ -9,7 +9,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>308</width>
+    <width>334</width>
     <height>164</height>
    </rect>
   </property>
@@ -61,7 +61,7 @@
           </size>
          </property>
          <property name="text">
-          <string>192.168.8.110</string>
+          <string>192.168.1.110</string>
          </property>
         </widget>
        </item>

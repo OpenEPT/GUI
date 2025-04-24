@@ -13,11 +13,21 @@ void StatusLink::startServer()
     tcpServerThread->start();
 }
 
+void StatusLink::setPort(quint16 aPortNo)
+{
+    portNo = aPortNo;
+}
+
+quint16 StatusLink::getPort()
+{
+    return portNo;
+}
+
 void StatusLink::onServerStarted()
 {
     tcpServer   = new QTcpServer();
 
-    if(!tcpServer->listen(QHostAddress::Any, STATUS_LINK_SERVER_PORT))
+    if(!tcpServer->listen(QHostAddress::Any, portNo))
     {
         qDebug()<<"Status Link Server Bind failed";
     }

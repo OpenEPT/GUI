@@ -116,6 +116,18 @@ bool Device::createStreamLink(QString ip, quint16 port, int* id)
     return true;
 }
 
+bool Device::establishStatusLink(QString ip)
+{
+    QString response;
+    if(statusLink == NULL) return false;
+    QString command = "device slink create -ip=" + ip +  " -port=" + QString::number(statusLink->getPort());
+
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+
+    return true;
+}
+
 
 bool  Device::establishEPLink(QString ip)
 {
@@ -139,15 +151,15 @@ void Device::epLinkServerCreate()
     connect(energyPointProcessing, SIGNAL(sigEPProcessed(double,double,QString)), this, SLOT(onNewEBPFull(double,double,QString)), Qt::QueuedConnection);
 }
 
-void Device::statusLinkCreate()
+void Device::statusLinkServerCreate()
 {
-    statusLink  = new StatusLink();
-    statusLink->startServer();
-    connect(statusLink, SIGNAL(sigNewClientConnected(QString)), this, SLOT(onStatusLinkNewDeviceAdded(QString)));
-    connect(statusLink, SIGNAL(sigNewStatusMessageReceived(QString,QString)), this, SLOT(onStatusLinkNewMessageReceived(QString,QString)));
+     statusLink = new StatusLink();
+     statusLink->startServer();
+     statusLink->setPort(8818);
+     connect(statusLink, SIGNAL(sigNewClientConnected(QString)), this, SLOT(onStatusLinkNewDeviceAdded(QString)));
+     connect(statusLink, SIGNAL(sigNewStatusMessageReceived(QString,QString)), this, SLOT(onStatusLinkNewMessageReceived(QString,QString)));
+
 }
-
-
 
 void Device::controlLinkReconnect()
 {

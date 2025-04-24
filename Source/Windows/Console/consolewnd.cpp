@@ -53,6 +53,7 @@ ConsoleWnd::ConsoleWnd(QWidget *parent) :
         "device rgb setcolor",
         "device ep enable",
         "device ep disable",
+        "device latch trigger",
         "charger charging enable",
         "charger charging disable",
         "charger charging current set",
