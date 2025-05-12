@@ -456,6 +456,7 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
         //emit sigEBP(ebpValue, ebpValueKey);
         emit sigSamplesBufferReceiveStatistics(dropRate, dropPacketsNo, receivedPacketCounter, lastReceivedPacketID, ebpNo);
         emit sigSignalStatistics(voltageStat, currentStat, consumptionStat);
+        emit sigAverageValues(currentStat.average, voltageStat.average);
         initBuffers();
     }
 }

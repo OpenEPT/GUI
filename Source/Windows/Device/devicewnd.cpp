@@ -116,6 +116,19 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     advanceConfigurationWnd->assignAvgRatioOptionsList(averaginOptions);
 
     dataAnalyzer            = new DataStatistics();
+    energyControlWnd        = new EnergyControlWnd();
+
+    connect(energyControlWnd, SIGNAL(sigLoadStatusChanged(bool)), this, SLOT(onLoadStatusChanged(bool)));
+    connect(energyControlWnd, SIGNAL(sigPPathStatusChanged(bool)), this, SLOT(onPPathStatusChanged(bool)));
+    connect(energyControlWnd, SIGNAL(sigBatteryStatusChanged(bool)), this, SLOT(onBatteryStatusChanged(bool)));
+    connect(energyControlWnd, SIGNAL(sigResetProtection()), this, SLOT(onResetProtection()));
+    connect(energyControlWnd, SIGNAL(sigLoadCurrentStatusChanged(bool)), this, SLOT(onLoadCurrentStatusChanged(bool)));
+    connect(energyControlWnd, SIGNAL(sigLoadCurrentChanged(unsigned int)), this, SLOT(onLoadCurrentChanged(unsigned int)));
+    connect(energyControlWnd, SIGNAL(sigChargingCurrentStatusChanged(bool)), this, SLOT(onChargingCurrentStatusChanged(bool)));
+    connect(energyControlWnd, SIGNAL(sigChargingCurrentChanged(unsigned int)), this, SLOT(onChargingCurrentChanged(unsigned int)));
+    connect(energyControlWnd, SIGNAL(sigChargingTermCurrentChanged(unsigned int)), this, SLOT(onChargingTermCurrentChanged(unsigned int)));
+    connect(energyControlWnd, SIGNAL(sigChargingTermVoltageChanged(float)), this, SLOT(onChargingTermVoltageChanged(float)));
+    connect(energyControlWnd, SIGNAL(sigChDschWriteToFileToogled(bool)), this, SLOT(onChDschSaveToFileChanged(bool)));
 
 
 
@@ -210,6 +223,7 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     connect(calibrationWnd, SIGNAL(sigCalibrationDataUpdated()), this, SLOT(onCalibrationUpdated()));
 
     connect(ui->dischargeControlPusb1, SIGNAL(clicked(bool)), this, SLOT(onCalibrationButtonPressed(bool)));
+    connect(ui->dischargeControlPusb2, SIGNAL(clicked(bool)), this, SLOT(onEnenergyControlButtonPressed(bool)));
 }
 
 void    DeviceWnd::onNewControlMsgRcvd(QString text)
@@ -229,7 +243,7 @@ void DeviceWnd::onCalibrationUpdated()
 }
 
 void DeviceWnd::onSetConsumptionName()
-{    
+{
     emit sigConsumptionProfileNameChanged(ui->consNameLine->text());
 }
 
@@ -262,6 +276,57 @@ void DeviceWnd::onMaxNumberOfBuffersChanged()
 void DeviceWnd::onEPEnableChanged(int value)
 {
     emit sigEPEnable(ui->EPControlEnableCheb->isChecked());
+}
+
+void DeviceWnd::onLoadCurrentStatusChanged(bool newState)
+{
+    emit sigLoadCurrentStatusChanged(newState);
+}
+
+void DeviceWnd::onLoadCurrentChanged(unsigned int current)
+{
+    emit sigLoadCurrentChanged(current);
+}
+
+void DeviceWnd::onChargingCurrentStatusChanged(bool newState)
+{
+    emit sigChargingCurrentStatusChanged(newState);
+}
+
+void DeviceWnd::onChargingCurrentChanged(unsigned int current)
+{
+    emit sigChargingCurrentChanged(current);
+}
+
+void DeviceWnd::onChargingTermCurrentChanged(unsigned int current)
+{
+    emit sigChargingTermCurrentChanged(current);
+}
+
+void DeviceWnd::onChargingTermVoltageChanged(float voltage)
+{
+    emit sigChargingTermVoltageChanged(voltage);
+}
+
+void DeviceWnd::onLoadStatusChanged(bool status)
+{
+    emit sigLoadStatusChanged(status);
+}
+
+void DeviceWnd::onPPathStatusChanged(bool status)
+{
+    emit sigPPathStatusChanged( status);
+}
+
+void DeviceWnd::onBatteryStatusChanged(bool status)
+{
+
+    emit sigBatteryStatusChanged(status);
+}
+
+void DeviceWnd::onResetProtection()
+{
+    emit sigResetProtection();
 }
 
 void DeviceWnd::onConsumptionProfileNameChanged()
@@ -350,6 +415,11 @@ void DeviceWnd::onCalibrationButtonPressed(bool pressed)
     calibrationWnd->showWnd();
 }
 
+void DeviceWnd::onEnenergyControlButtonPressed(bool pressed)
+{
+    energyControlWnd->show();
+}
+
 void    DeviceWnd::onSaveToFileChanged(int value)
 {
     if(value == Qt::Checked)
@@ -367,6 +437,11 @@ void    DeviceWnd::onSaveToFileChanged(int value)
         ui->consNameLine->setPlaceholderText("Enable \"Save to file\"");
         emit sigSaveToFileEnabled(false);
     }
+}
+
+void DeviceWnd::onChDschSaveToFileChanged(bool state)
+{
+    emit sigChDschSaveToFileToggled(state);
 }
 
 void DeviceWnd::onConsolePressed()
@@ -612,6 +687,11 @@ bool DeviceWnd::setSamplingPeriod(QString stime)
     return true;
 }
 
+bool DeviceWnd::setADCClk(QString adcClk)
+{
+
+}
+
 bool DeviceWnd::setInCkl(QString inClk)
 {
     advanceConfigurationWnd->setADCInClk(inClk);
@@ -628,6 +708,119 @@ bool DeviceWnd::setVOffset(QString voffset)
 {
     advanceConfigurationWnd->setVOffset(voffset);
     return true;
+}
+
+bool DeviceWnd::setLoadState(bool state)
+{
+    energyControlWnd->loadStatusSet(state);
+    return true;
+}
+
+bool DeviceWnd::setPPathState(bool state)
+{
+
+    energyControlWnd->pPathStatusSet(state);
+    return true;
+}
+
+bool DeviceWnd::setBatState(bool state)
+{
+    energyControlWnd->batteryStatusSet(state);
+    return true;
+}
+
+bool DeviceWnd::setDACState(bool state)
+{
+    return true;
+}
+
+bool DeviceWnd::setChargerState(bool state)
+{
+    return true;
+}
+
+bool DeviceWnd::setSaveToFileState(bool state)
+{
+    return true;
+}
+
+void DeviceWnd::setLoadCurrentStatus(bool state)
+{
+    energyControlWnd->loadCurrentStatusSet(state);
+}
+
+bool DeviceWnd::setLoadCurrent(int current)
+{
+    energyControlWnd->loadCurrentSet(current);
+    return true;
+}
+
+void DeviceWnd::setChargingCurrentStatus(bool state)
+{
+    energyControlWnd->chargerCurrentStatusSet(state);
+}
+
+bool DeviceWnd::setUVoltageIndication(bool state)
+{
+    energyControlWnd->underVoltageStatusSet(state);
+    return true;
+}
+
+bool DeviceWnd::setOVoltageIndication(bool state)
+{
+    energyControlWnd->overVoltageStatusSet(state);
+    return true;
+}
+
+bool DeviceWnd::setOCurrentIndication(bool state)
+{
+    energyControlWnd->overCurrentStatusSet(state);
+    return true;
+}
+
+bool DeviceWnd::setChargerCurrent(int current)
+{
+    energyControlWnd->chargerCurrentSet(current);
+    energyControlWnd->chdischChargeCurrentSet(current);
+    return true;
+}
+
+bool DeviceWnd::setChargerTermCurrent(int current)
+{
+    energyControlWnd->chargerTermCurrentSet(current);
+    return true;
+}
+
+bool DeviceWnd::setChargerTermVoltage(float voltage)
+{
+    energyControlWnd->chargerTermVoltageSet(voltage);
+    return true;
+}
+
+bool DeviceWnd::chargingDone()
+{
+    energyControlWnd->chargingDone();
+    return true;
+}
+
+bool DeviceWnd::setChargingStatus(QString status)
+{
+    if(status == "Charging")
+    {
+        energyControlWnd->setChargingState(Charge);
+    }
+    else if(status == "Discharging")
+    {
+        energyControlWnd->setChargingState(Discharge);
+    }
+    else if(status == "Idle")
+    {
+        energyControlWnd->setChargingState(Relax);
+    }
+    else
+    {
+        energyControlWnd->setChargingState(Unknown);
+    }
 }
 
 void DeviceWnd::setStatisticsData(double dropRate, unsigned int dropPacketsNo, unsigned int fullReceivedBuffersNo, unsigned int lastBufferID)

@@ -18,6 +18,7 @@ SOURCES += \
     Links/statuslink.cpp \
     Links/streamlink.cpp \
     Processing/calibrationdata.cpp \
+    Processing/charginganalysis.cpp \
     Processing/dataprocessing.cpp \
     Processing/epprocessing.cpp \
     Processing/fileprocessing.cpp \
@@ -29,6 +30,7 @@ SOURCES += \
     Windows/Device/calibrationwnd.cpp \
     Windows/Device/datastatistics.cpp \
     Windows/Device/devicewnd.cpp \
+    Windows/Device/energycontrolwnd.cpp \
     Windows/Plot/plot.cpp \
     Windows/WSSelection/selectworkspace.cpp \
     device.cpp \
@@ -43,6 +45,7 @@ HEADERS += \
     Links/statuslink.h \
     Links/streamlink.h \
     Processing/calibrationdata.h \
+    Processing/charginganalysis.h \
     Processing/dataprocessing.h \
     Processing/epprocessing.h \
     Processing/fftw/fftw3.h \
@@ -55,6 +58,7 @@ HEADERS += \
     Windows/Device/calibrationwnd.h \
     Windows/Device/datastatistics.h \
     Windows/Device/devicewnd.h \
+    Windows/Device/energycontrolwnd.h \
     Windows/Plot/plot.h \
     Windows/WSSelection/selectworkspace.h \
     device.h \
@@ -69,6 +73,7 @@ FORMS += \
     Windows/Device/calibrationwnd.ui \
     Windows/Device/datastatistics.ui \
     Windows/Device/devicewnd.ui \
+    Windows/Device/energycontrolwnd.ui \
     Windows/WSSelection/selectworkspace.ui \
     openept.ui
 

@@ -1,6 +1,7 @@
 #include <math.h>
 #include "stdio.h"
 #include "device.h"
+#include <QtMath>
 
 Device::Device(QObject *parent)
     : QObject{parent}
@@ -17,7 +18,9 @@ Device::Device(QObject *parent)
     energyPointLink         = NULL;
     dataProcessing          = new DataProcessing();
     energyPointProcessing   = new EPProcessing();
+    chargingAnalysis        = new ChargingAnalysis();
     epEnabled               = false;
+
 }
 
 Device::~Device()
@@ -46,6 +49,7 @@ bool Device::acquisitionStop()
     QString command = "device stream stop -sid=" + QString::number(streamID);
     if(controlLink == NULL) return false;
     dataProcessing->setAcquisitionStatus(DATAPROCESSING_ACQUISITION_STATUS_INACTIVE);
+    chargingAnalysis->clear();
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     emit sigAcqusitionStopped();
 
@@ -108,8 +112,13 @@ bool Device::createStreamLink(QString ip, quint16 port, int* id)
     connect(dataProcessing, SIGNAL(sigSignalStatistics(dataprocessing_dev_info_t,dataprocessing_dev_info_t,dataprocessing_dev_info_t)),
             this, SLOT(onNewStatisticsReceived(dataprocessing_dev_info_t,dataprocessing_dev_info_t,dataprocessing_dev_info_t)));
 
+    connect(dataProcessing, SIGNAL(sigAverageValues(double, double)), chargingAnalysis, SLOT(onAddData(double, double)));
+
+    connect(chargingAnalysis, SIGNAL(sigChargingStatusChanged(charginganalysis_status_t)),
+            this, SLOT(onChargingStatusChanged(charginganalysis_status_t)));
+
     /*  */
-    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(!controlLink->executeCommand(command, &response, 3000)) return false;
     streamID = response.toInt();
     streamLink->setID(streamID);
     *id = streamID;
@@ -729,6 +738,16 @@ bool Device::acquireDeviceConfiguration(device_adc_t aAdc)
 {
     adc = aAdc;
     getSamplingPeriod();
+    getLoadStatus();
+    getLoadCurrent();
+    getBatStatus();
+    getPPathStatus();
+    getUVoltageStatus();
+    getOVoltageStatus();
+    getOCurrentStatus();
+    getChargerCurrent();
+    getChargerTermCurrent();
+    getChargerTermVoltage();
     if(adc == DEVICE_ADC_INTERNAL)
     {
         getResolution();
@@ -772,6 +791,329 @@ void Device::calibrationUpdated()
     dataProcessing->calibrationDataUpdated();
 }
 
+bool Device::setPPathStatus(bool status)
+{
+    QString response;
+    QString command;
+    if(status)
+    {
+        command = "device ppath enable";
+    }
+    else
+    {
+        command = "device ppath disable";
+    }
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK"){
+        return false;
+    }
+    return true;
+}
+
+bool Device::getPPathStatus(bool *status)
+{
+    QString response;
+    QString command = "device ppath get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    ppathState = response.toDouble();
+    if(status != NULL)*status = ppathState;
+    emit sigPPathStateObtained(ppathState);
+    return true;
+}
+
+bool Device::setBatStatus(bool status)
+{
+    QString response;
+    QString command;
+    if(status)
+    {
+        command = "device bat enable";
+    }
+    else
+    {
+        command = "device bat disable";
+    }
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK"){
+        return false;
+    }
+    return true;
+}
+
+bool Device::getBatStatus(bool *status)
+{
+    QString response;
+    QString command = "device bat get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    batState = response.toDouble();
+    if(status != NULL)*status = batState;
+    emit sigBatStateObtained(batState);
+    return true;
+}
+
+bool Device::setDACStatus(bool status)
+{
+    QString response;
+    QString command = "device dac enable set -value=";
+    if(status)
+    {
+        command += QString::number(1);
+    }
+    else
+    {
+        command += QString::number(0);
+    }
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK"){
+        return false;
+    }
+    return true;
+}
+
+bool Device::getDACStatus(bool *status)
+{
+    QString response;
+    QString command = "device dac state get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    dacState = response.toDouble();
+    if(status != NULL) *status = dacState;
+    emit sigDACStateObtained(dacState);
+    return true;
+}
+
+bool Device::setLoadStatus(bool status)
+{
+    QString response;
+    QString command;
+    if(status)
+    {
+         command = "device load enable";
+    }
+    else
+    {
+        command = "device load disable";
+    }
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK"){
+        return false;
+    }
+    return true;
+}
+
+bool Device::getLoadStatus(bool *status)
+{
+    QString response;
+    QString command = "device load get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    loadState = response.toDouble();
+    if(status != NULL) *status = loadState;
+    emit sigLoadStateObtained(loadState);
+    return true;
+}
+double Device::computeFittedValue(double current)
+{
+    // Coefficients derived from symbolic inverse
+    const double scale = 824022.56;
+    const double shift = 824027.57;
+    const double innerFactor = 2.1932e-6;
+
+    return scale * qSqrt(innerFactor * current + 1.0) - shift;
+}
+double  Device::computeFittedValueInverse(double current)
+{
+    // Quadratic coefficients from the fitted model
+    const double a = 6.715e-7;
+    const double b = 1.10666902;
+    const double c = 5.53915624;
+
+    return a * current * current + b * current + c;
+}
+bool Device::setLoadCurrent(int current)
+{
+    QString response;
+    //int adcValue = (int)((((float)current))/1.060445387);
+    int adcValue = computeFittedValue(current);
+    QString command = "device dac value set -value=" + QString::number(adcValue);
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK"){
+        return false;
+    }
+    return true;
+}
+
+bool Device::getLoadCurrent(int *current)
+{
+    QString response;
+    QString command = "device dac value get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    loadValue = computeFittedValueInverse(response.toInt());
+    if(current != NULL) *current = loadValue;
+    emit sigLoadCurrentObtained(loadValue);
+    return true;
+}
+
+bool Device::setChargerStatus(bool status)
+{
+    QString response;
+    QString command;
+    if(status)
+    {
+         command = "charger charging enable";
+    }
+    else
+    {
+        command = "charger charging disable";
+    }
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK"){
+        return false;
+    }
+    return true;
+}
+
+bool Device::getChargerStatus(bool *status)
+{
+    QString response;
+    QString command = "charger state get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    chargerState = response.toDouble();
+    if(status != NULL) *status = chargerState;
+    emit sigChargerStateObtained(chargerState);
+    return true;
+}
+
+bool Device::setChargerCurrent(int current)
+{
+    QString response;
+    QString command = "charger charging current set -value=" + QString::number(current);
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK"){
+        return false;
+    }
+    return true;
+}
+
+bool Device::getChargerCurrent(int *current)
+{
+    QString response;
+    QString command = "charger charging current get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    chargerCurrent = response.toInt();
+    if(current != NULL) *current = chargerCurrent;
+    emit sigChargerCurrentObtained(chargerCurrent);
+    return true;
+}
+
+bool Device::setChargerTermCurrent(int current)
+{
+    QString response;
+    QString command = "charger charging termcurrent set -value=" + QString::number(current);
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK"){
+        return false;
+    }
+    return true;
+}
+
+bool Device::getChargerTermCurrent(int *current)
+{
+    QString response;
+    QString command = "charger charging termcurrent get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    chargerTermCurrent = response.toInt();
+    if(current != NULL) *current = chargerTermCurrent;
+    emit sigChargerTermCurrentObtained(chargerTermCurrent);
+    return true;
+}
+
+bool Device::setChargerTermVoltage(float voltage)
+{
+    QString response;
+    QString command = "charger charging termvoltage set -value=" + QString::number(voltage,'g',3);
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK"){
+        return false;
+    }
+    return true;
+}
+
+bool Device::getChargerTermVoltage(float *voltage)
+{
+    QString response;
+    QString command = "charger charging termvoltage get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    chargerTermVoltage = response.toFloat();
+    if(voltage != NULL) *voltage = chargerTermVoltage;
+    emit sigChargerTermVoltageObtained(chargerTermVoltage);
+    return true;
+}
+
+bool Device::latchTrigger()
+{
+    QString response;
+    QString command = "device latch trigger";
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK"){
+        return false;
+    }
+    return true;
+}
+
+bool Device::getUVoltageStatus(bool *status)
+{
+    QString response;
+    QString command = "device uvoltage get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    uvoltage = response.toDouble();
+    if(status != NULL) *status = uvoltage;
+    emit sigUVoltageObtained(uvoltage);
+    return true;
+}
+
+bool Device::getOVoltageStatus(bool *status)
+{
+    QString response;
+    QString command = "device ovoltage get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    ovoltage = response.toDouble();
+    if(status != NULL) *status = ovoltage;
+    emit sigOVoltageObtained(ovoltage);
+    return true;
+}
+
+bool Device::getOCurrentStatus(bool *status)
+{
+    QString response;
+    QString command = "device ocurrent get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    ocurrent = response.toDouble();
+    if(status != NULL) *status = ocurrent;
+    emit sigOCurrentObtained(ocurrent);
+    return true;
+}
+
 void Device::onControlLinkConnected()
 {
     emit sigControlLinkConnected();
@@ -789,7 +1131,33 @@ void Device::onStatusLinkNewDeviceAdded(QString aDeviceIP)
 
 void Device::onStatusLinkNewMessageReceived(QString aDeviceIP, QString aMessage)
 {
-    emit sigStatusLinkNewMessageReceived(aDeviceIP, aMessage);
+    QStringList messages = aMessage.split("\r\n", Qt::SkipEmptyParts);
+
+    for (const QString &message : messages)
+    {
+        if (!message.isEmpty() && message[0] == 1)  // First character '1'
+        {
+            QString content = message.mid(1).trimmed();  // Skip first character and trim
+
+            if (content.startsWith("uvoltage ", Qt::CaseInsensitive))
+            {
+                QString action = content.mid(QString("uvoltage ").length()).trimmed();
+
+                if (action.compare("enabled", Qt::CaseInsensitive) == 0)
+                    emit sigUVoltageObtained(true);
+                else
+                    emit sigUVoltageObtained(false);
+            }
+            else if (content.compare("charger charging done", Qt::CaseInsensitive) == 0)
+            {
+                emit sigChargingDone();
+            }
+        }
+        else
+        {
+            emit sigStatusLinkNewMessageReceived(aDeviceIP, message);
+        }
+    }
 }
 
 void Device::onEPLinkNewDeviceAdded(QString aDeviceIP)
@@ -833,4 +1201,9 @@ void Device::onNewEBPFull(double value, double key, QString name)
     {
         emit sigNewEBPFull(value, key, name);
     }
+}
+
+void Device::onChargingStatusChanged(charginganalysis_status_t status)
+{
+    emit sigChargingStatusChanged(status);
 }
