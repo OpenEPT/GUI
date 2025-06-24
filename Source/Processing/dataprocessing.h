@@ -11,12 +11,12 @@
 #define DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE      500
 #define DATAPROCESSING_DEFAULT_SAMPLE_SIZE              2
 #define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF          8.179
-#define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_K            1.337
+#define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_K            1.3355
 #define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_OFF          0
-#define DATAPROCESSING_DEFAULT_SHUNT                    0.045
+#define DATAPROCESSING_DEFAULT_SHUNT                    0.100
 #define DATAPROCESSING_DEFAULT_GAIN                     9.36
 #define DATAPROCESSING_DEFAULT_CURRENT_K                1
-#define DATAPROCESSING_DEFAULT_CURRENT_OFF              1.62465
+#define DATAPROCESSING_DEFAULT_CURRENT_OFF              1.6308
 #define DATAPROCESSING_DEFAULT_FILTERING_ENABLE         0
 
 typedef enum
@@ -67,6 +67,7 @@ public:
     bool                                setSamplingPeriod(double aSamplingPeriod);                  //us
     bool                                setSamplingTime(double aSamplingTime);                      //us
     bool                                setResolution(double aResolution);
+    bool                                setSamplesNo(unsigned int aSamplesNo);
     bool                                setConsumptionMode(dataprocessing_consumption_mode_t aConsumptionMode);
     bool                                setMeasurementMode(dataprocessing_measurement_mode_t aMeasurementMode);
 
@@ -169,6 +170,9 @@ private:
 
     /**/
     CalibrationData                     *calData;
+
+    /**/
+    unsigned int                        samplesNo;
 
 };
 

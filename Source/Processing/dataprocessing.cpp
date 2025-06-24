@@ -179,6 +179,12 @@ bool DataProcessing::setResolution(double aResolution)
     return true;
 }
 
+bool DataProcessing::setSamplesNo(unsigned int aSamplesNo)
+{
+    samplesNo = aSamplesNo;
+    samplesBufferSize = samplesNo;
+}
+
 bool DataProcessing::setConsumptionMode(dataprocessing_consumption_mode_t aConsumptionMode)
 {
     if(acquisitionStatus == DATAPROCESSING_ACQUISITION_STATUS_ACTIVE) return false;

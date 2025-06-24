@@ -101,7 +101,8 @@ public:
     bool        setADC(device_adc_t aAdc);
     bool        setEPEnable(bool aEPEnable);
     bool        setResolution(device_adc_resolution_t resolution);
-    bool        getResolution(device_adc_resolution_t* resolution = NULL);
+    bool        getResolution(device_adc_resolution_t* resolution = NULL);    
+    bool        setSamplesNo(unsigned int aSamplesNo);
     bool        setClockDiv(device_adc_clock_div_t clockDiv);
     bool        getClockDiv(device_adc_clock_div_t* clockDiv = NULL);
     bool        setChSampleTime(device_adc_ch_sampling_time_t sampleTime);
@@ -170,6 +171,7 @@ signals:
     void        sigUVoltageObtained(bool  state);
     void        sigOVoltageObtained(bool  state);
     void        sigOCurrentObtained(bool  state);
+    void        sigSamplesNoObained(unsigned int samplesNo);
     void        sigChargingDone();
 
     void        sigLoadCurrentObtained(int  current);
@@ -255,6 +257,9 @@ private:
 
     double                          computeFittedValue(double x);
     double                          computeFittedValueInverse(double x);
+
+    /**/
+    unsigned int                    samplesNo;
 
 };
 

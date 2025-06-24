@@ -63,7 +63,7 @@ bool FileProcessing::setSamplesFileHeader(QString header)
         out << "Log\n";
         break;
     case FILEPROCESSING_TYPE_SAMPLES:
-        out << "Voltage, VolTime, Current, CurTime\n";
+        out << "Voltage,VolTime,Current,CurTime\n";
         break;
     }
     samplesFile->close();
@@ -89,7 +89,7 @@ bool FileProcessing::setConsumptionFileHeader(QString header)
         out << "Log\n";
         break;
     case FILEPROCESSING_TYPE_SAMPLES:
-        out << "Consumption, ConTime\n";
+        out << "Consumption,ConTime\n";
         break;
     }
     consumptionFile->close();

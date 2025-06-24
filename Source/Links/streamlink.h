@@ -7,6 +7,7 @@
 #include <QVector>
 
 #define  STREAM_LINK_PACKET_SIZE            500
+//#define  STREAM_LINK_PACKET_SIZE            10
 
 class StreamLink : public QObject
 {
@@ -18,6 +19,7 @@ public:
     unsigned int    getID();
     void            enable();
     void            flush();
+    void            setPacketSize(unsigned int aPacketSize);
 
 signals:
     void            sigNewSamplesBufferReceived(QVector<double> rawData, int packetCounter, int magic);
@@ -37,6 +39,9 @@ private:
 
     /* Data parsing informations*/
     int             offset;
+
+    /* */
+    unsigned int    packetSize;
 
 };
 

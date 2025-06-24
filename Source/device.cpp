@@ -280,6 +280,18 @@ bool Device::getResolution(device_adc_resolution_t *resolution)
     return true;
 }
 
+bool Device::setSamplesNo(unsigned int aSamplesNo)
+{
+    QString response;
+    QString command = "device adc samplesno set -sid=" + QString::number(streamID) +" -value=" + QString::number(aSamplesNo);
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    samplesNo = aSamplesNo;
+    streamLink->setPacketSize(aSamplesNo*2);
+    dataProcessing->setSamplesNo(aSamplesNo);
+    return true;
+}
+
 bool Device::setClockDiv(device_adc_clock_div_t clockDiv)
 {
     QString response;

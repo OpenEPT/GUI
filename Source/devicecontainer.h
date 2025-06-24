@@ -24,6 +24,7 @@ signals:
 public slots:
     void    onConsoleWndMessageRcvd(QString msg);
     void    onDeviceWndResolutionChanged(QString resolution);
+    void    onDeviceWndSamplesNoChanged(unsigned int newSamplesNo);
     void    onDeviceWndADCChanged(QString adc);
     void    onDeviceWndClockDivChanged(QString clockDiv);
     void    onDeviceWndChannelSamplingTimeChanged(QString stime);

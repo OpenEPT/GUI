@@ -30,6 +30,7 @@ DeviceContainer::DeviceContainer(QObject *parent,  DeviceWnd* aDeviceWnd, Device
     connect(deviceWnd,  SIGNAL(sigADCChanged(QString)),                             this, SLOT(onDeviceWndADCChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigResolutionChanged(QString)),                      this, SLOT(onDeviceWndResolutionChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigClockDivChanged(QString)),                        this, SLOT(onDeviceWndClockDivChanged(QString)));
+    connect(deviceWnd,  SIGNAL(sigSamplesNoChanged(unsigned int)),                  this, SLOT(onDeviceWndSamplesNoChanged(unsigned int)));
     connect(deviceWnd,  SIGNAL(sigSampleTimeChanged(QString)),                      this, SLOT(onDeviceWndChannelSamplingTimeChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigSamplingPeriodChanged(QString)),                  this, SLOT(onDeviceWndSamplingPeriodChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigAvrRatioChanged(QString)),                        this, SLOT(onDeviceWndAvrRatioChanged(QString)));
@@ -319,6 +320,19 @@ void DeviceContainer::onDeviceWndResolutionChanged(QString resolution)
     else
     {
         log->printLogMessage("Resolution: " + resolution + " sucessfully set", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDeviceWndSamplesNoChanged(unsigned int newSamplesNo)
+{
+    /* call deviceWnd function with recieved msg from FW <- */
+    if(!device->setSamplesNo(newSamplesNo))
+    {
+        log->printLogMessage("Unable to set samples no: " + QString::number(newSamplesNo), LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage(QString::number(newSamplesNo) + " sucessfully set", LOG_MESSAGE_TYPE_INFO);
     }
 }
 

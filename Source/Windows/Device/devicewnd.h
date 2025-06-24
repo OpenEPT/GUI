@@ -13,6 +13,7 @@
 #include "Windows/Device/energycontrolwnd.h"
 
 #define     DEVICEWND_DEFAULT_MAX_NUMBER_OF_BUFFERS 100
+#define     DEVICEWND_DEFAULT_MAX_NUMBER_OF_SAMPLES 250
 
 typedef enum
 {
@@ -140,6 +141,7 @@ public:
 signals:
     void            sigWndClosed();
     void            sigSamplingPeriodChanged(QString time);
+    void            sigSamplesNoChanged(unsigned int newSamplesNo);
     void            sigResolutionChanged(QString resolution);
     void            sigADCChanged(QString adc);
     void            sigClockDivChanged(QString clockDiv);
@@ -198,6 +200,7 @@ public slots:
     void            onAdvConfigurationReqested(void);
     void            onMaxNumberOfBuffersChanged();
     void            onEPEnableChanged(int value);
+    void            onSamplesNoChanged();
 
 
     void            onLoadCurrentStatusChanged(bool newState);

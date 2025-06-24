@@ -81,6 +81,7 @@
                 <font>
                  <family>Arial</family>
                  <pointsize>10</pointsize>
+                 <weight>50</weight>
                  <bold>false</bold>
                 </font>
                </property>
@@ -107,6 +108,7 @@
                 <font>
                  <family>Arial</family>
                  <pointsize>10</pointsize>
+                 <weight>75</weight>
                  <bold>true</bold>
                 </font>
                </property>
@@ -211,6 +213,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -243,6 +246,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -254,6 +258,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -293,6 +298,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -325,6 +331,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -336,6 +343,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -375,6 +383,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -407,6 +416,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -418,6 +428,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -457,6 +468,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -483,6 +495,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -494,6 +507,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -533,6 +547,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -565,6 +580,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -583,6 +599,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -624,6 +641,7 @@
                 <font>
                  <family>Arial</family>
                  <pointsize>10</pointsize>
+                 <weight>50</weight>
                  <bold>false</bold>
                 </font>
                </property>
@@ -650,6 +668,7 @@
                 <font>
                  <family>Arial</family>
                  <pointsize>10</pointsize>
+                 <weight>75</weight>
                  <bold>true</bold>
                 </font>
                </property>
@@ -697,6 +716,7 @@
                       <font>
                        <family>Arial</family>
                        <pointsize>10</pointsize>
+                       <weight>50</weight>
                        <bold>false</bold>
                       </font>
                      </property>
@@ -729,6 +749,7 @@
                       <font>
                        <family>Arial</family>
                        <pointsize>10</pointsize>
+                       <weight>50</weight>
                        <bold>false</bold>
                       </font>
                      </property>
@@ -745,6 +766,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -786,6 +808,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -814,6 +837,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -840,6 +864,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -856,6 +881,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -895,6 +921,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -923,6 +950,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -949,6 +977,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -965,6 +994,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1004,6 +1034,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1036,6 +1067,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1047,9 +1079,85 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="sizeType">
+                  <enum>QSizePolicy::Minimum</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="systemVerlSamplesNoHorl">
+               <item>
+                <widget class="QLabel" name="samplesNoLabe">
+                 <property name="minimumSize">
+                  <size>
+                   <width>220</width>
+                   <height>30</height>
+                  </size>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>270</width>
+                   <height>50</height>
+                  </size>
+                 </property>
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                   <pointsize>10</pointsize>
+                   <weight>50</weight>
+                   <bold>false</bold>
+                   <kerning>true</kerning>
+                  </font>
+                 </property>
+                 <property name="text">
+                  <string>Samples No</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="samplesNoLine">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="minimumSize">
+                  <size>
+                   <width>80</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>80</width>
+                   <height>50</height>
+                  </size>
+                 </property>
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                  </font>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="samplesNoHors">
                  <property name="orientation">
                   <enum>Qt::Horizontal</enum>
                  </property>
@@ -1144,6 +1252,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1170,6 +1279,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1184,6 +1294,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1225,6 +1336,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1239,6 +1351,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1287,6 +1400,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1313,6 +1427,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1339,6 +1454,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1380,6 +1496,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1406,6 +1523,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1442,6 +1560,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1466,6 +1585,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1505,6 +1625,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1531,6 +1652,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1555,6 +1677,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1654,6 +1777,7 @@
                 <font>
                  <family>Arial</family>
                  <pointsize>10</pointsize>
+                 <weight>50</weight>
                  <bold>false</bold>
                 </font>
                </property>
@@ -1678,6 +1802,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1713,6 +1838,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1752,6 +1878,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1788,6 +1915,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1824,6 +1952,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1848,6 +1977,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1875,6 +2005,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1910,6 +2041,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1924,6 +2056,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1976,6 +2109,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2002,6 +2136,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2034,6 +2169,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2060,6 +2196,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2092,6 +2229,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2124,6 +2262,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2150,6 +2289,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2176,6 +2316,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2202,6 +2343,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2228,6 +2370,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2254,6 +2397,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2268,6 +2412,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2311,6 +2456,7 @@
             <font>
              <family>Arial</family>
              <pointsize>10</pointsize>
+             <weight>50</weight>
              <bold>false</bold>
             </font>
            </property>

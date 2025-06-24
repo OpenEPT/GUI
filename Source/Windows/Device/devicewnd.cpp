@@ -4,6 +4,7 @@
 #include <QFileDialog>
 #include <QNetworkInterface>
 #include <QOpenGLWidget>
+//#include <QDebug>
 
 /*TODO: Declare this in config file*/
 #define PLOT_MINIMUM_SIZE_WIDTH     200
@@ -159,6 +160,7 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     consumptionChart->scatterAddGraph();
 
     ui->maxNumOfPacketsLine->setText(QString::number(DEVICEWND_DEFAULT_MAX_NUMBER_OF_BUFFERS));
+    ui->samplesNoLine->setText(QString::number(DEVICEWND_DEFAULT_MAX_NUMBER_OF_SAMPLES));
     ui->statisticsPacketCounterLabe2->setText(QString::number(0));
     ui->statisticsDropRateProb->setValue(0);
     ui->statisticsSamplingPeriodLabe2->setText(QString::number(0));
@@ -212,7 +214,8 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     connect(ui->streamServerInterfComb, SIGNAL(currentTextChanged(QString)),        this, SLOT(onInterfaceChanged(QString)));
     connect(ui->maxNumOfPacketsLine,    SIGNAL(editingFinished()),                  this, SLOT(onMaxNumberOfBuffersChanged()));
     connect(consumptionTypeSelection,   SIGNAL(buttonClicked(QAbstractButton*)),    this, SLOT(onConsumptionTypeChanged(QAbstractButton*)));
-    connect(measurementTypeSelection,   SIGNAL(buttonClicked(QAbstractButton*)),    this, SLOT(onMeasurementTypeChanged(QAbstractButton*)));
+    connect(measurementTypeSelection,   SIGNAL(buttonClicked(QAbstractButton*)),    this, SLOT(onMeasurementTypeChanged(QAbstractButton*)));    
+    connect(ui->samplesNoLine,          SIGNAL(returnPressed()),                    this, SLOT(onSamplesNoChanged()));
 
 
     connect(advanceConfigurationWnd, SIGNAL(sigAdvConfigurationChanged(QVariant)), this, SLOT(onAdvConfigurationChanged(QVariant)));
@@ -404,6 +407,24 @@ void DeviceWnd::onSamplingPeriodChanged()
     emit sigSamplingPeriodChanged(time);
 }
 
+void DeviceWnd::onSamplesNoChanged()
+{
+    unsigned int samplesNo = ui->samplesNoLine->text().toUInt();
+    if(samplesNo > 250)
+    {
+        samplesNo = 250;
+        ui->samplesNoLine->setText(QString::number(250));
+    }
+    if(samplesNo < 1)
+    {
+        samplesNo = 1;
+        ui->samplesNoLine->setText(QString::number(1));
+    }
+    //advanceConfigurationWnd->setSamplingTime(time);
+    //ui->statisticsSamplingPeriodLabe2->setText(time);
+    emit sigSamplesNoChanged(samplesNo);
+}
+
 
 void    DeviceWnd::onAdvanceConfigurationButtonPressed(bool pressed)
 {
@@ -555,12 +576,14 @@ void DeviceWnd::setDeviceInterfaceSelectionState(device_interface_selection_stat
         ui->dischargeControlPusb1->setEnabled(false);
         ui->dischargeControlPusb2->setEnabled(false);
         ui->consNamePusb->setEnabled(false);
+        ui->samplesNoLine->setEnabled(false);
         ui->streamServerInterfComb->setEnabled(true);
         break;
     case DEVICE_INTERFACE_SELECTION_STATE_SELECTED:
         ui->adcComb->setEnabled(true);
         ui->EPControlEnableCheb->setEnabled(true);
         ui->samplingPeriodLine->setEnabled(true);
+        ui->samplesNoLine->setEnabled(true);
         ui->resolutionComb->setEnabled(true);
         ui->clockDivComb->setEnabled(true);
         ui->sampleTimeComb->setEnabled(true);
@@ -611,6 +634,7 @@ bool DeviceWnd::setAdc(QString adc)
         setDeviceMode(DEVICE_MODE_INTERNAL);
         advanceConfigurationWnd->setDeviceMode(ADVCONFIG_ADC_MODE_INTERNAL);
     }
+    return true;
 }
 
 QStringList *DeviceWnd::getChSamplingTimeOptions()
@@ -640,6 +664,7 @@ QStringList *DeviceWnd::getADCOptions()
 
 bool DeviceWnd::setChSamplingTime(QString sTime)
 {
+    //qDebug() << sTime;
     if(!sampleTimeOptions->contains(sTime)) return false;
     if(!advanceConfigurationWnd->setChSampleTime(sTime)) return false;
 

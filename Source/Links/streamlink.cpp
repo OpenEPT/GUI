@@ -8,6 +8,7 @@ StreamLink::StreamLink(QObject *parent)
 {
     port = 0;
     id  = 0;
+    packetSize = STREAM_LINK_PACKET_SIZE;
     udpThread = new QThread(this);
     this->moveToThread(udpThread);
     udpThread->setObjectName("OpenEPT - UDP Thread");
@@ -39,6 +40,11 @@ void StreamLink::flush()
     udpSocket->flush();
 }
 
+void StreamLink::setPacketSize(unsigned int aPacketSize)
+{
+    packetSize = aPacketSize;
+}
+
 void StreamLink::initStreamLinkThread()
 {
     udpSocket = new QUdpSocket();
@@ -66,8 +72,8 @@ void StreamLink::readPendingData()
         QNetworkDatagram datagram = udpSocket->receiveDatagram();
         receivedData = datagram.data();
 
-        data.resize(STREAM_LINK_PACKET_SIZE);
-        memcpy(data.data(), receivedData.data()+8, STREAM_LINK_PACKET_SIZE*2);
+        data.resize(packetSize);
+        memcpy(data.data(), receivedData.data()+8, packetSize*2);
         memcpy(&counter, receivedData.data(), 4);
         memcpy(&magic, receivedData.data()+4, 4);
         data_double.reserve(data.size());
