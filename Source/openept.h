@@ -7,6 +7,7 @@
 #include "Windows/AddDevice/adddevicewnd.h"
 #include "Windows/DataAnalyzer/dataanalyzer.h"
 #include "devicecontainer.h"
+#include "Windows/Device/energycontrolwnd.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class OpenEPT; }
@@ -52,6 +53,9 @@ private:
 
     /**/
     QString                     workspacePath;
+
+    /**/
+//    EnergyControlWnd            ecw;
 
 };
 #endif // OPENEPT_H

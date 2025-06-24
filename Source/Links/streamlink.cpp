@@ -2,17 +2,16 @@
 #include <QNetworkDatagram>
 #include <QDebug>
 #include "streamlink.h"
-#include <winsock2.h>
-#include <ws2tcpip.h>
 
 StreamLink::StreamLink(QObject *parent)
     : QObject{parent}
 {
     port = 0;
     id  = 0;
+    packetSize = STREAM_LINK_PACKET_SIZE;
     udpThread = new QThread(this);
     this->moveToThread(udpThread);
-    udpThread->setObjectName("UDP Thread");
+    udpThread->setObjectName("OpenEPT - UDP Thread");
     QObject::connect(udpThread, &QThread::started, this, &StreamLink::initStreamLinkThread, Qt::QueuedConnection);
 }
 
@@ -41,6 +40,11 @@ void StreamLink::flush()
     udpSocket->flush();
 }
 
+void StreamLink::setPacketSize(unsigned int aPacketSize)
+{
+    packetSize = aPacketSize;
+}
+
 void StreamLink::initStreamLinkThread()
 {
     udpSocket = new QUdpSocket();
@@ -49,8 +53,8 @@ void StreamLink::initStreamLinkThread()
     int socketDesc = udpSocket->socketDescriptor();
     int ret = 0;
     udpSocket->setReadBufferSize(rcvbufsize);
-    ret = setsockopt(socketDesc,SOL_SOCKET,SO_RCVBUF,(char*)&rcvbufsize,sizeof(rcvbufsize));
-    qDebug()<< ret ;
+    // ret = setsockopt(socketDesc,SOL_SOCKET,SO_RCVBUF,(char*)&rcvbufsize,sizeof(rcvbufsize));
+    // qDebug()<< ret ;
     connect(udpSocket, SIGNAL(readyRead()), this, SLOT(readPendingData()));
 }
 
@@ -68,8 +72,8 @@ void StreamLink::readPendingData()
         QNetworkDatagram datagram = udpSocket->receiveDatagram();
         receivedData = datagram.data();
 
-        data.resize(STREAM_LINK_PACKET_SIZE);
-        memcpy(data.data(), receivedData.data()+8, STREAM_LINK_PACKET_SIZE*2);
+        data.resize(packetSize);
+        memcpy(data.data(), receivedData.data()+8, packetSize*2);
         memcpy(&counter, receivedData.data(), 4);
         memcpy(&magic, receivedData.data()+4, 4);
         data_double.reserve(data.size());

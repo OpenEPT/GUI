@@ -15,6 +15,12 @@ OpenEPT::OpenEPT(QString aWorkspacePath, QWidget *parent)
     , ui(new Ui::OpenEPT)
 {
     ui->setupUi(this);
+//    ecw.underVoltageStatusSet(true);
+//    ecw.pPathStatusSet(false);
+//    ecw.loadCurrentSet(500);
+//    ecw.chargerTermVoltageSet(4.20f);
+//    ecw.chdischDischargeCurrentSet(1000);
+//    ecw.show();
 
     dataAnalyzerWnd = new DataAnalyzer(nullptr,aWorkspacePath);
 

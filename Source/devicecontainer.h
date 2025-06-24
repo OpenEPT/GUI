@@ -9,6 +9,7 @@
 #include "Windows/Device/devicewnd.h"
 #include "Utility/log.h"
 #include "Processing/fileprocessing.h"
+#include "Processing/charginganalysis.h"
 
 class DeviceContainer : public QObject
 {
@@ -23,6 +24,7 @@ signals:
 public slots:
     void    onConsoleWndMessageRcvd(QString msg);
     void    onDeviceWndResolutionChanged(QString resolution);
+    void    onDeviceWndSamplesNoChanged(unsigned int newSamplesNo);
     void    onDeviceWndADCChanged(QString adc);
     void    onDeviceWndClockDivChanged(QString clockDiv);
     void    onDeviceWndChannelSamplingTimeChanged(QString stime);
@@ -31,6 +33,9 @@ public slots:
     void    onDeviceWndAvrRatioChanged(QString avgRatio);
     void    onDeviceWndVOffsetChanged(QString off);
     void    onDeviceWndCOffsetChanged(QString off);
+
+
+
     void    onDeviceWndAcquisitionStart();
     void    onDeviceWndAcquisitionStop();
     void    onDeviceWndAcquisitionPause();
@@ -44,6 +49,17 @@ public slots:
     void    onDeviceWndConsumptionTypeChanged(QString aConsumptionType);
     void    onDeviceWndMeasurementTypeChanged(QString aMeasurementType);
     void    onDeviceWndConsumptionProfileNameChanged(QString aConsumptionProfileName);
+    void    onDeviceWndLoadStatusChanged(bool status);
+    void    onDeviceWndPPathStatusChanged(bool status);
+    void    onDeviceWndBatteryStatusChanged(bool status);
+    void    onDeviceWndResetProtection();
+    void    onDeviceWndLoadCurrentSetValue(unsigned int current);
+    void    onDeviceWndLoadCurrentSetStatus(bool status);
+    void    onDeviceWndChargingCurrentSetValue(unsigned int current);
+    void    onDeviceWndChargingTermCurrentSetValue(unsigned int current);
+    void    onDeviceWndChargingTermVoltageSetValue(float voltage);
+    void    onDeviceWndChargingCurrentSetStatus(bool status);
+    void    onDeviceWndChDschSaveToFileChanged(bool saveToFile);
 
     void    onDeviceControlLinkDisconnected();
     void    onDeviceControlLinkConnected();
@@ -59,6 +75,22 @@ public slots:
     void    onDeviceCOffsetObtained(QString coffset);
     void    onDeviceVOffsetObtained(QString voffset);
     void    onDeviceSamplingTimeChanged(double value);
+    void    onDeviceLoadStateObtained(bool state);
+    void    onDeviceBatStateObtained(bool state);
+    void    onDevicePPathStateObtained(bool state);
+    void    onDeviceChargerStateObtained(bool state);
+    void    onDeviceDACStateObtained(bool state);
+    void    onDeviceUVoltageObtained(bool state);
+    void    onDeviceOVoltageObtained(bool state);
+    void    onDeviceOCurrentObtained(bool state);
+    void    onDeviceChargingDone();
+    void    onDeviceLoadCurrentObtained(int current);
+    void    onDeviceChargerCurrentObtained(int current);
+    void    onDeviceChargerTermCurrentObtained(int current);
+    void    onDeviceChargerTermVoltageObtained(float voltage);
+
+
+
 
     void    onDeviceAcquisitonStarted();
     void    onDeviceAcquisitonStopped();
@@ -71,6 +103,11 @@ public slots:
     void    onDeviceNewSamplesBuffersProcessingStatistics(double dropRate, unsigned int dropPacketsNo, unsigned int fullReceivedBuffersNo, unsigned int lastBufferID, unsigned short ebp);
     void    onDeviceNewEBP(QVector<double> ebpValues, QVector<double> keys);
     void    onDeviceNewEBPFull(double value, double key, QString name);
+
+    void    onDeviceMeasurementEnergyFlowStatusChanged(charginganalysis_status_t status);
+
+private slots:
+    void    onDeviceWndCalibrationUpdated();
 
 
 
@@ -96,8 +133,12 @@ private:
     QString                         consumptionProfileName;
     bool                            consumptionProfileNameSet;
     bool                            consumptionProfileNameExists;
-    bool                            savetoFileEnabled; //Mark that for one consumption profile data are stored in file
+    bool                            globalSaveToFileEnabled; //Mark that for one consumption profile data are stored in file
+    bool                            chDschSaveToFileEnabled;
+    bool                            writeSamplesToFileEnabled;
     bool                            epEnabled; //
+
+    ChargingState                   chargingState;
 
 };
 

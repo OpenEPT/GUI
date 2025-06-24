@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>949</width>
-    <height>500</height>
+    <width>954</width>
+    <height>789</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -395,7 +395,7 @@
      </item>
      <item>
       <widget class="QStackedWidget" name="adcStack">
-       <widget class="QWidget" name="adcInternalPage" native="true">
+       <widget class="QWidget" name="adcInternalPage">
         <layout class="QVBoxLayout" name="mainVerlDeviceConfigVerl">
          <item>
           <layout class="QHBoxLayout" name="deviceConfigVerlHorl2">

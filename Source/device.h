@@ -9,6 +9,8 @@
 #include "Processing/dataprocessing.h"
 #include "Links/edlink.h"
 #include "Processing/epprocessing.h"
+#include "Processing/calibrationdata.h"
+#include "Processing/charginganalysis.h"
 
 /* Resolution sample time offset based on STM32H755ZI offset */
 #define     DEVICE_ADC_RESOLUTION_16BIT_STIME_OFFSET    8.5
@@ -90,15 +92,17 @@ public:
     bool        getName(QString* aDeviceName);
     void        controlLinkAssign(ControlLink* link);
     bool        createStreamLink(QString ip, quint16 port, int* id);
-    void        statusLinkCreate();
+    bool        establishStatusLink(QString ip);
     void        controlLinkReconnect();
     void        epLinkServerCreate();
+    void        statusLinkServerCreate();
     bool        establishEPLink(QString ip);
     void        sendControlMsg(QString msg);
     bool        setADC(device_adc_t aAdc);
     bool        setEPEnable(bool aEPEnable);
     bool        setResolution(device_adc_resolution_t resolution);
-    bool        getResolution(device_adc_resolution_t* resolution = NULL);
+    bool        getResolution(device_adc_resolution_t* resolution = NULL);    
+    bool        setSamplesNo(unsigned int aSamplesNo);
     bool        setClockDiv(device_adc_clock_div_t clockDiv);
     bool        getClockDiv(device_adc_clock_div_t* clockDiv = NULL);
     bool        setChSampleTime(device_adc_ch_sampling_time_t sampleTime);
@@ -119,6 +123,31 @@ public:
     bool        setDataProcessingConsumptionType(dataprocessing_consumption_mode_t aConsumptionMode);
     bool        setDataProcessingMeasurementType(dataprocessing_measurement_mode_t aMeasurementMode);
 
+    CalibrationData* getCalibrationData();
+    void        calibrationUpdated();
+
+    bool        setPPathStatus(bool status);
+    bool        getPPathStatus(bool* status = NULL);
+    bool        setBatStatus(bool status);
+    bool        getBatStatus(bool* status= NULL);
+    bool        setDACStatus(bool status);
+    bool        getDACStatus(bool* status= NULL);
+    bool        setLoadStatus(bool status);
+    bool        getLoadStatus(bool* status= NULL);
+    bool        setLoadCurrent(int current);
+    bool        getLoadCurrent(int* current= NULL);
+    bool        setChargerStatus(bool status);
+    bool        getChargerStatus(bool* status= NULL);
+    bool        setChargerCurrent(int current);
+    bool        getChargerCurrent(int* current= NULL);
+    bool        setChargerTermCurrent(int current);
+    bool        getChargerTermCurrent(int* current= NULL);
+    bool        setChargerTermVoltage(float voltage);
+    bool        getChargerTermVoltage(float* voltage= NULL);
+    bool        latchTrigger();
+    bool        getUVoltageStatus(bool* status = NULL);
+    bool        getOVoltageStatus(bool* status = NULL);
+    bool        getOCurrentStatus(bool* status = NULL);
 
 signals:
     void        sigControlLinkConnected();
@@ -134,6 +163,24 @@ signals:
     void        sigAdcInputClkObtained(QString inClk);
     void        sigCOffsetObtained(QString coffset);
     void        sigVOffsetObtained(QString voffset);
+    void        sigPPathStateObtained(bool  state);
+    void        sigLoadStateObtained(bool  state);
+    void        sigBatStateObtained(bool  state);
+    void        sigDACStateObtained(bool  state);
+    void        sigChargerStateObtained(bool  state);
+    void        sigUVoltageObtained(bool  state);
+    void        sigOVoltageObtained(bool  state);
+    void        sigOCurrentObtained(bool  state);
+    void        sigSamplesNoObained(unsigned int samplesNo);
+    void        sigChargingDone();
+
+    void        sigLoadCurrentObtained(int  current);
+
+    void        sigChargerCurrentObtained(int  current);
+    void        sigChargerTermCurrentObtained(int  current);
+    void        sigChargerTermVoltageObtained(float  voltage);
+
+
     void        sigAvgRatio(QString voffset);
     void        sigSamplingTimeChanged(double value);
     void        sigVoltageCurrentSamplesReceived(QVector<double> voltage, QVector<double> current, QVector<double> voltageKeys, QVector<double> currentKeys);
@@ -144,6 +191,7 @@ signals:
     void        sigNewEBPFull(double value, double key, QString name);
     void        sigAcqusitionStarted();
     void        sigAcqusitionStopped();
+    void        sigChargingStatusChanged(charginganalysis_status_t status);
 public slots:
     void        onControlLinkConnected();
     void        onControlLinkDisconnected();
@@ -159,6 +207,7 @@ private slots:
     void        onNewStatisticsReceived(dataprocessing_dev_info_t voltageStat, dataprocessing_dev_info_t currentStat, dataprocessing_dev_info_t consumptioStat);
     void        onNewEBP(QVector<double> ebpValues, QVector<double> ebpKeys);
     void        onNewEBPFull(double value, double key, QString name);
+    void        onChargingStatusChanged(charginganalysis_status_t status);
 private:
     QString                         deviceName;
     double                          samplingPeriod;                //ms
@@ -178,15 +227,39 @@ private:
     StreamLink*                     streamLink;
     EDLink*                         energyPointLink;
     DataProcessing*                 dataProcessing;
+    ChargingAnalysis*               chargingAnalysis;
     EPProcessing*                   energyPointProcessing;
     QString                         voltageOffset;
     QString                         currentOffset;
     QString                         adcInputClk;
+
+    bool                            ppathState;
+    bool                            loadState;
+    int                             loadValue;
+    bool                            dacState;
+    bool                            batState;
+    bool                            chargerState;
+
+    bool                            uvoltage;
+    bool                            ovoltage;
+    bool                            ocurrent;
+
+
+    int                            chargerCurrent; //mA
+    int                            chargerTermCurrent; //%
+    float                          chargerTermVoltage; //V
+
     /*This should be removed when stream link is defined*/
     int                             streamID;
 
     /**/
     bool                            epEnabled;
+
+    double                          computeFittedValue(double x);
+    double                          computeFittedValueInverse(double x);
+
+    /**/
+    unsigned int                    samplesNo;
 
 };
 

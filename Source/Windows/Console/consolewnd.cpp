@@ -46,11 +46,25 @@ ConsoleWnd::ConsoleWnd(QWidget *parent) :
         "device dac value set",
         "device load enable",
         "device load disable",
+        "device load get",
         "device bat enable",
         "device bat disable",
+        "device bat get",
+        "device ppath enable",
+        "device ppath disable",
+        "device ppath get",
         "device rgb setcolor",
         "device ep enable",
-        "device ep disable"
+        "device ep disable",
+        "device latch trigger",
+        "charger charging enable",
+        "charger charging disable",
+        "charger charging current set",
+        "charger reg read",
+        "charger charging termcurrent set",
+        "charger charging termcurrent get",
+        "charger charging termvoltage set",
+        "charger charging termvoltage get"
     };
 
     completer = new QCompleter(commandList);

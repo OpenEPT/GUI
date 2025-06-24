@@ -28,6 +28,7 @@ bool FileProcessing::open(fileprocessing_type_t aType, QString aPath)
     case FILEPROCESSING_TYPE_SAMPLES:
         thread = new QThread(this);
         this->moveToThread(thread);
+        thread->setObjectName("OpenEPT - File processing thread");
         connect(thread, SIGNAL(started()), this, SLOT(onThreadStart()));
         thread->start();
         /*Wait until files are created*/
@@ -62,7 +63,7 @@ bool FileProcessing::setSamplesFileHeader(QString header)
         out << "Log\n";
         break;
     case FILEPROCESSING_TYPE_SAMPLES:
-        out << "Voltage, VolTime, Current, CurTime\n";
+        out << "Voltage,VolTime,Current,CurTime\n";
         break;
     }
     samplesFile->close();
@@ -88,7 +89,7 @@ bool FileProcessing::setConsumptionFileHeader(QString header)
         out << "Log\n";
         break;
     case FILEPROCESSING_TYPE_SAMPLES:
-        out << "Consumption, ConTime\n";
+        out << "Consumption,ConTime\n";
         break;
     }
     consumptionFile->close();

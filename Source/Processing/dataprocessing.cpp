@@ -10,7 +10,7 @@ DataProcessing::DataProcessing(QObject *parent)
 {
     dataProcessingThread = new QThread(this);
     this->moveToThread(dataProcessingThread);
-    dataProcessingThread->setObjectName("Data processing thread");
+    dataProcessingThread->setObjectName("OpenEPT - Data processing thread");
     dataProcessingThread->start();
     currentNumberOfBuffers          = 0;
     lastBufferUsedPositionIndex     = 0;
@@ -19,6 +19,19 @@ DataProcessing::DataProcessing(QObject *parent)
     samplesBufferSize               = DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE/2;
 
     filteringEnable                 = DATAPROCESSING_DEFAULT_FILTERING_ENABLE;
+
+    calData                         = new CalibrationData();
+
+    calData->currentGain             = DATAPROCESSING_DEFAULT_GAIN;
+    calData->currentShunt            = DATAPROCESSING_DEFAULT_SHUNT;
+    calData->currentCorrection       = DATAPROCESSING_DEFAULT_CURRENT_K;
+
+    calData->voltageCurrOffset       = DATAPROCESSING_DEFAULT_CURRENT_OFF;
+    calData->voltageCorr             = DATAPROCESSING_DEFAULT_ADC_VOLTAGE_K;
+    calData->voltageOff              = DATAPROCESSING_DEFAULT_ADC_VOLTAGE_OFF;
+
+    calData->adcVoltageRef           = DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF;
+
 
     voltageStat.average             = 0;
     currentStat.average             = 0;
@@ -159,9 +172,17 @@ bool DataProcessing::setSamplingTime(double aSamplingTime)
 bool DataProcessing::setResolution(double aResolution)
 {
     if(acquisitionStatus == DATAPROCESSING_ACQUISITION_STATUS_ACTIVE) return false;
-    voltageInc = (double)DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF/qPow(2,aResolution)*DATAPROCESSING_DEFAULT_ADC_VOLTAGE_K;
-    currentInc = (double)DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF/qPow(2,aResolution);
+    adcResolution = aResolution;
+    voltageInc = (double)calData->adcVoltageRef/qPow(2,adcResolution)*calData->voltageCorr;
+    currentInc = (double)calData->adcVoltageRef/qPow(2,adcResolution);
+
     return true;
+}
+
+bool DataProcessing::setSamplesNo(unsigned int aSamplesNo)
+{
+    samplesNo = aSamplesNo;
+    samplesBufferSize = samplesNo;
 }
 
 bool DataProcessing::setConsumptionMode(dataprocessing_consumption_mode_t aConsumptionMode)
@@ -216,6 +237,17 @@ bool DataProcessing::setAcquisitionStatus(dataprocessing_acquisition_status_t aA
 dataprocessing_acquisition_status_t DataProcessing::getAcquisitionStatus()
 {
     return acquisitionStatus;
+}
+
+CalibrationData *DataProcessing::getCalibrationData()
+{
+    return calData;
+}
+
+void DataProcessing::calibrationDataUpdated()
+{
+    voltageInc = (double)calData->adcVoltageRef/qPow(2,adcResolution)*calData->voltageCorr;
+    currentInc = (double)calData->adcVoltageRef/qPow(2,adcResolution);
 }
 
 void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int packetID, int magic)
@@ -308,8 +340,8 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
             c = a | b;
             d = (int) c;
             double swapDataCurrent = (double)d;
-            double voltageValue = DATAPROCESSING_DEFAULT_ADC_VOLTAGE_OFF + swapDataVoltage*voltageInc;
-            double currentValue = (swapDataCurrent*currentInc-1.621)/(DATAPROCESSING_DEFAULT_SHUNT*DATAPROCESSING_DEFAULT_GAIN)*1000.0; //mA
+            double voltageValue = calData->voltageOff  + swapDataVoltage*voltageInc;
+            double currentValue = (swapDataCurrent*currentInc-calData->voltageCurrOffset)/(calData->currentShunt*calData->currentGain)*1000.0*calData->currentCorrection; //mA
             if(voltageValue > voltageStat.max) voltageStat.max = voltageValue;
             if(voltageValue < voltageStat.min) voltageStat.min = voltageValue;
             if(currentValue > currentStat.max) currentStat.max = currentValue;
@@ -364,10 +396,10 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
 //        qDebug() << "MinC, MaxC =" << QString::number(minCurrent) << "," <<  QString::number(maxCurrent);
 //        qDebug() << "V-Dev =" << QString::number(maxVoltage - minVoltage);
 //        qDebug() << "I-Dev =" << QString::number(maxCurrent - minCurrent);
-        processSignalWithFFT(voltageDataCollected, 0.0005, voltageDataCollectedFiltered, fftDataCollectedVoltage, samplingPeriod, fftKeysDataCollected, minMax);
+        //processSignalWithFFT(voltageDataCollected, 0.0005, voltageDataCollectedFiltered, fftDataCollectedVoltage, samplingPeriod, fftKeysDataCollected, minMax);
         if(minMax[0] > maxVoltageF) maxVoltageF = minMax[0];
         if(minMax[1] < minVoltageF) minVoltageF = minMax[1];
-        processSignalWithFFT(currentDataCollected, 0.5, currentDataCollectedFiltered, fftDataCollectedCurrent, samplingPeriod, fftKeysDataCollected, minMax);
+        //processSignalWithFFT(currentDataCollected, 0.5, currentDataCollectedFiltered, fftDataCollectedCurrent, samplingPeriod, fftKeysDataCollected, minMax);
         if(minMax[0] > maxCurrentF) maxCurrentF = minMax[0];
         if(minMax[1] < minCurrentF) minCurrentF = minMax[1];
 //        for(int i = 0; i < lastBufferUsedPositionIndex; i++)
@@ -391,9 +423,9 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
 //        qDebug() << "V-DevF =" << QString::number(maxVoltageF - minVoltageF);
 //        qDebug() << "I-DevF =" << QString::number(maxCurrentF - minCurrentF);
 
-        voltageStat.average /= (lastBufferUsedPositionIndex + 1);
-        currentStat.average /= (lastBufferUsedPositionIndex + 1);
-        consumptionStat.average = 0;
+        voltageStat.average /= (lastBufferUsedPositionIndex);
+        currentStat.average /= (lastBufferUsedPositionIndex);
+        consumptionStat.average = lastCumulativeCurrentConsumptionValue;
         consumptionStat.max = lastCumulativeCurrentConsumptionValue;
         consumptionStat.min = 0;
 
@@ -430,6 +462,7 @@ void DataProcessing::onNewSampleBufferReceived(QVector<double> rawData, int pack
         //emit sigEBP(ebpValue, ebpValueKey);
         emit sigSamplesBufferReceiveStatistics(dropRate, dropPacketsNo, receivedPacketCounter, lastReceivedPacketID, ebpNo);
         emit sigSignalStatistics(voltageStat, currentStat, consumptionStat);
+        emit sigAverageValues(currentStat.average, voltageStat.average);
         initBuffers();
     }
 }

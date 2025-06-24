@@ -13,7 +13,7 @@ DeviceContainer::DeviceContainer(QObject *parent,  DeviceWnd* aDeviceWnd, Device
     consumptionProfileName = "";
     consumptionProfileNameSet = false;
     consumptionProfileNameExists = false;
-    savetoFileEnabled   = false;
+    globalSaveToFileEnabled   = false;
     epEnabled           = false;
 
     elapsedTime     = 0;
@@ -30,6 +30,7 @@ DeviceContainer::DeviceContainer(QObject *parent,  DeviceWnd* aDeviceWnd, Device
     connect(deviceWnd,  SIGNAL(sigADCChanged(QString)),                             this, SLOT(onDeviceWndADCChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigResolutionChanged(QString)),                      this, SLOT(onDeviceWndResolutionChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigClockDivChanged(QString)),                        this, SLOT(onDeviceWndClockDivChanged(QString)));
+    connect(deviceWnd,  SIGNAL(sigSamplesNoChanged(unsigned int)),                  this, SLOT(onDeviceWndSamplesNoChanged(unsigned int)));
     connect(deviceWnd,  SIGNAL(sigSampleTimeChanged(QString)),                      this, SLOT(onDeviceWndChannelSamplingTimeChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigSamplingPeriodChanged(QString)),                  this, SLOT(onDeviceWndSamplingPeriodChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigAvrRatioChanged(QString)),                        this, SLOT(onDeviceWndAvrRatioChanged(QString)));
@@ -46,6 +47,18 @@ DeviceContainer::DeviceContainer(QObject *parent,  DeviceWnd* aDeviceWnd, Device
     connect(deviceWnd,  SIGNAL(sigConsumptionTypeChanged(QString)),                 this, SLOT(onDeviceWndConsumptionTypeChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigMeasurementTypeChanged(QString)),                 this, SLOT(onDeviceWndMeasurementTypeChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigConsumptionProfileNameChanged(QString)),          this, SLOT(onDeviceWndConsumptionProfileNameChanged(QString)));
+    connect(deviceWnd,  SIGNAL(sigCalibrationUpdated()),                            this, SLOT(onDeviceWndCalibrationUpdated()));
+    connect(deviceWnd,  SIGNAL(sigLoadStatusChanged(bool)),                         this, SLOT(onDeviceWndLoadStatusChanged(bool)));
+    connect(deviceWnd,  SIGNAL(sigPPathStatusChanged(bool)),                        this, SLOT(onDeviceWndPPathStatusChanged(bool)));
+    connect(deviceWnd,  SIGNAL(sigBatteryStatusChanged(bool)),                      this, SLOT(onDeviceWndBatteryStatusChanged(bool)));
+    connect(deviceWnd,  SIGNAL(sigResetProtection()),                               this, SLOT(onDeviceWndResetProtection()));
+    connect(deviceWnd,  SIGNAL(sigLoadCurrentStatusChanged(bool)),                  this, SLOT(onDeviceWndLoadCurrentSetStatus(bool)));
+    connect(deviceWnd,  SIGNAL(sigLoadCurrentChanged(unsigned int)),                this, SLOT(onDeviceWndLoadCurrentSetValue(unsigned int)));
+    connect(deviceWnd,  SIGNAL(sigChargingCurrentStatusChanged(bool)),              this, SLOT(onDeviceWndChargingCurrentSetStatus(bool)));
+    connect(deviceWnd,  SIGNAL(sigChargingCurrentChanged(unsigned int)),            this, SLOT(onDeviceWndChargingCurrentSetValue(unsigned int)));
+    connect(deviceWnd,  SIGNAL(sigChargingTermCurrentChanged(unsigned int)),        this, SLOT(onDeviceWndChargingTermCurrentSetValue(unsigned int)));
+    connect(deviceWnd,  SIGNAL(sigChargingTermVoltageChanged(float)),               this, SLOT(onDeviceWndChargingTermVoltageSetValue(float)));
+    connect(deviceWnd,  SIGNAL(sigChDschSaveToFileToggled(bool)),                   this, SLOT(onDeviceWndChDschSaveToFileChanged(bool)));
 
     /*Device signals*/
     connect(device,     SIGNAL(sigControlLinkConnected()),                          this, SLOT(onDeviceControlLinkConnected()));
@@ -65,6 +78,19 @@ DeviceContainer::DeviceContainer(QObject *parent,  DeviceWnd* aDeviceWnd, Device
     connect(device,     SIGNAL(sigAcqusitionStarted()),                             this, SLOT(onDeviceAcquisitonStarted()));
     connect(device,     SIGNAL(sigAcqusitionStopped()),                             this, SLOT(onDeviceAcquisitonStopped()));
 
+    connect(device,     SIGNAL(sigPPathStateObtained(bool)),                        this,  SLOT(onDevicePPathStateObtained(bool)));
+    connect(device,     SIGNAL(sigBatStateObtained(bool)),                          this,  SLOT(onDeviceBatStateObtained(bool)));
+    connect(device,     SIGNAL(sigLoadStateObtained(bool)),                         this,  SLOT(onDeviceLoadStateObtained(bool)));
+    connect(device,     SIGNAL(sigLoadCurrentObtained(int )),                       this,  SLOT(onDeviceLoadCurrentObtained(int)));
+    connect(device,     SIGNAL(sigDACStateObtained(bool)),                          this,  SLOT(onDeviceDACStateObtained(bool)));
+    connect(device,     SIGNAL(sigOVoltageObtained(bool)),                          this,  SLOT(onDeviceOVoltageObtained(bool)));
+    connect(device,     SIGNAL(sigUVoltageObtained(bool)),                          this,  SLOT(onDeviceUVoltageObtained(bool)));
+    connect(device,     SIGNAL(sigOCurrentObtained(bool)),                          this,  SLOT(onDeviceOCurrentObtained(bool)));
+    connect(device,     SIGNAL(sigChargerCurrentObtained(int )),                    this,  SLOT(onDeviceChargerCurrentObtained(int)));
+    connect(device,     SIGNAL(sigChargerTermCurrentObtained(int )),                this,  SLOT(onDeviceChargerTermCurrentObtained(int)));
+    connect(device,     SIGNAL(sigChargerTermVoltageObtained(float )),              this,  SLOT(onDeviceChargerTermVoltageObtained(float)));
+    connect(device,     SIGNAL(sigChargingDone()),                                  this,  SLOT(onDeviceChargingDone()));
+
     connect(device,     SIGNAL(sigVoltageCurrentSamplesReceived(QVector<double>,QVector<double>,QVector<double>, QVector<double>)),
             this, SLOT(onDeviceNewVoltageCurrentSamplesReceived(QVector<double>,QVector<double>,QVector<double>, QVector<double>)));
     connect(device,     SIGNAL(sigNewSamplesBuffersProcessingStatistics(double,uint,uint,uint, unsigned short)), this, SLOT(onDeviceNewSamplesBuffersProcessingStatistics(double,uint,uint,uint, unsigned short)));
@@ -75,9 +101,16 @@ DeviceContainer::DeviceContainer(QObject *parent,  DeviceWnd* aDeviceWnd, Device
     connect(device,     SIGNAL(sigNewStatisticsReceived(dataprocessing_dev_info_t,dataprocessing_dev_info_t,dataprocessing_dev_info_t)),
             this, SLOT(onDeviceNewStatisticsReceived(dataprocessing_dev_info_t,dataprocessing_dev_info_t,dataprocessing_dev_info_t)));
 
+    connect(device,     SIGNAL(sigChargingStatusChanged(charginganalysis_status_t)),
+            this, SLOT(onDeviceMeasurementEnergyFlowStatusChanged(charginganalysis_status_t)));
+
+
+
+
+    deviceWnd->setCalibrationData(device->getCalibrationData());
 
     log->printLogMessage("Device container successfully created", LOG_MESSAGE_TYPE_INFO);
-    device->statusLinkCreate();
+    device->statusLinkServerCreate();
     device->epLinkServerCreate();
 
 }
@@ -118,7 +151,8 @@ void DeviceContainer::onDeviceWndClosed()
 
 void DeviceContainer::onDeviceWndSaveToFileChanged(bool saveToFile)
 {
-    savetoFileEnabled = saveToFile;
+    globalSaveToFileEnabled = saveToFile;
+    writeSamplesToFileEnabled = globalSaveToFileEnabled;
     consumptionProfileName = "";
     consumptionProfileNameSet = false;
     consumptionProfileNameExists = false;
@@ -215,6 +249,54 @@ void DeviceContainer::onDeviceWndConsumptionProfileNameChanged(QString aConsumpt
     }
 }
 
+void DeviceContainer::onDeviceWndLoadStatusChanged(bool status)
+{
+    if(device->setLoadStatus(status))
+    {
+        deviceWnd->setLoadState(status);
+    }
+    else
+    {
+
+    }
+}
+
+void DeviceContainer::onDeviceWndPPathStatusChanged(bool status)
+{
+    if(device->setPPathStatus(status))
+    {
+        deviceWnd->setPPathState(status);
+    }
+    else
+    {
+
+    }
+}
+
+void DeviceContainer::onDeviceWndBatteryStatusChanged(bool status)
+{
+    if(device->setBatStatus(status))
+    {
+        deviceWnd->setBatState(status);
+    }
+    else
+    {
+
+    }
+}
+
+void DeviceContainer::onDeviceWndResetProtection()
+{
+    if(device->latchTrigger())
+    {
+        log->printLogMessage("Protection Reset", LOG_MESSAGE_TYPE_INFO);
+    }
+    else
+    {
+
+    }
+}
+
 void DeviceContainer::onConsoleWndMessageRcvd(QString msg)
 {
     /* call device funtion sendControl Msg -> */
@@ -238,6 +320,19 @@ void DeviceContainer::onDeviceWndResolutionChanged(QString resolution)
     else
     {
         log->printLogMessage("Resolution: " + resolution + " sucessfully set", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDeviceWndSamplesNoChanged(unsigned int newSamplesNo)
+{
+    /* call deviceWnd function with recieved msg from FW <- */
+    if(!device->setSamplesNo(newSamplesNo))
+    {
+        log->printLogMessage("Unable to set samples no: " + QString::number(newSamplesNo), LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage(QString::number(newSamplesNo) + " sucessfully set", LOG_MESSAGE_TYPE_INFO);
     }
 }
 
@@ -335,6 +430,14 @@ void DeviceContainer::onDeviceWndInterfaceChanged(QString interfaceIp)
         deviceWnd->setDeviceInterfaceSelectionState(DEVICE_INTERFACE_SELECTION_STATE_SELECTED);
         deviceWnd->setAdc("Int");
         device->acquireDeviceConfiguration(DEVICE_ADC_INTERNAL);
+        if(!device->establishStatusLink(interfaceIp))
+        {
+            log->printLogMessage("Unable to create status link: ", LOG_MESSAGE_TYPE_ERROR);
+        }
+        else
+        {
+            log->printLogMessage("Status link ( port="+ QString::number(8818) + " ) sucessfully created: ", LOG_MESSAGE_TYPE_INFO);
+        }
     }
 }
 
@@ -378,7 +481,7 @@ void DeviceContainer::onDeviceWndCOffsetChanged(QString off)
 
 void DeviceContainer::onDeviceWndAcquisitionStart()
 {
-    if(savetoFileEnabled && (!consumptionProfileNameSet))
+    if(globalSaveToFileEnabled && (!consumptionProfileNameSet))
     {
         QMessageBox msgBox;
         msgBox.setWindowIcon(QIcon(QPixmap(":/images/NewSet/stopHand.png")));
@@ -387,7 +490,7 @@ void DeviceContainer::onDeviceWndAcquisitionStart()
         msgBox.exec();
         return;
     }
-    if(savetoFileEnabled && consumptionProfileNameExists)
+    if(globalSaveToFileEnabled && consumptionProfileNameExists)
     {
         QMessageBox msgBox;
         msgBox.setWindowIcon(QIcon(QPixmap(":/images/NewSet/stopHand.png")));
@@ -415,7 +518,7 @@ void DeviceContainer::onDeviceWndAcquisitionStart()
     else
     {
         log->printLogMessage("Acquisition sucessfully started", LOG_MESSAGE_TYPE_INFO);        
-        if(savetoFileEnabled)
+        if(globalSaveToFileEnabled)
         {
             fileProcessing->appendSummaryFile("EP Enabled: " + QString::number(epEnabled));
             fileProcessing->appendSummaryFile("Acquisiton start: " + QDateTime::currentDateTime().toString());
@@ -432,7 +535,7 @@ void DeviceContainer::onDeviceWndAcquisitionStop()
     else
     {
         log->printLogMessage("Acquisition sucessfully stoped", LOG_MESSAGE_TYPE_INFO);
-        if(savetoFileEnabled && (consumptionProfileNameExists == false))
+        if(globalSaveToFileEnabled && (consumptionProfileNameExists == false))
         {
             fileProcessing->appendSummaryFile("Acquisiton stop: " + QDateTime::currentDateTime().toString());
             consumptionProfileNameExists = true;
@@ -449,7 +552,7 @@ void DeviceContainer::onDeviceWndAcquisitionPause()
     else
     {
         log->printLogMessage("Acquisition sucessfully paused", LOG_MESSAGE_TYPE_INFO);
-          if(savetoFileEnabled && (consumptionProfileNameExists == false))
+          if(globalSaveToFileEnabled && (consumptionProfileNameExists == false))
         {
             fileProcessing->appendSummaryFile("Acquisiton stop: " + QDateTime::currentDateTime().toString());
             consumptionProfileNameExists = true;
@@ -691,6 +794,260 @@ void DeviceContainer::onDeviceSamplingTimeChanged(double value)
     deviceWnd->setStatisticsSamplingTime(value);
 }
 
+void DeviceContainer::onDeviceLoadStateObtained(bool state)
+{
+    if(!deviceWnd->setLoadState(state))
+    {
+        log->printLogMessage("Unable to obtain load state", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("Load state sucessfully obained and presented ", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDeviceBatStateObtained(bool state)
+{
+    if(!deviceWnd->setBatState(state))
+    {
+        log->printLogMessage("Unable to obtain battery state", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("Battery state sucessfully obained and presented ", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDevicePPathStateObtained(bool state)
+{
+    if(!deviceWnd->setPPathState(state))
+    {
+        log->printLogMessage("Unable to obtain PPath state", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("PPath state sucessfully obained and presented ", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDeviceChargerStateObtained(bool state)
+{
+    if(!deviceWnd->setChargerState(state))
+    {
+        log->printLogMessage("Unable to obtain Charger state", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("Charger state sucessfully obained and presented ", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDeviceDACStateObtained(bool state)
+{
+    if(!deviceWnd->setDACState(state))
+    {
+        log->printLogMessage("Unable to obtain DAC state", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("DAC state sucessfully obained and presented ", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDeviceLoadCurrentObtained(int current)
+{
+    if(!deviceWnd->setLoadCurrent(current))
+    {
+        log->printLogMessage("Unable to obtain load current", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("Load current sucessfully obained and presented ", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDeviceUVoltageObtained(bool state)
+{
+    if(!deviceWnd->setUVoltageIndication(state))
+    {
+        log->printLogMessage("Unable to obtain Under Voltage protection state", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("Under Voltage protection state sucessfully obained and presented ", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDeviceOVoltageObtained(bool state)
+{
+    if(!deviceWnd->setOVoltageIndication(state))
+    {
+        log->printLogMessage("Unable to obtain Over Voltage protection state", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("Over Voltage protection state sucessfully obained and presented ", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDeviceOCurrentObtained(bool state)
+{
+    if(!deviceWnd->setOCurrentIndication(state))
+    {
+        log->printLogMessage("Unable to obtain Over Current protection state", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("Over Current protection state sucessfully obained and presented ", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDeviceChargingDone()
+{
+    if(!deviceWnd->chargingDone())
+    {
+        log->printLogMessage("Unable to obtain Over Current protection state", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("Charging done ", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDeviceChargerCurrentObtained(int current)
+{
+    if(!deviceWnd->setChargerCurrent(current))
+    {
+        log->printLogMessage("Unable to obtain charge current", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("Charge current sucessfully obained and presented ", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDeviceChargerTermCurrentObtained(int current)
+{
+    if(!deviceWnd->setChargerTermCurrent(current))
+    {
+        log->printLogMessage("Unable to obtain charge termination current", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("Charge termination current sucessfully obained and presented ", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+void DeviceContainer::onDeviceChargerTermVoltageObtained(float voltage)
+{
+    if(!deviceWnd->setChargerTermVoltage(voltage))
+    {
+        log->printLogMessage("Unable to obtain charge termination voltage", LOG_MESSAGE_TYPE_ERROR);
+    }
+    else
+    {
+        log->printLogMessage("Charge termination voltage sucessfully obained and presented ", LOG_MESSAGE_TYPE_INFO);
+    }
+}
+
+
+void DeviceContainer::onDeviceWndLoadCurrentSetValue(unsigned int current)
+{
+    if(device->setLoadCurrent(current))
+    {
+        log->printLogMessage("Load current sucessfully set: [" + QString::number(current) + " mA]", LOG_MESSAGE_TYPE_INFO);
+    }
+    else
+    {
+        log->printLogMessage("Unable to set load current", LOG_MESSAGE_TYPE_ERROR);
+    }
+}
+
+void DeviceContainer::onDeviceWndLoadCurrentSetStatus(bool status)
+{
+    QString statusStr = status ? "Enabled" : "Disabled";
+    if(device->setDACStatus(status))
+    {
+        log->printLogMessage("DAC status successfully set: " + statusStr, LOG_MESSAGE_TYPE_INFO);
+        deviceWnd->setLoadCurrentStatus(status);
+    }
+    else
+    {
+        log->printLogMessage("Unable to set DAC status", LOG_MESSAGE_TYPE_ERROR);
+    }
+}
+
+void DeviceContainer::onDeviceWndChargingCurrentSetValue(unsigned int current)
+{
+    if(device->setChargerCurrent(current))
+    {
+        log->printLogMessage("Charging current sucessfully set: " + QString::number(current) + " [mA]", LOG_MESSAGE_TYPE_INFO);
+    }
+    else
+    {
+        log->printLogMessage("Unable to set Charging current", LOG_MESSAGE_TYPE_ERROR);
+    }
+}
+
+void DeviceContainer::onDeviceWndChargingTermCurrentSetValue(unsigned int current)
+{
+    if(device->setChargerTermCurrent(current))
+    {
+        log->printLogMessage("Charging termination current sucessfully set: " + QString::number(current) + " [%]", LOG_MESSAGE_TYPE_INFO);
+    }
+    else
+    {
+        log->printLogMessage("Unable to set Charging termination current", LOG_MESSAGE_TYPE_ERROR);
+    }
+}
+
+void DeviceContainer::onDeviceWndChargingTermVoltageSetValue(float voltage)
+{
+    if(device->setChargerTermVoltage(voltage))
+    {
+        log->printLogMessage("Charging termination voltage sucessfully set: " + QString::number(voltage,'g',3) + " [V]", LOG_MESSAGE_TYPE_INFO);
+    }
+    else
+    {
+        log->printLogMessage("Unable to set Charging termination voltage", LOG_MESSAGE_TYPE_ERROR);
+    }
+}
+
+void DeviceContainer::onDeviceWndChargingCurrentSetStatus(bool status)
+{
+    QString statusStr = status ? "Enabled" : "Disabled";
+    if(device->setChargerStatus(status))
+//    if(true)
+    {
+        log->printLogMessage("Charger status successfully set: " + statusStr, LOG_MESSAGE_TYPE_INFO);
+        deviceWnd->setChargingCurrentStatus(status);
+    }
+    else
+    {
+        log->printLogMessage("Unable to set Charger status", LOG_MESSAGE_TYPE_ERROR);
+    }
+}
+
+void DeviceContainer::onDeviceWndChDschSaveToFileChanged(bool saveToFile)
+{
+
+    if(!globalSaveToFileEnabled)
+    {
+        log->printLogMessage("Global save to file option is not enabled", LOG_MESSAGE_TYPE_ERROR);
+        return;
+    }
+    if(!consumptionProfileNameSet)
+    {
+        log->printLogMessage("Unable to enable write to file. Please set profile name ", LOG_MESSAGE_TYPE_ERROR);
+        return;
+    }
+    chDschSaveToFileEnabled = saveToFile;
+    writeSamplesToFileEnabled = globalSaveToFileEnabled && chDschSaveToFileEnabled;
+
+    log->printLogMessage("Write samples to file set to: " + QString(writeSamplesToFileEnabled ? "Enabled": "Disabled"), LOG_MESSAGE_TYPE_INFO);
+
+}
+
 void DeviceContainer::onDeviceAcquisitonStarted()
 {
     elapsedTime = 0;
@@ -715,13 +1072,19 @@ void DeviceContainer::onDeviceNewVoltageCurrentSamplesReceived(QVector<double> v
 {
     deviceWnd->plotVoltageValues(voltage, voltageKeys);
     deviceWnd->plotCurrentValues(current, currentKeys);
-    fileProcessing->appendSampleDataQueued(voltage, voltageKeys, current, currentKeys);
+    if(writeSamplesToFileEnabled)
+    {
+        fileProcessing->appendSampleDataQueued(voltage, voltageKeys, current, currentKeys);
+    }
 }
 
 void DeviceContainer::onDeviceNewConsumptionDataReceived(QVector<double> consumption, QVector<double> keys, dataprocessing_consumption_mode_t mode)
 {
     deviceWnd->plotConsumptionValues(consumption, keys);
-    fileProcessing->appendConsumptionQueued(consumption, keys);
+    if(writeSamplesToFileEnabled)
+    {
+        fileProcessing->appendConsumptionQueued(consumption, keys);
+    }
 }
 
 void DeviceContainer::onDeviceNewStatisticsReceived(dataprocessing_dev_info_t voltageStat, dataprocessing_dev_info_t currentStat, dataprocessing_dev_info_t consumptionStat)
@@ -752,8 +1115,44 @@ void DeviceContainer::onDeviceNewEBP(QVector<double> ebpValues, QVector<double> 
 void DeviceContainer::onDeviceNewEBPFull(double value, double key, QString name)
 {
     deviceWnd->plotConsumptionEBPWithName(value, key, name);
-    fileProcessing->appendEPQueued(name, key);
+    if(writeSamplesToFileEnabled)
+    {
+        fileProcessing->appendEPQueued(name, key);
+    }
     log->printLogMessage("New Energy point received (Value: " + QString::number(value) + "; Key: " + QString::number(key) + "; Name: " + name + ")", LOG_MESSAGE_TYPE_INFO);
+}
+
+void DeviceContainer::onDeviceMeasurementEnergyFlowStatusChanged(charginganalysis_status_t status)
+{
+    QString msg = "Charging status changed to ";
+    QString wndMsg;
+    switch(status)
+    {
+    case CHARGINGANALYSIS_STATUS_UNKNOWN:
+        msg += "Uknown";
+        wndMsg = "Uknown";
+        break;
+    case CHARGINGANALYSIS_STATUS_IDLE:
+        msg += "Idle";
+        wndMsg = "Idle";
+        break;
+    case CHARGINGANALYSIS_STATUS_CHARGING:
+        msg += "Charging";
+        wndMsg = "Charging";
+        break;
+    case CHARGINGANALYSIS_STATUS_DISCHARGING:
+        msg += "Discharging";
+        wndMsg = "Discharging";
+        break;
+
+    }
+    deviceWnd->setChargingStatus(wndMsg);
+    log->printLogMessage(msg, LOG_MESSAGE_TYPE_INFO);
+}
+
+void DeviceContainer::onDeviceWndCalibrationUpdated()
+{
+    device->calibrationUpdated();
 }
 
 device_adc_resolution_t DeviceContainer::getAdcResolutionFromString(QString resolution)

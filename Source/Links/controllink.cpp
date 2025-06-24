@@ -1,7 +1,10 @@
 #include "controllink.h"
-#include "Ws2tcpip.h"
-#include "WinSock2.h"
 #include <QHostAddress>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/tcp.h>
+#include <netinet/in.h>
+#include <unistd.h>
 
 ControlLink::ControlLink(QObject *parent)
     : QObject{parent}
@@ -103,20 +106,35 @@ bool   ControlLink::setSocketKeepAlive()
     qintptr sd = tcpSocket->socketDescriptor();
     int response;
 
-    response = setsockopt(sd, SOL_SOCKET, SO_KEEPALIVE, &enableKeepAlive, sizeof(enableKeepAlive));
-    if(response != 0) return false;
+    // response = setsockopt(sd, SOL_SOCKET, SO_KEEPALIVE, &enableKeepAlive, sizeof(enableKeepAlive));
+    // if(response != 0) return false;
 
-    int maxIdle = 1; /* seconds */
-    response = setsockopt(sd, IPPROTO_TCP, TCP_KEEPIDLE, (const char*)&maxIdle, 4);
-    if(response != 0) return false;
+    // int maxIdle = 1; /* seconds */
+    // response = setsockopt(sd, IPPROTO_TCP, TCP_KEEPIDLE, (const char*)&maxIdle, 4);
+    // if(response != 0) return false;
 
-    int count = 1;  // send up to 2 keepalive packets out, then disconnect if no response
-    response = setsockopt(sd, IPPROTO_TCP , TCP_KEEPCNT, (const char*)&count, 4);
-    if(response != 0) return false;
+    // int count = 1;  // send up to 2 keepalive packets out, then disconnect if no response
+    // response = setsockopt(sd, IPPROTO_TCP , TCP_KEEPCNT, (const char*)&count, 4);
+    // if(response != 0) return false;
 
-    int interval = 2;   // send a keepalive packet out every 2 seconds (after the 5 second idle period)
-    response = setsockopt(sd, IPPROTO_TCP, TCP_KEEPINTVL, (const char*)&interval, 4);
-    if(response != 0) return false;
+    // int interval = 2;   // send a keepalive packet out every 2 seconds (after the 5 second idle period)
+    // response = setsockopt(sd, IPPROTO_TCP, TCP_KEEPINTVL, (const char*)&interval, 4);
+    // if(response != 0) return false;
+
+    if (setsockopt(sd, SOL_SOCKET, SO_KEEPALIVE, &enableKeepAlive, sizeof(enableKeepAlive)) < 0)
+        return false;
+
+    int maxIdle = 1;  // Seconds before starting to send keepalive probes
+    if (setsockopt(sd, IPPROTO_TCP, TCP_KEEPIDLE, &maxIdle, sizeof(maxIdle)) < 0)
+        return false;
+
+    int count = 1;  // Number of keepalive probes before considering the connection dead
+    if (setsockopt(sd, IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count)) < 0)
+        return false;
+
+    int interval = 2;  // Interval between individual keepalive probes
+    if (setsockopt(sd, IPPROTO_TCP, TCP_KEEPINTVL, &interval, sizeof(interval)) < 0)
+        return false;
 
     return true;
 }

@@ -1,5 +1,6 @@
 #include "openept.h"
 #include "Processing/dataprocessing.h"
+#include "Processing/charginganalysis.h"
 #include "Windows/WSSelection/selectworkspace.h"
 
 #include <QApplication>
@@ -18,6 +19,7 @@ int main(int argc, char *argv[])
 
         qRegisterMetaType<dataprocessing_consumption_mode_t>("dataprocessing_consumption_mode_t");
         qRegisterMetaType<dataprocessing_dev_info_t>("dataprocessing_dev_info_t");
+        qRegisterMetaType<charginganalysis_status_t>("charginganalysis_status_t");
         return a.exec();
     }
     else

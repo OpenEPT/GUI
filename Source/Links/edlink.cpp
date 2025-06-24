@@ -9,7 +9,7 @@ EDLink::EDLink(QObject *parent)
 {
     port = EP_LINK_SERVER_PORT;
     tcpServerThread = new QThread(this);
-    tcpServerThread->setObjectName("EP server");
+    tcpServerThread->setObjectName("OpenEPT - EP server");
     connect(tcpServerThread, SIGNAL(started()),this,SLOT(onServerStarted()));
 }
 

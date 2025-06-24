@@ -4,17 +4,19 @@
 #include <QObject>
 #include <QThread>
 #include "fftw/fftw3.h"
+#include "calibrationdata.h"
 
 
 #define DATAPROCESSING_DEFAULT_NUMBER_OF_BUFFERS        100
 #define DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE      500
 #define DATAPROCESSING_DEFAULT_SAMPLE_SIZE              2
-#define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF          2*4.09
-#define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_K            1.325
-//#define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF          3.28
+#define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF          8.179
+#define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_K            1.3355
 #define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_OFF          0
-#define DATAPROCESSING_DEFAULT_SHUNT                    0.045
-#define DATAPROCESSING_DEFAULT_GAIN                     10
+#define DATAPROCESSING_DEFAULT_SHUNT                    0.100
+#define DATAPROCESSING_DEFAULT_GAIN                     9.36
+#define DATAPROCESSING_DEFAULT_CURRENT_K                1
+#define DATAPROCESSING_DEFAULT_CURRENT_OFF              1.6308
 #define DATAPROCESSING_DEFAULT_FILTERING_ENABLE         0
 
 typedef enum
@@ -65,17 +67,23 @@ public:
     bool                                setSamplingPeriod(double aSamplingPeriod);                  //us
     bool                                setSamplingTime(double aSamplingTime);                      //us
     bool                                setResolution(double aResolution);
+    bool                                setSamplesNo(unsigned int aSamplesNo);
     bool                                setConsumptionMode(dataprocessing_consumption_mode_t aConsumptionMode);
     bool                                setMeasurementMode(dataprocessing_measurement_mode_t aMeasurementMode);
 
     bool                                setAcquisitionStatus(dataprocessing_acquisition_status_t aAcquisitionStatus);
     dataprocessing_acquisition_status_t getAcquisitionStatus();
 
+    CalibrationData*                    getCalibrationData();
+
+    void                                calibrationDataUpdated();
+
 signals:
     void                                sigNewVoltageCurrentSamplesReceived(QVector<double> voltage, QVector<double> current, QVector<double> voltageKeys, QVector<double> currentKeys);
     void                                sigNewConsumptionDataReceived(QVector<double> consumption, QVector<double> keys, dataprocessing_consumption_mode_t consumptionMode);
     void                                sigSamplesBufferReceiveStatistics(double dropRate, unsigned int dopPacketsNo, unsigned int fullPacketCounter, unsigned int lastPacketID, unsigned short ebp);
     void                                sigSignalStatistics(dataprocessing_dev_info_t voltage, dataprocessing_dev_info_t current, dataprocessing_dev_info_t consumption);
+    void                                sigAverageValues(double current, double voltage);
     void                                sigEBP(QVector<double> ebpValues, QVector<double> ebpKeys);
     void                                sigEBPValue(unsigned int ebpID, double ebpValues, double ebpKeys);
 
@@ -111,6 +119,7 @@ private:
     double                              samplingTime;           //ms
     double                              voltageInc;
     double                              currentInc;
+    double                              adcResolution;
 
     /* */
     unsigned int                        maxNumberOfBuffers;
@@ -145,12 +154,25 @@ private:
     QVector<double>                     minMax;
     bool                                filteringEnable;
 
+    /**/
+    double                              adcVoltageRef;
+    double                              adcVoltageK;
+    double                              adcVOltageOff;
+    double                              adcCurrentK;
+    double                              adcCurrentOff;
+
 
     /**/
     dataprocessing_acquisition_status_t acquisitionStatus;
     dataprocessing_consumption_mode_t   consumptionMode;
     dataprocessing_measurement_mode_t   measurementMode;
     dataprocessing_device_mode_t        deviceMode;
+
+    /**/
+    CalibrationData                     *calData;
+
+    /**/
+    unsigned int                        samplesNo;
 
 };
 

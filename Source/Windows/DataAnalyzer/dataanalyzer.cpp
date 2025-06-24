@@ -84,6 +84,7 @@ DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
     thread = new QThread(this);
     dataProcesingClass = new DataAnalyzerWorker();
     dataProcesingClass->moveToThread(thread);
+    thread->setObjectName("OpenEPT - Data Analyzer");
 
     qRegisterMetaType<QVector<int> >("QVector<QVector<double>>");
     qRegisterMetaType<QVector<int> >("QVector<QPair<QString, int>>");

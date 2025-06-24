@@ -9,8 +9,11 @@
 #include "Windows/Console/consolewnd.h"
 #include "Windows/Device/advcofigurationdata.h"
 #include "Windows/Device/datastatistics.h"
+#include "Windows/Device/calibrationwnd.h"
+#include "Windows/Device/energycontrolwnd.h"
 
 #define     DEVICEWND_DEFAULT_MAX_NUMBER_OF_BUFFERS 100
+#define     DEVICEWND_DEFAULT_MAX_NUMBER_OF_SAMPLES 250
 
 typedef enum
 {
@@ -87,6 +90,29 @@ public:
     bool            setInCkl(QString inClk);
     bool            setCOffset(QString coffset);
     bool            setVOffset(QString voffset);
+    bool            setLoadState(bool state);
+    bool            setPPathState(bool state);
+    bool            setBatState(bool state);
+    bool            setDACState(bool state);
+    bool            setChargerState(bool state);
+    bool            setSaveToFileState(bool state);
+
+    void            setLoadCurrentStatus(bool state);
+    bool            setLoadCurrent(int current);
+    void            setChargingCurrentStatus(bool state);
+
+    bool            setUVoltageIndication(bool state);
+    bool            setOVoltageIndication(bool state);
+    bool            setOCurrentIndication(bool state);
+
+
+    bool            setChargerCurrent(int current);
+    bool            setChargerTermCurrent(int current);
+    bool            setChargerTermVoltage(float voltage);
+    bool            chargingDone();
+
+    bool            setChargingStatus(QString status);
+
     void            setStatisticsData(double dropRate, unsigned int dropPacketsNo, unsigned int fullReceivedBuffersNo, unsigned int lastBufferID);
     void            setStatisticsSamplingTime(double stime);
     void            setStatisticsElapsedTime(int elapsedTime);
@@ -103,6 +129,8 @@ public:
 
     bool            setWorkingSpaceDir(QString aWsPath);
 
+    void            setCalibrationData(CalibrationData* data);
+
 
     QStringList*    getChSamplingTimeOptions();
     QStringList*    getChAvgRationOptions();
@@ -113,6 +141,7 @@ public:
 signals:
     void            sigWndClosed();
     void            sigSamplingPeriodChanged(QString time);
+    void            sigSamplesNoChanged(unsigned int newSamplesNo);
     void            sigResolutionChanged(QString resolution);
     void            sigADCChanged(QString adc);
     void            sigClockDivChanged(QString clockDiv);
@@ -135,6 +164,20 @@ signals:
     void            sigConsumptionTypeChanged(QString consumptionType);
     void            sigMeasurementTypeChanged(QString consumptionType);
     void            sigScatterNameAndKey(QString name, double key);
+
+    void            sigLoadStatusChanged(bool status);
+    void            sigLoadCurrentChanged(unsigned int current);
+    void            sigLoadCurrentStatusChanged(bool newState);
+    void            sigChargingCurrentChanged(unsigned int current);
+    void            sigChargingTermCurrentChanged(unsigned int current);
+    void            sigChargingTermVoltageChanged(float voltage);
+    void            sigChargingCurrentStatusChanged(bool newState);
+    void            sigChDschSaveToFileToggled(bool status);
+    void            sigPPathStatusChanged(bool status);
+    void            sigBatteryStatusChanged(bool status);
+    void            sigResetProtection();
+
+    void            sigCalibrationUpdated();
 protected:
     void            closeEvent(QCloseEvent *event);
 
@@ -157,6 +200,20 @@ public slots:
     void            onAdvConfigurationReqested(void);
     void            onMaxNumberOfBuffersChanged();
     void            onEPEnableChanged(int value);
+    void            onSamplesNoChanged();
+
+
+    void            onLoadCurrentStatusChanged(bool newState);
+    void            onLoadCurrentChanged(unsigned int current);
+    void            onChargingCurrentStatusChanged(bool newState);
+    void            onChargingCurrentChanged(unsigned int current);
+    void            onChargingTermCurrentChanged(unsigned int current);
+    void            onChargingTermVoltageChanged(float voltage);
+    void            onLoadStatusChanged(bool status);
+    void            onPPathStatusChanged(bool status);
+    void            onBatteryStatusChanged(bool status);
+    void            onResetProtection();
+    void            onChDschSaveToFileChanged(bool state);
 
 
     void            onConsumptionProfileNameChanged();
@@ -167,10 +224,16 @@ public slots:
 
     void            onAdvanceConfigurationButtonPressed(bool pressed);
 
+    void            onCalibrationButtonPressed(bool pressed);
+    void            onEnenergyControlButtonPressed(bool pressed);
+
 
     void            onNewControlMsgRcvd(QString text);
 
     void            onPlotScatterNameAndKey(QString name, double key);
+
+private slots:
+    void            onCalibrationUpdated();
 
 private:
     Ui::DeviceWnd               *ui;
@@ -179,6 +242,8 @@ private:
 
     ConsoleWnd                  *consoleWnd;
     DataStatistics              *dataAnalyzer;
+    CalibrationWnd              *calibrationWnd;
+    EnergyControlWnd            *energyControlWnd;
     Plot                        *voltageChart;
     Plot                        *currentChart;
     Plot                        *consumptionChart;
@@ -193,6 +258,7 @@ private:
 
     /* File info */
     bool                        saveToFileFlag;
+    bool                        consumptionProfileSet;
 
     bool                        samplingTextChanged = false;
     bool                        voffsetTextChanged = false;

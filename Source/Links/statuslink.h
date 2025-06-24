@@ -16,6 +16,8 @@ public:
     explicit StatusLink(QObject *parent = nullptr);
 
     void                    startServer();
+    void                    setPort(quint16 aPortNo);
+    quint16                 getPort();
 
 signals:
     void                    sigNewClientConnected(QString ip);
@@ -31,6 +33,7 @@ private:
     QTcpServer              *tcpServer;
     QList<QTcpSocket*>      clientList;
     QThread                 *tcpServerThread;
+    quint16                 portNo;
 };
 
 #endif // STATUSLINK_H
