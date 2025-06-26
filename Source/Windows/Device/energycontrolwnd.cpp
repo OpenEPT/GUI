@@ -337,7 +337,7 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
 
     // ===== Set Initial States =====
     setConfigurationState(Configured);
-    setChargingState(Unknown);
+    setChargingState(Unknown1);
 
     // ----- Add status section to main layout -----
     mainLayout->addLayout(statusSectionLayout);
@@ -1541,7 +1541,7 @@ void EnergyControlWnd::setChargingState(ChargingState state)
             tooltip = "Battery relaxing";
             color = "#FFFFE0"; // light yellow
             break;
-        case Unknown:
+        case Unknown1:
         default:
             text = "Charging state: Unknown";
             tooltip = "Start the measurement";

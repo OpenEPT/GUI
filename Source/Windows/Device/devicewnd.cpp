@@ -714,7 +714,7 @@ bool DeviceWnd::setSamplingPeriod(QString stime)
 
 bool DeviceWnd::setADCClk(QString adcClk)
 {
-
+    return true;
 }
 
 bool DeviceWnd::setInCkl(QString inClk)
@@ -844,8 +844,9 @@ bool DeviceWnd::setChargingStatus(QString status)
     }
     else
     {
-        energyControlWnd->setChargingState(Unknown);
+        energyControlWnd->setChargingState(Unknown1);
     }
+    return true;
 }
 
 void DeviceWnd::setStatisticsData(double dropRate, unsigned int dropPacketsNo, unsigned int fullReceivedBuffersNo, unsigned int lastBufferID)
