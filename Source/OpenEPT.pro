@@ -91,22 +91,19 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 RESOURCES += \
     resource.qrc
 
-#win32 {
+win32 {
+    DLL_SRC = $$absolute_path(../libs/win/libfftw3-3.dll)
+    DLL_SRC = $$replace(DLL_SRC, /, \\)
 
-#    message("Copy .dll file to output dir...")
+    DLL_BASE_DST = $$OUT_PWD
 
-#    DLL_SRC = ../libs/win/libfftw3-3.dll
-#    ABS_DLL_SRC = $$absolute_path($$DLL_SRC)
-#    DLL_DST = $$OUT_PWD
+    CONFIG(debug, debug|release) {
+        DLL_DST_DIR = $$DLL_BASE_DST\\debug
+    } else {
+        DLL_DST_DIR = $$DLL_BASE_DST\\release
+    }
 
-#    message("Build output directory: $$DLL_DST")
-#    message("Project directory: $$PWD")
+    QMAKE_POST_LINK += powershell -Command \"Copy-Item -Path '$$DLL_SRC' -Destination '$$DLL_DST_DIR'\"
 
-#    !exists($$ABS_DLL_SRC): message("ERROR: DLL file not found at path: $$ABS_DLL_SRC")
-#    else: message("DLL file found: $$ABS_DLL_SRC")
-
-#    QMAKE_POST_LINK += $$QMAKE_COPY  $$quote($$ABS_DLL_SRC) $$quote($$DLL_DST) $$escape_expand(\\n\\t)
-
-#    message("Post build command: $$QMAKE_POST_LINK")
-#    export(QMAKE_POST_LINK)
-#}
+    message("Post-build copy: $$DLL_SRC -> $$DLL_DST_DIR")
+}
