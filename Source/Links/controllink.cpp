@@ -1,8 +1,8 @@
 #include "controllink.h"
 #include <QtGlobal>
+#include <QHostAddress>
 
 #ifdef Q_OS_WIN
-#include <QHostAddress>
 #include "Ws2tcpip.h"
 #include "WinSock2.h"
 #elif defined(Q_OS_LINUX)

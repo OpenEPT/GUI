@@ -9,7 +9,7 @@ CONFIG += c++17
 # In order to do so, uncomment the following line.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 unix:!macx {
-    LIBS     += "/home/elektronika/Desktop/Projects/OpenEPT/Forks/OpenEPT_GUI/Source/libs/linux/libfftw3.a"
+    LIBS     += $$PWD/../libs/linux/libfftw3.a
 }
 win32 {
     LIBS     += "../libs/win/libfftw3-3.lib"
