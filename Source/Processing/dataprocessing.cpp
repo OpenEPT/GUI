@@ -183,6 +183,7 @@ bool DataProcessing::setSamplesNo(unsigned int aSamplesNo)
 {
     samplesNo = aSamplesNo;
     samplesBufferSize = samplesNo;
+    return true;
 }
 
 bool DataProcessing::setConsumptionMode(dataprocessing_consumption_mode_t aConsumptionMode)

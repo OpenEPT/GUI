@@ -40,7 +40,7 @@ enum ChargingState {
     Discharge,
     Charge,
     Relax,
-    Unknown
+    Unknown1
 };
 
 enum ConfigurationState {

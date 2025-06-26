@@ -1,10 +1,17 @@
 #include "controllink.h"
+#include <QtGlobal>
+
+#ifdef Q_OS_WIN
 #include <QHostAddress>
+#include "Ws2tcpip.h"
+#include "WinSock2.h"
+#elif defined(Q_OS_LINUX)
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#endif
 
 ControlLink::ControlLink(QObject *parent)
     : QObject{parent}
@@ -105,22 +112,22 @@ bool   ControlLink::setSocketKeepAlive()
     char enableKeepAlive = 1;
     qintptr sd = tcpSocket->socketDescriptor();
     int response;
+#ifdef Q_OS_WIN
+     response = setsockopt(sd, SOL_SOCKET, SO_KEEPALIVE, &enableKeepAlive, sizeof(enableKeepAlive));
+     if(response != 0) return false;
 
-    // response = setsockopt(sd, SOL_SOCKET, SO_KEEPALIVE, &enableKeepAlive, sizeof(enableKeepAlive));
-    // if(response != 0) return false;
+     int maxIdle = 1; /* seconds */
+     response = setsockopt(sd, IPPROTO_TCP, TCP_KEEPIDLE, (const char*)&maxIdle, 4);
+     if(response != 0) return false;
 
-    // int maxIdle = 1; /* seconds */
-    // response = setsockopt(sd, IPPROTO_TCP, TCP_KEEPIDLE, (const char*)&maxIdle, 4);
-    // if(response != 0) return false;
+     int count = 1;  // send up to 2 keepalive packets out, then disconnect if no response
+     response = setsockopt(sd, IPPROTO_TCP , TCP_KEEPCNT, (const char*)&count, 4);
+     if(response != 0) return false;
 
-    // int count = 1;  // send up to 2 keepalive packets out, then disconnect if no response
-    // response = setsockopt(sd, IPPROTO_TCP , TCP_KEEPCNT, (const char*)&count, 4);
-    // if(response != 0) return false;
-
-    // int interval = 2;   // send a keepalive packet out every 2 seconds (after the 5 second idle period)
-    // response = setsockopt(sd, IPPROTO_TCP, TCP_KEEPINTVL, (const char*)&interval, 4);
-    // if(response != 0) return false;
-
+     int interval = 2;   // send a keepalive packet out every 2 seconds (after the 5 second idle period)
+     response = setsockopt(sd, IPPROTO_TCP, TCP_KEEPINTVL, (const char*)&interval, 4);
+     if(response != 0) return false;
+#elif defined(Q_OS_LINUX)
     if (setsockopt(sd, SOL_SOCKET, SO_KEEPALIVE, &enableKeepAlive, sizeof(enableKeepAlive)) < 0)
         return false;
 
@@ -135,6 +142,7 @@ bool   ControlLink::setSocketKeepAlive()
     int interval = 2;  // Interval between individual keepalive probes
     if (setsockopt(sd, IPPROTO_TCP, TCP_KEEPINTVL, &interval, sizeof(interval)) < 0)
         return false;
+#endif
 
     return true;
 }
