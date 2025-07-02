@@ -30,11 +30,11 @@ The Qt framework should be obtained from the official Qt website [this link](htt
 
 Once the installer is downloaded and executed, users will be prompted to complete the sign-up process. Following successful registration, the installer will proceed to the component selection stage. For proper compilation and execution of the GUI application, the following components must be selected:
 
-![Components1](Documentation/img/Components1.PNG)
+![Components1](Documentation/img/Components1.png)
 
 If Qt has been successfully installed, the application named **Qt Creator** should be launchable without issues. Upon starting Qt Creator, Welcome page will be displayed, which provides quick access to recent projects, examples, tutorials, and version control options. This interface should resemble what is shown in the Figure below.
 
-![Welcome](Documentation/img/Welcome.PNG)
+![Welcome](Documentation/img/Welcome.png)
 
 ## Step 2: Clone the Project from the Official GitHub Repository
 
@@ -50,12 +50,12 @@ There are two main methods for downloading the project from the official GitHub 
 1. Launch Qt Creator and On the left-hand sidebar, click on the **Welcome** tab.
 2. Click on **Open Project** (1 and 2 on the figure bellow).
 
-![Import 1](Documentation/img/Import_1.PNG)
+![Import 1](Documentation/img/Import1.PNG)
 
 When the **Open Project** window opens, specify the directory where the project is located (in this case, `Source/OpenEPT.pro`).  
 To do so, select the **OpenEPT.pro** and click Open (Figure bellow).
 
-![Import 2](Documentation/img/Import_2.PNG)
+![Import 2](Documentation/img/Import2.PNG)
 
 After project is successfully loaded for the first time, Qt Creator will automatically open the initial project configuration dialog to choose an appropriate build kit and associated settings. 
 It is essential to select the kit labelled **Qt 5.12.2 MSVC 2019 64-bit**, once the correct kit is selected click on Configure Project to proceed (Figure bellow).
