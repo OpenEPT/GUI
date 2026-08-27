@@ -14,6 +14,7 @@ public:
 
     void                    startServer();
     quint16                 getPort();
+    void                    setPort(quint16 portNo);
 
 signals:
     void                    sigNewClientConnected(QString ip);

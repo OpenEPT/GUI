@@ -11,6 +11,8 @@
 #include "Processing/epprocessing.h"
 #include "Processing/calibrationdata.h"
 #include "Processing/charginganalysis.h"
+#include "Processing/Parameters/deviceparameters.h"
+#include "Processing/Parameters/applicationparameters.h"
 
 /* Resolution sample time offset based on STM32H755ZI offset */
 #define     DEVICE_ADC_RESOLUTION_16BIT_STIME_OFFSET    8.5
@@ -82,18 +84,19 @@ class Device : public QObject
 {
     Q_OBJECT
 public:
-    explicit Device(QObject *parent = nullptr);
+    explicit Device(QObject *parent = nullptr, ApplicationParameters* params=nullptr, unsigned int deviceID=0);
     ~Device();
 
+    DeviceParameters *parameters() const;
     bool        acquisitionStart();
     bool        acquisitionStop();
     bool        acquisitionPause();
     bool        setName(QString aNewDeviceName);
     bool        getName(QString* aDeviceName);
     void        controlLinkAssign(ControlLink* link);
-    bool        createStreamLink(QString ip, quint16 port, int* id);
     bool        establishStatusLink(QString ip);
     void        controlLinkReconnect();
+    bool        createStreamLink(QString ip, int* id);
     void        epLinkServerCreate();
     void        statusLinkServerCreate();
     bool        establishEPLink(QString ip);
@@ -111,10 +114,43 @@ public:
     bool        getAvrRatio(device_adc_averaging_t* averagingRatio=NULL);
     bool        setSamplingPeriod(QString time);
     bool        getSamplingPeriod(QString* time = NULL);
+
+    bool        getCalParam();
+    bool        setCalParam();
+    bool        storeParam();
+    bool        reset();
+
+    bool        getGainParam();
+    bool        getShuntParam();
+
+    bool        getMAC();
+    bool        getHWSerial();
+    bool        getSWSerial();
+
     bool        setVOffset(QString off);
     bool        getVOffset(QString* off=NULL);
     bool        setCOffset(QString off);
     bool        getCOffset(QString* off=NULL);
+
+    bool        setUVoltageValue(float value);
+    bool        getUVoltageValue(float* value = nullptr);
+
+    bool        setOVoltageValue(float value);
+    bool        getOVoltageValue(float* value = nullptr);
+
+    bool        setOCurrentValue(int value);
+    bool        getOCurrentValue(int* value = nullptr);
+
+    bool        getBDSize(int* value=nullptr);
+    bool        getBDFContentFull(QString* content);
+    bool        setBDFContent(QByteArray* content);
+    bool        BDFormat();
+
+
+    bool        getChargerBDContentFull(QString* content);
+    bool        setChargerBDContent(QByteArray* content);
+
+
     bool        getADCInputClk(QString* clk = NULL);
     double      obtainSamplingTime();    //This function determine time interval from start of until the acquisition end. Dont mix it with acquisiton (sampling) period
     bool        acquireDeviceConfiguration(device_adc_t aAdc = DEVICE_ADC_INTERNAL);
@@ -125,6 +161,8 @@ public:
 
     CalibrationData* getCalibrationData();
     void        calibrationUpdated();
+
+    bool        getChargerConnectionStatus(bool* status = NULL);
 
     bool        setPPathStatus(bool status);
     bool        getPPathStatus(bool* status = NULL);
@@ -142,14 +180,21 @@ public:
     bool        getChargerCurrent(int* current= NULL);
     bool        setChargerTermCurrent(int current);
     bool        getChargerTermCurrent(int* current= NULL);
+    bool        setChargerMaxChargingCurrent(int current);
+    bool        getChargerMaxChargingCurrent(int* current= NULL);
     bool        setChargerTermVoltage(float voltage);
     bool        getChargerTermVoltage(float* voltage= NULL);
+    bool        getChargerHWSerial(QString* serial= NULL);
+    bool        getChargerFWVersion(QString* version= NULL);
     bool        latchTrigger();
     bool        getUVoltageStatus(bool* status = NULL);
     bool        getOVoltageStatus(bool* status = NULL);
     bool        getOCurrentStatus(bool* status = NULL);
 
+
 signals:
+    void        sigBDChunkRead(float percentage);
+    void        sigBDChunkWrite(float percentage);
     void        sigControlLinkConnected();
     void        sigControlLinkDisconnected();
     void        sigStatusLinkNewDeviceAdded(QString aDeviceIP);
@@ -159,10 +204,22 @@ signals:
     void        sigResolutionObtained(QString resolution);
     void        sigChSampleTimeObtained(QString chstime);
     void        sigSampleTimeObtained(QString stime);
+
+    void        sigCalParamObtained(float vref, float voff, float vcor, float coff, float ccor);
+    void        sigShuntParamObtained(float shunt);
+    void        sigGainParamObtained(float gain);
+
+    void        sigMACObtained(QString mac);
+    void        sigHWSerialObtained(QString serial);
+    void        sigSWSerialObtained(QString version);
+
+
+
     void        sigClockDivObtained(QString clkDiv);
     void        sigAdcInputClkObtained(QString inClk);
     void        sigCOffsetObtained(QString coffset);
     void        sigVOffsetObtained(QString voffset);
+    void        sigChargerConnectionStatusObtained(bool status);
     void        sigPPathStateObtained(bool  state);
     void        sigLoadStateObtained(bool  state);
     void        sigBatStateObtained(bool  state);
@@ -171,6 +228,10 @@ signals:
     void        sigUVoltageObtained(bool  state);
     void        sigOVoltageObtained(bool  state);
     void        sigOCurrentObtained(bool  state);
+    void        sigUVoltageValueObtained(float value);
+    void        sigOVoltageValueObtained(float value);
+    void        sigOCurrentValueObtained(int value);
+    void        sigBDSizeObtained(int value);
     void        sigSamplesNoObained(unsigned int samplesNo);
     void        sigChargingDone();
 
@@ -178,7 +239,12 @@ signals:
 
     void        sigChargerCurrentObtained(int  current);
     void        sigChargerTermCurrentObtained(int  current);
+    void        sigChargerMaxChargingCurrentObtained(int  current);
     void        sigChargerTermVoltageObtained(float  voltage);
+
+
+    void        sigChargerHWSerialObtained(QString  serial);
+    void        sigChargerFWVersionObtained(QString  serial);
 
 
     void        sigAvgRatio(QString voffset);
@@ -209,7 +275,8 @@ private slots:
     void        onNewEBPFull(double value, double key, QString name);
     void        onChargingStatusChanged(charginganalysis_status_t status);
 private:
-    QString                         deviceName;
+    //QString                         deviceName;
+    int                             deviceIDDynamic;
     double                          samplingPeriod;                //ms
     device_adc_resolution_t         adcResolution;
     device_adc_ch_sampling_time_t   adcChSamplingTime;
@@ -239,7 +306,7 @@ private:
     bool                            dacState;
     bool                            batState;
     bool                            chargerState;
-
+    bool                            chargerConnectionStatus;
     bool                            uvoltage;
     bool                            ovoltage;
     bool                            ocurrent;
@@ -250,7 +317,7 @@ private:
     float                          chargerTermVoltage; //V
 
     /*This should be removed when stream link is defined*/
-    int                             streamID;
+    //int                             streamID;
 
     /**/
     bool                            epEnabled;
@@ -260,6 +327,10 @@ private:
 
     /**/
     unsigned int                    samplesNo;
+
+    /**/
+    DeviceParameters                *m_params;
+    ApplicationParameters           *m_AppParams;
 
 };
 

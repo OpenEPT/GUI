@@ -42,5 +42,9 @@
         <file>images/NewSet/stopHand.png</file>
         <file>images/NewSet/calibration.png</file>
         <file>images/NewSet/loadProfiler.png</file>
+        <file>images/NewSet/download.png</file>
+        <file>images/NewSet/upload.png</file>
+        <file>images/NewSet/format.png</file>
+        <file>images/NewSet/export.png</file>
     </qresource>
 </RCC>

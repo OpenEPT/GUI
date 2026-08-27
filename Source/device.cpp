@@ -3,15 +3,15 @@
 #include "device.h"
 #include <QtMath>
 
-Device::Device(QObject *parent)
+Device::Device(QObject *parent, ApplicationParameters* params, unsigned int deviceID)
     : QObject{parent}
 {
     adcResolution           = DEVICE_ADC_RESOLUTION_UKNOWN;
     adcChSamplingTime       = DEVICE_ADC_SAMPLING_TIME_UKNOWN;
     adcAveraging            = DEVICE_ADC_AVERAGING_UKNOWN;
     adcClockingDiv          = DEVICE_ADC_CLOCK_DIV_UKNOWN;
-    adc                     = DEVICE_ADC_UNKNOWN;
-    deviceName              = "";
+    //adc                     = DEVICE_ADC_UNKNOWN;
+    //deviceName              = "";
     samplingPeriod          = (double)DEVICE_ADC_DEFAULT_SAMPLING_PERIOD;
     controlLink             = NULL;
     streamLink              = NULL;
@@ -20,6 +20,9 @@ Device::Device(QObject *parent)
     energyPointProcessing   = new EPProcessing();
     chargingAnalysis        = new ChargingAnalysis();
     epEnabled               = false;
+    deviceIDDynamic         =deviceID;
+    m_params                = new DeviceParameters();
+    m_AppParams             = params;
 
 }
 
@@ -28,9 +31,15 @@ Device::~Device()
     delete controlLink;
 }
 
+DeviceParameters *Device::parameters() const
+{
+    return m_params;
+}
+
 bool Device::acquisitionStart()
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     streamLink->flush();
     if(adc == DEVICE_ADC_UNKNOWN) return false;
     QString command = "device stream start -sid=" + QString::number(streamID) + " -adc=" + QString::number(adc-1);
@@ -46,6 +55,7 @@ bool Device::acquisitionStart()
 bool Device::acquisitionStop()
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device stream stop -sid=" + QString::number(streamID);
     if(controlLink == NULL) return false;
     dataProcessing->setAcquisitionStatus(DATAPROCESSING_ACQUISITION_STATUS_INACTIVE);
@@ -59,6 +69,7 @@ bool Device::acquisitionStop()
 bool Device::acquisitionPause()
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device stream stop -sid=" + QString::number(streamID);
     if(controlLink == NULL) return false;
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
@@ -68,13 +79,13 @@ bool Device::acquisitionPause()
 
 bool Device::setName(QString aNewDeviceName)
 {
-    deviceName  = aNewDeviceName;
+    m_params->setParamValue("deviceName", aNewDeviceName);
     return true;
 }
 
 bool Device::getName(QString *aDeviceName)
 {
-    *aDeviceName = deviceName;
+    *aDeviceName = m_params->getParamValue("deviceName");
     return true;
 }
 
@@ -83,13 +94,16 @@ void Device::controlLinkAssign(ControlLink* link)
     controlLink = link;
     connect(controlLink, SIGNAL(sigConnected()), this, SLOT(onControlLinkConnected()));
     connect(controlLink, SIGNAL(sigDisconnected()), this, SLOT(onControlLinkDisconnected()));
+    m_params->setParamValue("deviceIp",link->getDeviceIP_Addr());
+    m_params->setParamValue("controlPort",QString::number(link->getDeviceIP_Port()));
     emit sigControlLinkConnected();
 
 }
 
-bool Device::createStreamLink(QString ip, quint16 port, int* id)
+bool Device::createStreamLink(QString ip, int* id)
 {
     QString response;
+    quint16 port = m_AppParams->getParamValue("streamServiceBasePort").toUShort() + deviceIDDynamic;
     QString command = "device stream create -ip=" + ip +  " -port=" + QString::number(port);
     if(controlLink == NULL) return false;
 
@@ -119,9 +133,12 @@ bool Device::createStreamLink(QString ip, quint16 port, int* id)
 
     /*  */
     if(!controlLink->executeCommand(command, &response, 3000)) return false;
-    streamID = response.toInt();
+    int streamID = response.toInt();
     streamLink->setID(streamID);
     *id = streamID;
+    m_params->setParamValue("streamLinkPort",QString::number(port));
+    m_params->setParamValue("streamId",QString::number(streamID));
+
     return true;
 }
 
@@ -129,10 +146,15 @@ bool Device::establishStatusLink(QString ip)
 {
     QString response;
     if(statusLink == NULL) return false;
-    QString command = "device slink create -ip=" + ip +  " -port=" + QString::number(statusLink->getPort());
+    QString port = m_params->getParamValue("statusLinkPort");
+    QString command = "device slink create -ip=" + ip +  " -port=" + port;
 
     if(controlLink == NULL) return false;
-    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(!controlLink->executeCommand(command, &response, 5000))
+    {
+        m_params->setParamInitialized("statusLinkPort",false);
+        return false;
+    }
 
     return true;
 }
@@ -147,14 +169,21 @@ bool  Device::establishEPLink(QString ip)
 
     if(controlLink == NULL) return false;
 
-    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(!controlLink->executeCommand(command, &response, 1000))
+    {
+        m_params->setParamInitialized("energyPointLinkPort",false);
+        return false;
+    }
+
 
     return true;
 }
 void Device::epLinkServerCreate()
 {
     energyPointLink  = new EDLink();
+    energyPointLink->setPort(m_AppParams->getParamValue("epServiceBasePort").toUShort() + deviceIDDynamic);
     energyPointLink->startServer();
+    m_params->setParamValue("energyPointLinkPort", QString::number(energyPointLink->getPort()));
     connect(energyPointLink, SIGNAL(sigNewEPNameReceived(uint,uint,QString)), energyPointProcessing, SLOT(onNewEPNameReceived(uint,uint,QString)), Qt::QueuedConnection);
     connect(dataProcessing, SIGNAL(sigEBPValue(uint,double,double)), energyPointProcessing, SLOT(onNewEPValueReceived(uint,double,double)), Qt::QueuedConnection);
     connect(energyPointProcessing, SIGNAL(sigEPProcessed(double,double,QString)), this, SLOT(onNewEBPFull(double,double,QString)), Qt::QueuedConnection);
@@ -163,8 +192,9 @@ void Device::epLinkServerCreate()
 void Device::statusLinkServerCreate()
 {
      statusLink = new StatusLink();
+     statusLink->setPort(m_AppParams->getParamValue("statusServiceBasePort").toUShort() + deviceIDDynamic);
      statusLink->startServer();
-     statusLink->setPort(8818);
+     m_params->setParamValue("statusLinkPort", QString::number(statusLink->getPort()));
      connect(statusLink, SIGNAL(sigNewClientConnected(QString)), this, SLOT(onStatusLinkNewDeviceAdded(QString)));
      connect(statusLink, SIGNAL(sigNewStatusMessageReceived(QString,QString)), this, SLOT(onStatusLinkNewMessageReceived(QString,QString)));
 
@@ -199,6 +229,8 @@ bool Device::setEPEnable(bool aEPEnable)
 bool Device::setResolution(device_adc_resolution_t resolution)
 {
     QString response;
+    QString selection;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc chresolution set -sid=" + QString::number(streamID) + " -value=";
     switch(resolution)
     {
@@ -207,18 +239,22 @@ bool Device::setResolution(device_adc_resolution_t resolution)
         break;
     case DEVICE_ADC_RESOLUTION_16BIT:
         command += "16";
+        selection = "16";
         adcResolutionSampleTimeOffset = DEVICE_ADC_RESOLUTION_16BIT_STIME_OFFSET;
         break;
     case DEVICE_ADC_RESOLUTION_14BIT:
         command += "14";
+        selection = "14";
         adcResolutionSampleTimeOffset = DEVICE_ADC_RESOLUTION_14BIT_STIME_OFFSET;
         break;
     case DEVICE_ADC_RESOLUTION_12BIT:
         command += "12";
+        selection = "12";
         adcResolutionSampleTimeOffset = DEVICE_ADC_RESOLUTION_12BIT_STIME_OFFSET;
         break;
     case DEVICE_ADC_RESOLUTION_10BIT:
         command += "10";
+        selection = "10";
         adcResolutionSampleTimeOffset = DEVICE_ADC_RESOLUTION_10BIT_STIME_OFFSET;
         break;
     }
@@ -230,15 +266,18 @@ bool Device::setResolution(device_adc_resolution_t resolution)
     adcResolution = resolution;
     obtainSamplingTime();
     dataProcessing->setResolution(adcResolution);
+    m_params->setParamValue("adcResolution", selection);
     return true;
 }
 
 bool Device::getResolution(device_adc_resolution_t *resolution)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc chresolution get -sid=" + QString::number(streamID);
     int tmpResolution;
     QString signalResponse =  "";
+    QString selection = "";
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     //Parse response
     tmpResolution = response.toInt();
@@ -247,26 +286,31 @@ bool Device::getResolution(device_adc_resolution_t *resolution)
     case 16:
         adcResolution = DEVICE_ADC_RESOLUTION_16BIT;
         signalResponse += "16";
+        selection = "16";
         adcResolutionSampleTimeOffset = DEVICE_ADC_RESOLUTION_16BIT_STIME_OFFSET;
         break;
     case 14:
         adcResolution = DEVICE_ADC_RESOLUTION_14BIT;
         signalResponse += "14";
+        selection = "14";
         adcResolutionSampleTimeOffset = DEVICE_ADC_RESOLUTION_14BIT_STIME_OFFSET;
         break;
     case 12:
         adcResolution = DEVICE_ADC_RESOLUTION_12BIT;
         signalResponse += "12";
+        selection = "12";
         adcResolutionSampleTimeOffset = DEVICE_ADC_RESOLUTION_12BIT_STIME_OFFSET;
         break;
     case 10:
         adcResolution = DEVICE_ADC_RESOLUTION_10BIT;
         signalResponse += "10";
+        selection = "10";
         adcResolutionSampleTimeOffset = DEVICE_ADC_RESOLUTION_10BIT_STIME_OFFSET;
         break;
     default:
         adcResolution = DEVICE_ADC_RESOLUTION_UKNOWN;
         signalResponse += "0";
+        selection = "0";
         adcResolutionSampleTimeOffset = 0;
         break;
     }
@@ -277,24 +321,29 @@ bool Device::getResolution(device_adc_resolution_t *resolution)
     emit sigResolutionObtained(signalResponse);
     obtainSamplingTime();
     dataProcessing->setResolution(adcResolution);
+    m_params->setParamValue("adcResolution", selection);
+
     return true;
 }
 
 bool Device::setSamplesNo(unsigned int aSamplesNo)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc samplesno set -sid=" + QString::number(streamID) +" -value=" + QString::number(aSamplesNo);
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     //Parse response
     samplesNo = aSamplesNo;
     streamLink->setPacketSize(aSamplesNo*2);
     dataProcessing->setSamplesNo(aSamplesNo);
+    m_params->setParamValue("streamPacketSize", QString::number(aSamplesNo));
     return true;
 }
 
 bool Device::setClockDiv(device_adc_clock_div_t clockDiv)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc chclkdiv set -sid=" + QString::number(streamID) + " -value=";
     switch(clockDiv)
     {
@@ -341,6 +390,7 @@ bool Device::setClockDiv(device_adc_clock_div_t clockDiv)
 bool Device::getClockDiv(device_adc_clock_div_t *clockDiv)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc chclkdiv get -sid=" + QString::number(streamID);
     int tmpClkDiv;
     QString signalResponse =  "";
@@ -395,6 +445,7 @@ bool Device::getClockDiv(device_adc_clock_div_t *clockDiv)
 bool Device::setChSampleTime(device_adc_ch_sampling_time_t sampleTime)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc chstime set -sid=" + QString::number(streamID) + " -value=";
     switch(sampleTime)
     {
@@ -446,6 +497,7 @@ bool Device::setChSampleTime(device_adc_ch_sampling_time_t sampleTime)
 bool Device::getChSampleTime(device_adc_ch_sampling_time_t *sampleTime)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc chstime get -sid=" + QString::number(streamID);
     int tmpChSTime;
     QString signalResponse =  "";
@@ -504,6 +556,7 @@ bool Device::getChSampleTime(device_adc_ch_sampling_time_t *sampleTime)
 bool Device::setAvrRatio(device_adc_averaging_t averagingRatio)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc chavrratio set -sid=" + QString::number(streamID) + " -value=";
     switch(averagingRatio)
     {
@@ -556,6 +609,7 @@ bool Device::setAvrRatio(device_adc_averaging_t averagingRatio)
 bool Device::getAvrRatio(device_adc_averaging_t *averagingRatio)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc chavrratio get -sid=" + QString::number(streamID);
     int tmpADCAvgRatio;
     QString signalResponse =  "";
@@ -641,6 +695,7 @@ bool Device::setSamplingPeriod(QString time)
         if(rest < 0.01) break;
     }
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc speriod set -sid=" + QString::number(streamID) + " -period=" + QString::number(period) + " -prescaler=" + QString::number(prescaller) ;
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     if(response != "OK"){
@@ -654,6 +709,7 @@ bool Device::setSamplingPeriod(QString time)
 bool Device::getSamplingPeriod(QString *time)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc speriod get -sid=" + QString::number(streamID);
     unsigned int tmpSTime;
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
@@ -667,9 +723,249 @@ bool Device::getSamplingPeriod(QString *time)
     return true;
 }
 
+bool Device::getCalParam()
+{
+    float vref, voff, vcor,coff, ccor;
+    QString response;
+    QString command = "device param cal get";
+
+    if(!controlLink->executeCommand(command, &response, 1000))
+        return false;
+
+    QStringList tokens = response.split(" ", Qt::SkipEmptyParts);
+
+    QMap<QString, float*> paramMap;
+    paramMap["VREF"] = &vref;
+    paramMap["VOFF"] = &voff;
+    paramMap["VCOR"] = &vcor;
+    paramMap["COFF"] = &coff;
+    paramMap["CCOR"] = &ccor;
+
+    for(const QString &token : tokens)
+    {
+        QStringList pair = token.split("=");
+
+        if(pair.size() != 2)
+            continue;
+
+        QString key = pair[0].trimmed();
+        QString valueStr = pair[1].trimmed();
+
+        if(paramMap.contains(key))
+        {
+            bool ok;
+            float val = valueStr.toFloat(&ok);
+
+            if(!ok)
+                return false;
+
+            *(paramMap[key]) = val;
+        }
+    }
+
+    // Provera da li su svi parametri popunjeni (opciono ali preporučeno)
+
+    dataProcessing->setCalibrationData(vref, voff, vcor, coff, ccor);
+    m_params->setParamValue("adcVRef", QString::number(vref));
+    m_params->setParamValue("adcVOff", QString::number(voff));
+    m_params->setParamValue("adcVCor", QString::number(vcor));
+    m_params->setParamValue("adcVCOffset", QString::number(coff));
+    m_params->setParamValue("adcCCor", QString::number(ccor));
+    emit sigCalParamObtained(vref, voff, vcor, coff, ccor);
+    return true;
+}
+
+bool Device::setCalParam()
+{
+    QString response;
+    float vref = dataProcessing->getCalibrationData()->adcVoltageRef;
+    float voff = dataProcessing->getCalibrationData()->voltageOff;
+    float vcor = dataProcessing->getCalibrationData()->voltageCorr;
+    float coff = dataProcessing->getCalibrationData()->voltageCurrOffset;
+    float ccor = dataProcessing->getCalibrationData()->currentCorrection;
+
+    QString command = QString("device param cal set -vref=%1 -voff=%2 -vcor=%3 -coff=%4 -ccor=%5")
+            .arg(vref, 0, 'f', 4)
+            .arg(voff, 0, 'f', 4)
+            .arg(vcor, 0, 'f', 4)
+            .arg(coff, 0, 'f', 4)
+            .arg(ccor, 0, 'f', 4);
+
+    if(!controlLink->executeCommand(command, &response, 1000))
+        return false;
+
+    if(response.trimmed() != "OK")
+        return false;
+
+    m_params->setParamValue("adcVRef", QString::number(vref));
+    m_params->setParamValue("adcVOff", QString::number(voff));
+    m_params->setParamValue("adcVCor", QString::number(vcor));
+    m_params->setParamValue("adcVCOffset", QString::number(coff));
+    m_params->setParamValue("adcCCor", QString::number(ccor));
+    return true;
+}
+
+bool Device::storeParam()
+{
+    QString response;
+    QString command = "device param store";
+    if(!controlLink->executeCommand(command, &response, 5000)) return false;
+    return true;
+}
+
+bool Device::reset()
+{
+    QString response;
+    QString command = "device reset";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    return true;
+}
+bool Device::getShuntParam()
+{
+    float shunt = 0.0f;
+
+    QString response;
+    QString command = "device param shunt get";
+
+    if(!controlLink->executeCommand(command, &response, 1000))
+        return false;
+
+    // Očekivano: "SHUNT=0.045"
+    QStringList tokens = response.split(" ", Qt::SkipEmptyParts);
+
+    for(const QString &token : tokens)
+    {
+        QStringList pair = token.split("=");
+
+        if(pair.size() != 2)
+            continue;
+
+        QString key = pair[0].trimmed();
+        QString valueStr = pair[1].trimmed();
+
+        if(key == "SHUNT")
+        {
+            bool ok;
+            shunt = valueStr.toFloat(&ok);
+
+            if(!ok)
+                return false;
+
+            dataProcessing->setShunt(shunt);
+            m_params->setParamValue("shuntValue", QString::number(shunt));
+            emit sigShuntParamObtained(shunt);
+            return true;
+        }
+    }
+
+    return false;
+}
+bool Device::getGainParam()
+{
+    float gain = 0.0f;
+
+    QString response;
+    QString command = "device param gain get";
+
+    if(!controlLink->executeCommand(command, &response, 1000))
+        return false;
+
+    // Očekivano: "GAIN=10.0"
+    QStringList tokens = response.split(" ", Qt::SkipEmptyParts);
+
+    for(const QString &token : tokens)
+    {
+        QStringList pair = token.split("=");
+
+        if(pair.size() != 2)
+            continue;
+
+        QString key = pair[0].trimmed();
+        QString valueStr = pair[1].trimmed();
+
+        if(key == "GAIN")
+        {
+            bool ok;
+            gain = valueStr.toFloat(&ok);
+
+            if(!ok)
+                return false;
+
+            dataProcessing->setGain(gain);
+            m_params->setParamValue("gainValue", QString::number(gain));
+            emit sigGainParamObtained(gain);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+bool Device::getMAC()
+{
+    QString response;
+    QString command = "device ipinfo mac get";
+
+    if(!controlLink->executeCommand(command, &response, 1000))
+        return false;
+
+    QString value = response.trimmed();
+
+    if(value.isEmpty())
+        return false;
+
+    m_params->setParamValue("deviceMac", value);
+    emit sigMACObtained(value);
+
+    return true;
+}
+
+bool Device::getHWSerial()
+{
+    QString response;
+    QString command = "device hwserial get";
+
+    if(!controlLink->executeCommand(command, &response, 1000))
+        return false;
+
+    QString value = response.trimmed();
+
+    if(value.isEmpty())
+        return false;
+
+
+    m_params->setParamValue("deviceSerial", value);
+    emit sigHWSerialObtained(value);
+
+    return true;
+}
+
+bool Device::getSWSerial()
+{
+    QString response;
+    QString command = "device swserial get";
+
+    if(!controlLink->executeCommand(command, &response, 1000))
+        return false;
+
+    QString value = response.trimmed();
+
+    if(value.isEmpty())
+        return false;
+
+    m_params->setParamValue("fwVersion", value);
+    emit sigSWSerialObtained(value);
+
+    return true;
+}
+
+
+
 bool Device::setVOffset(QString off)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc voffset set -sid=" + QString::number(streamID) + " -value=";
     command += off;
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
@@ -683,6 +979,7 @@ bool Device::setVOffset(QString off)
 bool Device::getVOffset(QString *off)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc voffset get -sid=" + QString::number(streamID);
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     //Parse response
@@ -695,6 +992,7 @@ bool Device::getVOffset(QString *off)
 bool Device::setCOffset(QString off)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc coffset set -sid=" + QString::number(streamID) + " -value=";
     command += off;
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
@@ -708,6 +1006,7 @@ bool Device::setCOffset(QString off)
 bool Device::getCOffset(QString *off)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc coffset get -sid=" + QString::number(streamID);
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     //Parse response
@@ -717,9 +1016,284 @@ bool Device::getCOffset(QString *off)
     return true;
 }
 
+bool Device::setUVoltageValue(float value)
+{
+    QString response;
+    QString command = "device uvoltage value set -value=" + QString::number(value, 'g', 4);
+
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+
+    if(response != "OK") return false;
+
+    m_params->setParamValue("underVoltageValue", QString::number(value));
+
+
+    return true;
+}
+
+bool Device::getUVoltageValue(float *value)
+{
+    QString response;
+    QString command = "device uvoltage value get";
+
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+
+    float tmp = response.toFloat();
+
+    if(value != nullptr) *value = tmp;
+
+    m_params->setParamValue("underVoltageValue", QString::number(tmp));
+    emit sigUVoltageValueObtained(tmp);
+
+    return true;
+}
+bool Device::setOVoltageValue(float value)
+{
+    QString response;
+    QString command = "device ovoltage value set -value=" + QString::number(value, 'g', 4);
+
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+
+    if(response != "OK") return false;
+
+
+    m_params->setParamValue("overVoltageValue", QString::number(value));
+
+    return true;
+}
+
+bool Device::getOVoltageValue(float *value)
+{
+    QString response;
+    QString command = "device ovoltage value get";
+
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+
+    float tmp = response.toFloat();
+
+    if(value != nullptr) *value = tmp;
+
+    m_params->setParamValue("overVoltageValue", QString::number(tmp));
+    emit sigOVoltageValueObtained(tmp);
+
+    return true;
+}
+bool Device::setOCurrentValue(int value)
+{
+    QString response;
+    QString command = "device ocurrent value set -value=" + QString::number(value);
+
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+
+    if(response != "OK") return false;
+
+    m_params->setParamValue("overCurrentValue", QString::number(value));
+    return true;
+}
+
+bool Device::getOCurrentValue(int *value)
+{
+    QString response;
+    QString command = "device ocurrent value get";
+
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+
+    int tmp = response.toInt();
+
+    if(value != nullptr) *value = tmp;
+
+    m_params->setParamValue("overCurrentValue", QString::number(tmp));
+    emit sigOCurrentValueObtained(tmp);
+
+    return true;
+}
+
+bool Device::getBDSize(int *value)
+{
+    QString response;
+    QString command = "device fsystem bd size get";
+
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+
+    int tmp = response.toInt();
+
+    if(value != nullptr) *value = tmp;
+
+    m_params->setParamValue("bdSize", QString::number(tmp));
+    emit sigBDSizeObtained(tmp);
+
+    return true;
+}
+
+bool Device::getBDFContentFull(QString *content)
+{
+    if(controlLink == NULL || content == nullptr)
+        return false;
+
+    int bdSize = m_params->getParamValue("bdSize").toInt();
+
+    if(bdSize <= 0)
+        return false;
+
+    const int chunkSize = 512;
+    QString fullContent = "";
+
+    int i = 1;
+
+    for(int offset = 0; offset < bdSize; offset += chunkSize)
+    {
+        int currentSize = chunkSize;
+
+        if((offset + currentSize) > bdSize)
+        {
+            currentSize = bdSize - offset;
+        }
+
+        QString command = "device fsystem bd read -offset=" +
+                          QString::number(offset) +
+                          " -size=" +
+                          QString::number(currentSize);
+
+        QString response;
+
+        if(!controlLink->executeCommand(command, &response, 3000))
+        {
+            return false;
+        }
+
+        /* response je HEX payload */
+        fullContent += response;
+
+        emit sigBDChunkRead((float)i*((float)currentSize/(float)bdSize)*100);
+        i++;
+
+    }
+
+    *content = fullContent;
+
+    return true;
+}
+
+bool Device::getChargerBDContentFull(QString *content)
+{
+    if(controlLink == NULL || content == nullptr)
+        return false;
+
+    QString fullContent = "";
+
+    int i = 1;
+
+    QString command = "charger bd read";
+
+    QString response;
+
+    if(!controlLink->executeCommand(command, &response, 3000))
+    {
+        return false;
+    }
+
+    fullContent += response;
+
+    *content = fullContent;
+
+    return true;
+}
+
+bool Device::setChargerBDContent(QByteArray *content)
+{
+    if(controlLink == NULL || content == nullptr)
+        return false;
+
+    int totalBytes = content->size();
+
+    if(totalBytes == 0)
+        return false;
+
+    QByteArray command;
+    command += "charger bd write";
+    command += " -size=128";
+    command += " -data=";
+    command += *content;
+    command += " \r\n";
+
+    QString response;
+
+    if(!controlLink->executeCommand(command, &response, 3000))
+    {
+        return false;
+    }
+
+    //emit sigBDChunkWrite((float)i*((float)currentBytes/(float)totalBytes)*100);
+
+    return true;
+}
+
+bool Device::setBDFContent(QByteArray *content)
+{
+    if(controlLink == NULL || content == nullptr)
+        return false;
+
+    int totalBytes = content->size();
+
+    if(totalBytes == 0)
+        return false;
+
+    const int chunkBytes = 256;
+    int i = 1;
+
+    for(int offset = 0; offset < totalBytes; offset += chunkBytes)
+    {
+        int currentBytes = chunkBytes;
+
+        if((offset + currentBytes) > totalBytes)
+        {
+            currentBytes = totalBytes - offset;
+        }
+
+        QByteArray chunk = content->mid(offset, currentBytes);
+
+        /* HEX encoding (KLJUČNO) */
+        QByteArray hexData = chunk;
+
+        /* formiranje komande kao QByteArray */
+        QByteArray command;
+        command += "device fsystem bd write -offset=";
+        command += QByteArray::number(offset);
+        command += " -size=";
+        command += QByteArray::number(currentBytes);
+        command += " -data=";
+        command += hexData;
+        command += " \r\n";
+
+        QString response;
+
+        if(!controlLink->executeCommand(command, &response, 3000))
+        {
+            return false;
+        }
+
+        emit sigBDChunkWrite((float)i*((float)currentBytes/(float)totalBytes)*100);
+        i++;
+    }
+
+    return true;
+}
+
+bool Device::BDFormat()
+{
+    QString response;
+    QString command = "device fsystem bd format";
+    if(!controlLink->executeCommand(command, &response, 5000)) return false;
+    return true;
+}
+
 bool Device::getADCInputClk(QString *clk)
 {
     QString response;
+    int streamID = m_params->getParamVariant("streamId").toInt();
     QString command = "device adc clk get -sid=" + QString::number(streamID);
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     //Parse response
@@ -743,23 +1317,36 @@ double Device::obtainSamplingTime()
     }
     emit sigSamplingTimeChanged(adcSampleTime);
     dataProcessing->setSamplingTime(adcSampleTime); // ms
+    m_params->setParamValue("samplingPeriod", QString::number(samplingPeriod));
     return adcSampleTime;
 }
 
 bool Device::acquireDeviceConfiguration(device_adc_t aAdc)
 {
     adc = aAdc;
+    getMAC();
+    getHWSerial();
+    getSWSerial();
     getSamplingPeriod();
     getLoadStatus();
     getLoadCurrent();
     getBatStatus();
     getPPathStatus();
+    getChargerConnectionStatus();
     getUVoltageStatus();
+    getUVoltageValue();
     getOVoltageStatus();
+    getOVoltageValue();
     getOCurrentStatus();
+    getOCurrentValue();
+    getBDSize();
     getChargerCurrent();
     getChargerTermCurrent();
     getChargerTermVoltage();
+    getChargerMaxChargingCurrent();
+    getCalParam();
+    getShuntParam();
+    getGainParam();
     if(adc == DEVICE_ADC_INTERNAL)
     {
         getResolution();
@@ -773,6 +1360,7 @@ bool Device::acquireDeviceConfiguration(device_adc_t aAdc)
     }
     else
     {
+        getResolution();
         dataProcessing->setDeviceMode(DATAPROCESSING_DEVICE_MODE_EXT);
     }
     return true;
@@ -801,6 +1389,26 @@ CalibrationData *Device::getCalibrationData()
 void Device::calibrationUpdated()
 {
     dataProcessing->calibrationDataUpdated();
+}
+
+bool Device::getChargerConnectionStatus(bool *status)
+{
+    QString response;
+    QString command = "charger connection status get";
+
+    if(!controlLink->executeCommand(command, &response, 10000))
+        return false;
+
+    chargerConnectionStatus = response.toDouble();
+
+    if(status != NULL)
+    {
+        *status = chargerConnectionStatus;
+    }
+
+    emit sigChargerConnectionStatusObtained(chargerConnectionStatus);
+
+    return true;
 }
 
 bool Device::setPPathStatus(bool status)
@@ -962,7 +1570,8 @@ bool Device::setLoadCurrent(int current)
 {
     QString response;
     //int adcValue = (int)((((float)current))/1.060445387);
-    int adcValue = computeFittedValue(current);
+    //int adcValue = computeFittedValue(current);
+    int adcValue = current;
     QString command = "device dac value set -value=" + QString::number(adcValue);
     if(controlLink == NULL) return false;
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
@@ -1064,6 +1673,29 @@ bool Device::getChargerTermCurrent(int *current)
     return true;
 }
 
+bool Device::setChargerMaxChargingCurrent(int current)
+{
+    QString response;
+    QString command = "charger charging maxcurrent set -value=" + QString::number(current);
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK"){
+     return false;
+    }
+    return true;
+}
+bool Device::getChargerMaxChargingCurrent(int* current)
+{
+    QString response;
+    QString command = "charger charging maxcurrent get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    chargerTermCurrent = response.toInt();
+    if(current != NULL) *current = chargerTermCurrent;
+    emit sigChargerMaxChargingCurrentObtained(chargerTermCurrent);
+    return true;
+}
+
 bool Device::setChargerTermVoltage(float voltage)
 {
     QString response;
@@ -1088,6 +1720,28 @@ bool Device::getChargerTermVoltage(float *voltage)
     return true;
 }
 
+bool Device::getChargerHWSerial(QString* serial)
+{
+    QString response;
+    QString command = "charger hwserial get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    *serial = response;
+    emit sigChargerHWSerialObtained(*serial);
+    return true;
+}
+
+bool Device::getChargerFWVersion(QString *version)
+{
+    QString response;
+    QString command = "charger fwversion get";
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    //Parse response
+    *version = response;
+    emit sigChargerFWVersionObtained(*version);
+    return true;
+}
+
 bool Device::latchTrigger()
 {
     QString response;
@@ -1103,7 +1757,7 @@ bool Device::latchTrigger()
 bool Device::getUVoltageStatus(bool *status)
 {
     QString response;
-    QString command = "device uvoltage get";
+    QString command = "device uvoltage state get";
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     //Parse response
     uvoltage = response.toDouble();
@@ -1115,7 +1769,7 @@ bool Device::getUVoltageStatus(bool *status)
 bool Device::getOVoltageStatus(bool *status)
 {
     QString response;
-    QString command = "device ovoltage get";
+    QString command = "device ovoltage state get";
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     //Parse response
     ovoltage = response.toDouble();
@@ -1127,7 +1781,7 @@ bool Device::getOVoltageStatus(bool *status)
 bool Device::getOCurrentStatus(bool *status)
 {
     QString response;
-    QString command = "device ocurrent get";
+    QString command = "device ocurrent state get";
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     //Parse response
     ocurrent = response.toDouble();
@@ -1170,6 +1824,15 @@ void Device::onStatusLinkNewMessageReceived(QString aDeviceIP, QString aMessage)
                 else
                     emit sigUVoltageObtained(false);
             }
+            if (content.startsWith("ovoltage ", Qt::CaseInsensitive))
+            {
+                QString action = content.mid(QString("uvoltage ").length()).trimmed();
+
+                if (action.compare("enabled", Qt::CaseInsensitive) == 0)
+                    emit sigOVoltageObtained(true);
+                else
+                    emit sigOVoltageObtained(false);
+            }
             if (content.startsWith("ocurrent ", Qt::CaseInsensitive))
             {
                 QString action = content.mid(QString("ocurrent ").length()).trimmed();
@@ -1182,6 +1845,14 @@ void Device::onStatusLinkNewMessageReceived(QString aDeviceIP, QString aMessage)
             else if (content.compare("charger charging done", Qt::CaseInsensitive) == 0)
             {
                 emit sigChargingDone();
+            }
+            else if(content.compare("charger connection connected", Qt::CaseInsensitive) == 0)
+            {
+                emit sigChargerConnectionStatusObtained(true);
+            }
+            else if(content.compare("charger connection disconnected", Qt::CaseInsensitive) == 0)
+            {
+                emit sigChargerConnectionStatusObtained(false);
             }
         }
         else

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1302</width>
-    <height>1064</height>
+    <height>1102</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -81,6 +81,7 @@
                 <font>
                  <family>Arial</family>
                  <pointsize>10</pointsize>
+                 <weight>50</weight>
                  <bold>false</bold>
                 </font>
                </property>
@@ -107,6 +108,7 @@
                 <font>
                  <family>Arial</family>
                  <pointsize>10</pointsize>
+                 <weight>75</weight>
                  <bold>true</bold>
                 </font>
                </property>
@@ -117,79 +119,6 @@
                 <set>Qt::AlignCenter</set>
                </property>
               </widget>
-             </item>
-             <item>
-              <layout class="QHBoxLayout" name="deviceVerlAdcHorl">
-               <item>
-                <widget class="QLabel" name="adcLabe">
-                 <property name="minimumSize">
-                  <size>
-                   <width>220</width>
-                   <height>30</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>220</width>
-                   <height>50</height>
-                  </size>
-                 </property>
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                  </font>
-                 </property>
-                 <property name="text">
-                  <string>Stream from ADC</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QComboBox" name="adcComb">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="minimumSize">
-                  <size>
-                   <width>80</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>80</width>
-                   <height>50</height>
-                  </size>
-                 </property>
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                  </font>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <spacer name="adcHors">
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeType">
-                  <enum>QSizePolicy::Minimum</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
              </item>
              <item>
               <layout class="QHBoxLayout" name="deviceVerlSamplingPeriodHorl">
@@ -211,6 +140,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -243,6 +173,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -254,246 +185,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeType">
-                  <enum>QSizePolicy::Minimum</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
-             </item>
-             <item>
-              <layout class="QHBoxLayout" name="deviceVerlResolutionHorl">
-               <item>
-                <widget class="QLabel" name="resolutionLabe">
-                 <property name="minimumSize">
-                  <size>
-                   <width>220</width>
-                   <height>30</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>220</width>
-                   <height>50</height>
-                  </size>
-                 </property>
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                 <property name="text">
-                  <string>ADC(Int) Resolution</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QComboBox" name="resolutionComb">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="minimumSize">
-                  <size>
-                   <width>80</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>80</width>
-                   <height>50</height>
-                  </size>
-                 </property>
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <spacer name="resolutionHors">
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeType">
-                  <enum>QSizePolicy::Minimum</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
-             </item>
-             <item>
-              <layout class="QHBoxLayout" name="deviceVerlSampleTimeHorl">
-               <item>
-                <widget class="QLabel" name="sampleTimeLabe">
-                 <property name="minimumSize">
-                  <size>
-                   <width>220</width>
-                   <height>30</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>220</width>
-                   <height>50</height>
-                  </size>
-                 </property>
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                 <property name="text">
-                  <string>ADC(Int) Sample time</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QComboBox" name="sampleTimeComb">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                   <horstretch>0</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="minimumSize">
-                  <size>
-                   <width>80</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>80</width>
-                   <height>50</height>
-                  </size>
-                 </property>
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <spacer name="sampleTimeHors">
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeType">
-                  <enum>QSizePolicy::Minimum</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
-             </item>
-             <item>
-              <layout class="QHBoxLayout" name="deviceVerlClockDivHorl">
-               <item>
-                <widget class="QLabel" name="clockDivLabe">
-                 <property name="minimumSize">
-                  <size>
-                   <width>220</width>
-                   <height>30</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>220</width>
-                   <height>50</height>
-                  </size>
-                 </property>
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                 <property name="text">
-                  <string>ADC(Int) Clock div</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QComboBox" name="clockDivComb">
-                 <property name="minimumSize">
-                  <size>
-                   <width>80</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>80</width>
-                   <height>50</height>
-                  </size>
-                 </property>
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <spacer name="clockDivHors">
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -533,6 +225,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -565,6 +258,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -583,6 +277,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -624,6 +319,7 @@
                 <font>
                  <family>Arial</family>
                  <pointsize>10</pointsize>
+                 <weight>50</weight>
                  <bold>false</bold>
                 </font>
                </property>
@@ -650,6 +346,7 @@
                 <font>
                  <family>Arial</family>
                  <pointsize>10</pointsize>
+                 <weight>75</weight>
                  <bold>true</bold>
                 </font>
                </property>
@@ -697,6 +394,7 @@
                       <font>
                        <family>Arial</family>
                        <pointsize>10</pointsize>
+                       <weight>50</weight>
                        <bold>false</bold>
                       </font>
                      </property>
@@ -729,6 +427,7 @@
                       <font>
                        <family>Arial</family>
                        <pointsize>10</pointsize>
+                       <weight>50</weight>
                        <bold>false</bold>
                       </font>
                      </property>
@@ -745,6 +444,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -763,224 +463,6 @@
                   </spacer>
                  </item>
                 </layout>
-               </item>
-              </layout>
-             </item>
-             <item>
-              <layout class="QHBoxLayout" name="systemVerlConsumptionTypeConAverHorl">
-               <item>
-                <widget class="QLabel" name="consumptionTypeLabe">
-                 <property name="minimumSize">
-                  <size>
-                   <width>150</width>
-                   <height>30</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>150</width>
-                   <height>50</height>
-                  </size>
-                 </property>
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                 <property name="text">
-                  <string>Consumption type</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <layout class="QVBoxLayout" name="consumptionTypeConAverHorlConAverVerl">
-                 <item>
-                  <widget class="QRadioButton" name="cumulativeRadb">
-                   <property name="minimumSize">
-                    <size>
-                     <width>150</width>
-                     <height>20</height>
-                    </size>
-                   </property>
-                   <property name="maximumSize">
-                    <size>
-                     <width>150</width>
-                     <height>50</height>
-                    </size>
-                   </property>
-                   <property name="font">
-                    <font>
-                     <family>Arial</family>
-                     <pointsize>10</pointsize>
-                     <bold>false</bold>
-                    </font>
-                   </property>
-                   <property name="text">
-                    <string>Cumulative</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QRadioButton" name="currentRadb">
-                   <property name="minimumSize">
-                    <size>
-                     <width>150</width>
-                     <height>20</height>
-                    </size>
-                   </property>
-                   <property name="maximumSize">
-                    <size>
-                     <width>150</width>
-                     <height>10</height>
-                    </size>
-                   </property>
-                   <property name="font">
-                    <font>
-                     <family>Arial</family>
-                     <pointsize>10</pointsize>
-                     <bold>false</bold>
-                    </font>
-                   </property>
-                   <property name="text">
-                    <string>Current</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </item>
-               <item>
-                <spacer name="consumptionTypeHors">
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeType">
-                  <enum>QSizePolicy::Minimum</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
-             </item>
-             <item>
-              <layout class="QHBoxLayout" name="systemVerlMeasurementTypeHorl">
-               <item>
-                <widget class="QLabel" name="measurementTypeLabe">
-                 <property name="minimumSize">
-                  <size>
-                   <width>150</width>
-                   <height>30</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>150</width>
-                   <height>50</height>
-                  </size>
-                 </property>
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                 <property name="text">
-                  <string>Measurement type</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <layout class="QVBoxLayout" name="measurementTypeHorlVolCurrVerl">
-                 <item>
-                  <widget class="QRadioButton" name="measurementTypeVoltageRadb">
-                   <property name="minimumSize">
-                    <size>
-                     <width>150</width>
-                     <height>20</height>
-                    </size>
-                   </property>
-                   <property name="maximumSize">
-                    <size>
-                     <width>150</width>
-                     <height>50</height>
-                    </size>
-                   </property>
-                   <property name="font">
-                    <font>
-                     <family>Arial</family>
-                     <pointsize>10</pointsize>
-                     <bold>false</bold>
-                    </font>
-                   </property>
-                   <property name="text">
-                    <string>Voltage</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QRadioButton" name="measurementTypeCurrentRadb">
-                   <property name="minimumSize">
-                    <size>
-                     <width>150</width>
-                     <height>20</height>
-                    </size>
-                   </property>
-                   <property name="maximumSize">
-                    <size>
-                     <width>150</width>
-                     <height>50</height>
-                    </size>
-                   </property>
-                   <property name="font">
-                    <font>
-                     <family>Arial</family>
-                     <pointsize>10</pointsize>
-                     <bold>false</bold>
-                    </font>
-                   </property>
-                   <property name="text">
-                    <string>Current</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </item>
-               <item>
-                <spacer name="measurementTypeHorlHors">
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                   <pointsize>10</pointsize>
-                   <bold>false</bold>
-                  </font>
-                 </property>
-                 <property name="orientation">
-                  <enum>Qt::Horizontal</enum>
-                 </property>
-                 <property name="sizeType">
-                  <enum>QSizePolicy::Minimum</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>40</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                </spacer>
                </item>
               </layout>
              </item>
@@ -1004,6 +486,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1036,6 +519,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1047,6 +531,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1086,6 +571,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                    <kerning>true</kerning>
                   </font>
@@ -1224,6 +710,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1250,6 +737,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1264,6 +752,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1305,6 +794,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1319,6 +809,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1367,6 +858,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1393,6 +885,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1419,6 +912,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1460,6 +954,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1486,6 +981,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1510,6 +1006,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1574,6 +1071,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1630,6 +1128,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1656,6 +1155,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1680,6 +1180,7 @@
                   <font>
                    <family>Arial</family>
                    <pointsize>10</pointsize>
+                   <weight>50</weight>
                    <bold>false</bold>
                   </font>
                  </property>
@@ -1779,6 +1280,7 @@
                 <font>
                  <family>Arial</family>
                  <pointsize>10</pointsize>
+                 <weight>50</weight>
                  <bold>false</bold>
                 </font>
                </property>
@@ -1803,6 +1305,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1838,6 +1341,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1877,6 +1381,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1913,6 +1418,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1949,6 +1455,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -1973,6 +1480,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -2000,6 +1508,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -2035,6 +1544,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -2049,6 +1559,7 @@
                     <font>
                      <family>Arial</family>
                      <pointsize>10</pointsize>
+                     <weight>50</weight>
                      <bold>false</bold>
                     </font>
                    </property>
@@ -2101,6 +1612,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2127,6 +1639,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2159,6 +1672,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2185,6 +1699,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2217,6 +1732,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2249,6 +1765,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2275,6 +1792,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2301,6 +1819,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2327,6 +1846,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2353,6 +1873,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2379,6 +1900,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2393,6 +1915,7 @@
               <font>
                <family>Arial</family>
                <pointsize>10</pointsize>
+               <weight>50</weight>
                <bold>false</bold>
               </font>
              </property>
@@ -2436,6 +1959,7 @@
             <font>
              <family>Arial</family>
              <pointsize>10</pointsize>
+             <weight>50</weight>
              <bold>false</bold>
             </font>
            </property>

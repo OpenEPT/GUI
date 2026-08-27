@@ -10,6 +10,7 @@ CalibrationWnd::CalibrationWnd(QWidget *parent)
     calData = NULL;
 
     connect(ui->submitPusb, SIGNAL(clicked(bool)), this, SLOT(onSubmitPressed(bool)));
+    connect(ui->storePusb, SIGNAL(clicked(bool)), this, SLOT(onStorePressed(bool)));
 }
 
 CalibrationWnd::~CalibrationWnd()
@@ -45,4 +46,10 @@ void CalibrationWnd::onSubmitPressed(bool pressed)
     calData->voltageCurrOffset = ui->volCOffLine->text().toDouble();
 
     emit sigCalibrationDataUpdated();
+}
+
+void CalibrationWnd::onStorePressed(bool pressed)
+{
+    onSubmitPressed(true);
+    emit sigCalibrationStoreRequest();
 }

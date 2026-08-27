@@ -27,9 +27,17 @@ void StatusLink::onServerStarted()
 {
     tcpServer   = new QTcpServer();
 
-    if(!tcpServer->listen(QHostAddress::Any, portNo))
+    const bool listenOk =
+            tcpServer->listen(QHostAddress::AnyIPv4, portNo);
+
+    if(listenOk == false)
     {
-        qDebug()<<"Status Link Server Bind failed";
+        qDebug() << "Status Link Server bind failed";
+        qDebug() << "Port:" << portNo;
+        qDebug() << "Error:" << tcpServer->serverError();
+        qDebug() << "Error string:" << tcpServer->errorString();
+
+        return;
     }
     connect(tcpServer, SIGNAL(newConnection()), this, SLOT(onNewConnectionAdded()));
 

@@ -5,12 +5,13 @@
 #include <QButtonGroup>
 #include <QAbstractButton>
 #include "Windows/Plot/plot.h"
-#include "Windows/Device/advanceconfigurationwnd.h"
 #include "Windows/Console/consolewnd.h"
 #include "Windows/Device/advcofigurationdata.h"
 #include "Windows/Device/datastatistics.h"
 #include "Windows/Device/calibrationwnd.h"
 #include "Windows/Device/energycontrolwnd.h"
+#include "Windows/Device/configurationwnd.h"
+#include "Processing/Parameters/deviceparameters.h"
 
 #define     DEVICEWND_DEFAULT_MAX_NUMBER_OF_BUFFERS 100
 #define     DEVICEWND_DEFAULT_MAX_NUMBER_OF_SAMPLES 250
@@ -21,6 +22,13 @@ typedef enum
     DEVICE_STATE_DISCONNECTED,
     DEVICE_STATE_UNDEFINED
 }device_state_t;
+
+typedef enum
+{
+    DEVICE_ACQ_ACTIVE,
+    DEVICE_ACQ_PAUSE,
+    DEVICE_ACQ_UNDEFINED
+}device_acq_mode_t;
 
 typedef enum
 {
@@ -76,26 +84,20 @@ public:
     ~DeviceWnd();
 
     QPlainTextEdit* getLogWidget();
-    void            setDeviceState(device_state_t aDeviceState);
+    void            setParameters(DeviceParameters* params);
+    void            setDeviceNetworkState(device_state_t aDeviceState);
+    void            setDeviceAcqState(device_acq_mode_t aAcqState);
     void            printConsoleMsg(QString msg, bool exeStatus);
     void            setDeviceInterfaceSelectionState(device_interface_selection_state_t selectionState=DEVICE_INTERFACE_SELECTION_STATE_UNDEFINED);
-    void            setDeviceMode(device_mode_t mode=DEVICE_MODE_INTERNAL);
-    bool            setAdc(QString adc);
-    bool            setChSamplingTime(QString sTime);
-    bool            setChAvgRatio(QString avgRatio);
-    bool            setClkDiv(QString clkDiv);
-    bool            setResolution(QString resolution);
     bool            setSamplingPeriod(QString stime);
-    bool            setADCClk(QString adcClk);
-    bool            setInCkl(QString inClk);
-    bool            setCOffset(QString coffset);
-    bool            setVOffset(QString voffset);
     bool            setLoadState(bool state);
     bool            setPPathState(bool state);
     bool            setBatState(bool state);
     bool            setDACState(bool state);
     bool            setChargerState(bool state);
     bool            setSaveToFileState(bool state);
+
+    void            setChargerConnectionStatus(bool status);
 
     void            setLoadCurrentStatus(bool state);
     bool            setLoadCurrent(int current);
@@ -105,10 +107,23 @@ public:
     bool            setOVoltageIndication(bool state);
     bool            setOCurrentIndication(bool state);
 
+    bool            setUVoltageValue(float value);
+    bool            setOVoltageValue(float value);
+    bool            setOCurrentValue(int value);
+
+    bool            setBDSize(int value);
+    bool            setBDContent(QString content);
+
+
+    bool            setChargerBDContent(QString content);
+
 
     bool            setChargerCurrent(int current);
     bool            setChargerTermCurrent(int current);
     bool            setChargerTermVoltage(float voltage);
+    bool            setChargerMaxCurrent(int current);
+    bool            setChargerHWSerial(QString serial);
+    bool            setChargerFWSerial(QString serial);
     bool            chargingDone();
 
     bool            setChargingStatus(QString status);
@@ -117,8 +132,12 @@ public:
     void            setStatisticsSamplingTime(double stime);
     void            setStatisticsElapsedTime(int elapsedTime);
 
-    void            setConsumptionType(device_consumption_type_t actype);
-    void            setMeasurementType(device_measurement_type_t amtype);
+    void            setConfigurationAppliedStatus(bool status);
+
+    void            setConfigurationBDProgressStatus(int percentage, QString status);
+
+
+    void            setConfigurationChargerBDProgressStatus(int percentage, QString status);
 
     bool            plotVoltageValues(QVector<double> values, QVector<double> keys);
     bool            plotCurrentValues(QVector<double> values, QVector<double> keys);
@@ -177,11 +196,28 @@ signals:
     void            sigBatteryStatusChanged(bool status);
     void            sigResetProtection();
 
+    void            sigReadFullBDContent();
+    void            sigSetBDContent(QByteArray content);
+    void            sigBDFormat();
+
+    void            sigChargerReadFullBDContent();
+    void            sigChargerSetBDContent(QByteArray content);
+    void            sigChargerBDFormat();
+
     void            sigCalibrationUpdated();
+    void            sigCalibrationStoreRequest();
+    void            sigDeviceConfigSet(QMap<QString, QString> changedFields);
+    void            sigDeviceConfigGet();
+    void            sigDeviceConfigStore();
+    void            sigDeviceReset();
 protected:
     void            closeEvent(QCloseEvent *event);
 
 public slots:
+    void            onDeviceConfigSet(QMap<QString, QString> changedFields);
+    void            onDeviceConfigGet();
+    void            onDeviceConfigStore();
+    void            onDeviceReset();
     void            onSaveToFileChanged(int value);
     void            onStartAcquisition();
     void            onPauseAcquisition();
@@ -190,10 +226,6 @@ public slots:
     void            onConsolePressed();
     void            onDataAnalyzerPressed();
     void            onSetConsumptionName();
-    void            onResolutionChanged(QString aResolution);
-    void            onADCChanged(QString adc);
-    void            onClockDivChanged(QString aClockDiv);
-    void            onSampleTimeChanged(QString aSTime);
     void            onSamplingPeriodChanged();
     void            onInterfaceChanged(QString interfaceInfo);
     void            onAdvConfigurationChanged(QVariant aConfig);
@@ -215,16 +247,21 @@ public slots:
     void            onResetProtection();
     void            onChDschSaveToFileChanged(bool state);
 
+    void            onConfWndGetBDContent();
+    void            onConfWndSetBDContent(QByteArray content);
+    void            onConfWndBDFormat();
+
+    void            onChargerConfWndGetBDContent();
+    void            onChargerConfWndSetBDContent(QByteArray content);
+    void            onChargerConfWndBDFormat();
+
 
     void            onConsumptionProfileNameChanged();
-
-    void            onConsumptionTypeChanged(QAbstractButton* button);
-    void            onMeasurementTypeChanged(QAbstractButton* button);
-
 
     void            onAdvanceConfigurationButtonPressed(bool pressed);
 
     void            onCalibrationButtonPressed(bool pressed);
+
     void            onEnenergyControlButtonPressed(bool pressed);
 
 
@@ -234,11 +271,12 @@ public slots:
 
 private slots:
     void            onCalibrationUpdated();
+    void            onCalibrationStoreRequest();
 
 private:
     Ui::DeviceWnd               *ui;
 
-    AdvanceConfigurationWnd     *advanceConfigurationWnd;
+    ConfigurationWnd            *configurationWnd;
 
     ConsoleWnd                  *consoleWnd;
     DataStatistics              *dataAnalyzer;
@@ -266,6 +304,7 @@ private:
     /* */
     device_state_t                      deviceState;
     device_interface_selection_state_t  interfaceState;
+    device_acq_mode_t                   acqState;
 
     /* */
     void                        setDeviceStateDisconnected();
@@ -273,13 +312,9 @@ private:
 
     /**/
 
-    QButtonGroup*               consumptionTypeSelection;
-    QButtonGroup*               measurementTypeSelection;
-
-    device_measurement_type_t   mType;
-    device_consumption_type_t   cType;
-
     QString                     wsPath;
+
+    DeviceParameters           *m_param;
 };
 
 #endif // DEVICEWND_H

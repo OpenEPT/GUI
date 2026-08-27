@@ -29,6 +29,7 @@ ConsoleWnd::ConsoleWnd(QWidget *parent) :
         "device stream create",
         "device stream start",
         "device stream stop",
+
         "device adc chresolution set",
         "device adc chresolution get",
         "device adc chclkdiv set",
@@ -45,33 +46,59 @@ ConsoleWnd::ConsoleWnd(QWidget *parent) :
         "device adc coffset get",
         "device adc clk get",
         "device adc value get",
+        "device adc samplesno set",
+
         "device dac enable set",
+        "device dac enable get",
         "device dac value set",
+        "device dac value get",
+
         "device load enable",
         "device load disable",
         "device load get",
+
         "device bat enable",
         "device bat disable",
         "device bat get",
+
         "device ppath enable",
         "device ppath disable",
         "device ppath get",
-        "device rgb setcolor",
-        "device ep enable",
-        "device ep disable",
+
+        "device uvoltage state get",
+        "device ovoltage state get",
+        "device ocurrent state get",
+
+        "device uvoltage value get",
+        "device uvoltage value set",
+        "device ovoltage value get",
+        "device ovoltage value set",
+        "device ocurrent value get",
+        "device ocurrent value set",
+
         "device latch trigger",
-        "charger charging enable",
-        "charger charging disable",
-        "charger charging current set",
-        "charger reg read",
-        "charger charging termcurrent set",
-        "charger charging termcurrent get",
-        "charger charging termvoltage set",
-        "charger charging termvoltage get",
+
+        "device rgb setcolor",
+
         "device wave chunk add",
         "device wave counter set",
         "device wave state set",
-        "device wave clear"
+        "device wave clear",
+
+        "charger charging enable",
+        "charger charging disable",
+        "charger charging get",
+
+        "charger charging current set",
+        "charger charging current get",
+
+        "charger charging termcurrent set",
+        "charger charging termcurrent get",
+
+        "charger charging termvoltage set",
+        "charger charging termvoltage get",
+
+        "charger reg read"
     };
 
     completer = new QCompleter(commandList);

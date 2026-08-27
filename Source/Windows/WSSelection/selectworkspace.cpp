@@ -1,5 +1,7 @@
 #include "selectworkspace.h"
 #include "ui_selectworkspace.h"
+#include <QDir>
+#include <QMessageBox>
 
 SelectWorkspace::SelectWorkspace(QWidget *parent) :
     QDialog(parent),
@@ -30,6 +32,19 @@ SelectWorkspace::SelectWorkspace(QWidget *parent) :
     workspacePathLine = new QLineEdit(this);
     workspacePathLine->setFixedSize(180, 30);
     workspacePathLine->setFont(defaultFont);
+
+    QString defaultWorkspacePath;
+
+    #ifdef Q_OS_WIN
+    defaultWorkspacePath =
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/OpenEPT";
+    #else
+    defaultWorkspacePath =
+        QDir::homePath() + "/OpenEPT";
+    #endif
+
+    workspacePath = defaultWorkspacePath;
+    workspacePathLine->setText(workspacePath);
 
     QPushButton *selecWSDirPushb = new QPushButton();
 
@@ -88,6 +103,29 @@ SelectWorkspace::~SelectWorkspace()
 
 void SelectWorkspace::onAccept()
 {
+    workspacePath = workspacePathLine->text().trimmed();
+
+    if(workspacePath.isEmpty())
+    {
+        QMessageBox::warning(this,
+                             "Invalid Workspace",
+                             "Workspace directory is empty.");
+        return;
+    }
+
+    QDir dir;
+
+    if(!dir.exists(workspacePath))
+    {
+        if(!dir.mkpath(workspacePath))
+        {
+            QMessageBox::critical(this,
+                                  "Error",
+                                  "Failed to create workspace directory.");
+            return;
+        }
+    }
+
     accept();
 }
 
@@ -95,20 +133,20 @@ void SelectWorkspace::onReject()
 {
     reject();
 }
-
 void SelectWorkspace::onSelectWorkingDir()
 {
     QString directory = QFileDialog::getExistingDirectory(
-        nullptr,
+        this,
         "Select Directory",
-        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
+        workspacePath,
         QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks
-        );
+    );
+
+    if(directory.isEmpty())
+    {
+        return;
+    }
 
     workspacePath = directory;
-
     workspacePathLine->setText(workspacePath);
-
-
-
 }

@@ -22,6 +22,11 @@ SOURCES += \
     Links/edlink.cpp \
     Links/statuslink.cpp \
     Links/streamlink.cpp \
+    Processing/Parameters/applicationparamdefs.cpp \
+    Processing/Parameters/applicationparameters.cpp \
+    Processing/Parameters/deviceparamdefs.cpp \
+    Processing/Parameters/deviceparameters.cpp \
+    Processing/Parameters/parameterstore.cpp \
     Processing/calibrationdata.cpp \
     Processing/charginganalysis.cpp \
     Processing/dataprocessing.cpp \
@@ -29,10 +34,11 @@ SOURCES += \
     Processing/fileprocessing.cpp \
     Utility/log.cpp \
     Windows/AddDevice/adddevicewnd.cpp \
+    Windows/ApplicationConf/applicationconfwnd.cpp \
     Windows/Console/consolewnd.cpp \
     Windows/DataAnalyzer/dataanalyzer.cpp \
-    Windows/Device/advanceconfigurationwnd.cpp \
     Windows/Device/calibrationwnd.cpp \
+    Windows/Device/configurationwnd.cpp \
     Windows/Device/datastatistics.cpp \
     Windows/Device/devicewnd.cpp \
     Windows/Device/energycontrolwnd.cpp \
@@ -49,6 +55,12 @@ HEADERS += \
     Links/edlink.h \
     Links/statuslink.h \
     Links/streamlink.h \
+    Processing/Parameters/applicationparamdefs.h \
+    Processing/Parameters/applicationparameters.h \
+    Processing/Parameters/deviceparamdefs.h \
+    Processing/Parameters/deviceparameters.h \
+    Processing/Parameters/parameterdefs.h \
+    Processing/Parameters/parameterstore.h \
     Processing/calibrationdata.h \
     Processing/charginganalysis.h \
     Processing/dataprocessing.h \
@@ -57,10 +69,11 @@ HEADERS += \
     Processing/fileprocessing.h \
     Utility/log.h \
     Windows/AddDevice/adddevicewnd.h \
+    Windows/ApplicationConf/applicationconfwnd.h \
     Windows/Console/consolewnd.h \
     Windows/DataAnalyzer/dataanalyzer.h \
-    Windows/Device/advanceconfigurationwnd.h \
     Windows/Device/calibrationwnd.h \
+    Windows/Device/configurationwnd.h \
     Windows/Device/datastatistics.h \
     Windows/Device/devicewnd.h \
     Windows/Device/energycontrolwnd.h \
@@ -72,10 +85,11 @@ HEADERS += \
 
 FORMS += \
     Windows/AddDevice/adddevicewnd.ui \
+    Windows/ApplicationConf/applicationconfwnd.ui \
     Windows/Console/consolewnd.ui \
     Windows/DataAnalyzer/dataanalyzer.ui \
-    Windows/Device/advanceconfigurationwnd.ui \
     Windows/Device/calibrationwnd.ui \
+    Windows/Device/configurationwnd.ui \
     Windows/Device/datastatistics.ui \
     Windows/Device/devicewnd.ui \
     Windows/Device/energycontrolwnd.ui \

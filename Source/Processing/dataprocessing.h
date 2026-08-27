@@ -11,12 +11,12 @@
 #define DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE      500
 #define DATAPROCESSING_DEFAULT_SAMPLE_SIZE              2
 #define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_REF          8.179
-#define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_K            1.3348
+#define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_K            1.327
 #define DATAPROCESSING_DEFAULT_ADC_VOLTAGE_OFF          0
-#define DATAPROCESSING_DEFAULT_SHUNT                    0.100
-#define DATAPROCESSING_DEFAULT_GAIN                     9.38
+#define DATAPROCESSING_DEFAULT_SHUNT                    0.045
+#define DATAPROCESSING_DEFAULT_GAIN                     9.37
 #define DATAPROCESSING_DEFAULT_CURRENT_K                1
-#define DATAPROCESSING_DEFAULT_CURRENT_OFF              1.6302
+#define DATAPROCESSING_DEFAULT_CURRENT_OFF              1.63265
 #define DATAPROCESSING_DEFAULT_FILTERING_ENABLE         0
 
 typedef enum
@@ -75,6 +75,9 @@ public:
     dataprocessing_acquisition_status_t getAcquisitionStatus();
 
     CalibrationData*                    getCalibrationData();
+    bool                                setCalibrationData(float vref, float voff, float vcor, float coff, float ccor);
+    bool                                setShunt(float shunt);
+    bool                                setGain(float gain);
 
     void                                calibrationDataUpdated();
 

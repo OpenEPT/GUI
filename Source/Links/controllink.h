@@ -24,6 +24,10 @@ public:
     control_link_status_t   establishLink(QString aIpAddress, QString aPortNumber);
     bool                    getDeviceName(QString* deviceName);
     bool                    executeCommand(QString command, QString* response, int timeout);
+    bool                    executeCommand(QByteArray request, QString* response, int timeout);
+
+    QString                 getDeviceIP_Addr();
+    quint16                 getDeviceIP_Port();
 
 signals:
     void                    sigDisconnected();
@@ -43,6 +47,7 @@ private:
     QTimer                  *reconnectTimer;
 
     bool                    setSocketKeepAlive();
+    bool                    prvReadResponse(QString* response, int timeout);
 
 };
 

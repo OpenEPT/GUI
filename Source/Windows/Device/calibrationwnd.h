@@ -25,9 +25,11 @@ public:
 
 signals:
     void sigCalibrationDataUpdated();
+    void sigCalibrationStoreRequest();
 
 private slots:
     void onSubmitPressed(bool pressed);
+    void onStorePressed(bool pressed);
 
 private:
     Ui::CalibrationWnd *ui;

@@ -46,7 +46,7 @@ DataProcessing::DataProcessing(QObject *parent)
     minMax.resize(2);
 
     setAcquisitionStatus(DATAPROCESSING_ACQUISITION_STATUS_INACTIVE);
-    setConsumptionMode(DATAPROCESSING_CONSUMPTION_MODE_CURRENT);
+    setConsumptionMode(DATAPROCESSING_CONSUMPTION_MODE_CUMULATIVE);
     setMeasurementMode(DATAPROCESSING_MEASUREMENT_MODE_VOLTAGE);
 }
 
@@ -244,6 +244,29 @@ CalibrationData *DataProcessing::getCalibrationData()
 {
     return calData;
 }
+bool DataProcessing::setCalibrationData(float vref, float voff, float vcor, float coff, float ccor)
+{
+    calData->adcVoltageRef = vref;
+    calData->voltageOff = voff;
+    calData->voltageCurrOffset = coff;
+    calData->currentCorrection = ccor;
+    calData->voltageCorr = vcor;
+    return true;
+}
+
+bool DataProcessing::setShunt(float shunt)
+{
+    calData->currentShunt = shunt;
+    return true;
+}
+
+bool DataProcessing::setGain(float gain)
+{
+    calData->currentGain =gain;
+    return true;
+}
+
+
 
 void DataProcessing::calibrationDataUpdated()
 {

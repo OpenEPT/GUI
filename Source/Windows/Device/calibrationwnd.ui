@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>536</width>
-    <height>247</height>
+    <height>249</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -708,6 +708,13 @@
         <widget class="QPushButton" name="submitPusb">
          <property name="text">
           <string>Submit</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="storePusb">
+         <property name="text">
+          <string>Store</string>
          </property>
         </widget>
        </item>

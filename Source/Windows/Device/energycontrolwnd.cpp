@@ -121,6 +121,25 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
 
     // Top layout (configurable entries and controls)
     QVBoxLayout *chargerTopLayout = new QVBoxLayout();
+
+    chargerTopLayout->addLayout(createSectionHeader("Charger Info"));
+
+    chargerTopLayout->addLayout(createEntryRow("Charger FW Version", "", chargerInfoEdits));
+    chargerTopLayout->addLayout(createEntryRow("Charger Serial Number", "", chargerInfoEdits));
+    chargerTopLayout->addLayout(createEntryRow("Max Charging Current", "mA", chargerInfoEdits));
+
+    chargerInfoEdits["Charger FW Version"]->setReadOnly(true);
+    chargerInfoEdits["Charger Serial Number"]->setReadOnly(true);
+    chargerInfoEdits["Max Charging Current"]->setReadOnly(true);
+
+    QString infoStyle = "background-color: rgb(245,245,245);";
+
+    chargerInfoEdits["Charger FW Version"]->setStyleSheet(infoStyle);
+    chargerInfoEdits["Charger Serial Number"]->setStyleSheet(infoStyle);
+    chargerInfoEdits["Max Charging Current"]->setStyleSheet(infoStyle);
+
+
+
     chargerTopLayout->addLayout(createSectionHeader("Parameters"));
     chargerTopLayout->addLayout(createEntryRow("Current", "mA", chargerEntryEdits));
     chargerTopLayout->addLayout(createEntryRow("Term Voltage", "V", chargerEntryEdits));
@@ -342,12 +361,45 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     // ----- Add status section to main layout -----
     mainLayout->addLayout(statusSectionLayout);
 
+    chargerConnected = false;
+    chargerConnectionStatusSet(false);
+
     this->setFixedSize(this->sizeHint());
 }
 
 Mode EnergyControlWnd::getMode()
 {
     return mode;
+}
+
+void EnergyControlWnd::chargerConnectionStatusSet(bool connected)
+{
+    chargerConnected = connected;
+
+    int chargerTabIndex = tabWidget->indexOf(chargerTab);
+    int chdischTabIndex = tabWidget->indexOf(chdischTab);
+
+    tabWidget->setTabEnabled(chargerTabIndex, connected);
+    tabWidget->setTabEnabled(chdischTabIndex, connected);
+
+    tabWidget->tabBar()->setTabTextColor(chargerTabIndex,
+                                         connected ? Qt::black : Qt::gray);
+
+    tabWidget->tabBar()->setTabTextColor(chdischTabIndex,
+                                         connected ? Qt::black : Qt::gray);
+
+    if(!connected)
+    {
+        if(chargingStartStopStatus)
+        {
+            emit sigChargingCurrentStatusChanged(false);
+        }
+
+        if(chdischStartStopStatus)
+        {
+            chdischStartStatusSet(false, ChDschUnknown);
+        }
+    }
 }
 
 
@@ -1331,6 +1383,21 @@ void EnergyControlWnd::chargingDone()
         break;
     }
 
+}
+
+void EnergyControlWnd::chargerFWVersionSet(const QString& name)
+{
+    chargerInfoEdits["Charger FW Version"]->setText(name);
+}
+
+void EnergyControlWnd::chargerSerialNumberSet(const QString& serial)
+{
+    chargerInfoEdits["Charger Serial Number"]->setText(serial);
+}
+
+void EnergyControlWnd::chargerMaxCurrentSet(int current)
+{
+    chargerInfoEdits["Max Charging Current"]->setText(QString::number(current));
 }
 
 // Charge/Discharge tab

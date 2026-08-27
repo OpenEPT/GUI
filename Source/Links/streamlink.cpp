@@ -48,7 +48,18 @@ void StreamLink::setPacketSize(unsigned int aPacketSize)
 void StreamLink::initStreamLinkThread()
 {
     udpSocket = new QUdpSocket();
-    udpSocket->bind(port);
+    const bool bindOk = udpSocket->bind(QHostAddress::AnyIPv4,
+                                        port,
+                                        QUdpSocket::ShareAddress |
+                                        QUdpSocket::ReuseAddressHint);;
+    if(bindOk == false)
+    {
+        qDebug() << "StreamLink UDP bind failed";
+        qDebug() << "Port:" << port;
+        qDebug() << "Error:" << udpSocket->error();
+        qDebug() << "Error string:" << udpSocket->errorString();
+        return;
+    }
     int rcvbufsize = 120000*1024*2;
     int socketDesc = udpSocket->socketDescriptor();
     int ret = 0;

@@ -80,6 +80,8 @@ public:
 
     Mode getMode();
 
+    void chargerConnectionStatusSet(bool connected);
+
     void underVoltageStatusSet(bool enabled);
     void overVoltageStatusSet(bool enabled);
     void overCurrentStatusSet(bool enabled);
@@ -99,6 +101,10 @@ public:
     void chargerTermCurrentSet(int current);
     bool chargerCurrentStatusSet(bool status);
     void chargingDone();
+
+    void chargerFWVersionSet(const QString& name);
+    void chargerSerialNumberSet(const QString& serial);
+    void chargerMaxCurrentSet(int current);
 
     // Charge/Discharge tab
     void chdischDischargeCurrentSet(int current);
@@ -167,6 +173,7 @@ private:
 
     Mode                        mode;
 
+    QMap<QString, QLineEdit*> chargerInfoEdits;
     QMap<QString, QLineEdit*> loadEntryEdits;
     QMap<QString, QTimeEdit*> loadTimeEdits;
     QMap<QString, QPushButton*> loadButtons;
@@ -198,6 +205,8 @@ private:
     QWidget *loadCurrentWidget;             // for Static mode
     QWidget *dynamicWidget;  // Wrapper for QTextEdit
     QTextEdit *loadCurrentProfileText;
+
+    bool chargerConnected;
 
     bool loadStatus;
     bool ppathStatus;
