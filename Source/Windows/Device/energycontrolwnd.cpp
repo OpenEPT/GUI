@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include <QMdiSubWindow>
 #include <QMdiArea>
+#include <QHeaderView>
 
 EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     QWidget(parent),
@@ -47,9 +48,8 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     QVBoxLayout *loadTopLayout = new QVBoxLayout();
     // Section label with horizontal lines
     loadTopLayout->addLayout(createSectionHeader("Parameters"));
-    QStringList loadTypes = {"Static", "Dynamic"};
+    QStringList loadTypes = {"Static", "Standard Wave", "Custom Wave"};
     loadTopLayout->addLayout(createDropBoxEntry("Mode", loadTypes, loadComboBoxEdits));
-    /*If static is selected*/
 
     connect(loadComboBoxEdits["Mode"], &QComboBox::currentTextChanged,this, &EnergyControlWnd::onLoadModeChanged);
 
@@ -62,17 +62,120 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     staticLayout->addSpacerItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
     loadTopLayout->addWidget(loadCurrentWidget);
 
-    dynamicWidget = new QWidget(this); // <-- add this to the header
-    QVBoxLayout *dynamicLayout = new QVBoxLayout(dynamicWidget);
-    dynamicLayout->setContentsMargins(0, 0, 0, 0);
-    dynamicLayout->addLayout(createQTextEditRow("Current Profile", loadTextEdits));
-    dynamicLayout->addSpacerItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
-    dynamicWidget->setVisible(false); // ← hide the *container*, not the textedit
-    loadTopLayout->addWidget(dynamicWidget);
+    // --- Standard wave mode widget ---
+    standardWaveWidget = new QWidget(this);
+    QVBoxLayout *stdWaveLayout = new QVBoxLayout(standardWaveWidget);
+    stdWaveLayout->setContentsMargins(0, 0, 0, 0);
+    stdWaveLayout->addLayout(createDropBoxEntry("Wave", Waveform::standardTypeNames(), loadComboBoxEdits));
+    loadComboBoxEdits["Wave"]->setToolTip("Ramp: 0->A rise\nSawtooth: A->0 fall\nTriangle: rise then fall\nSquare: A / 0\nSine: 0..A");
+    stdWaveLayout->addLayout(createEntryRow("Amplitude", "mA", loadEntryEdits));
+    stdWaveLayout->addLayout(createEntryRow("Period", "ms", loadEntryEdits));
+    stdWaveLayout->addLayout(createEntryRow("Points", "", loadEntryEdits));
+    stdWaveLayout->addLayout(createEntryRow("Repetitions", "-1=inf", loadEntryEdits));
+    loadEntryEdits["Amplitude"]->setText("1000");
+    loadEntryEdits["Period"]->setText("20");
+    loadEntryEdits["Points"]->setText("20");
+    loadEntryEdits["Repetitions"]->setText("-1");
+    stdWaveInfoLabel = new QLabel(this);
+    stdWaveInfoLabel->setStyleSheet("color: gray;");
+    stdWaveLayout->addWidget(stdWaveInfoLabel);
+    stdWaveLayout->addSpacerItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
+    standardWaveWidget->setVisible(false);
+    loadTopLayout->addWidget(standardWaveWidget);
+
+    connect(loadComboBoxEdits["Wave"], &QComboBox::currentTextChanged, this, &EnergyControlWnd::onStdWaveParamChanged);
+    connect(loadEntryEdits["Amplitude"], &QLineEdit::textChanged, this, &EnergyControlWnd::onStdWaveParamChanged);
+    connect(loadEntryEdits["Period"], &QLineEdit::textChanged, this, &EnergyControlWnd::onStdWaveParamChanged);
+    connect(loadEntryEdits["Points"], &QLineEdit::textChanged, this, &EnergyControlWnd::onStdWaveParamChanged);
+    connect(loadEntryEdits["Repetitions"], &QLineEdit::textChanged, this, &EnergyControlWnd::onStdWaveParamChanged);
+
+    // --- Custom wave mode widget ---
+    customWaveTableUpdating = false;
+    customWaveWidget = new QWidget(this);
+    QVBoxLayout *customWaveLayout = new QVBoxLayout(customWaveWidget);
+    customWaveLayout->setContentsMargins(0, 0, 0, 0);
+
+    // Library selection + name
+    QHBoxLayout *libRow = new QHBoxLayout();
+    QLabel *libLabel = new QLabel("Library", this);
+    libLabel->setFixedSize(ENTRY_LABEL_WIDTH, ENTRY_ROW_HEIGHT);
+    customWaveLibraryCombo = new QComboBox(this);
+    customWaveLibraryCombo->setFixedHeight(ENTRY_ROW_HEIGHT);
+    customWaveLibraryCombo->setMinimumWidth(ENTRY_EDIT_WIDTH + ENTRY_UNIT_WIDTH);
+    libRow->addWidget(libLabel);
+    libRow->addWidget(customWaveLibraryCombo, 1);
+    customWaveButtons["DeleteFromLibrary"] = createSmallButton("Delete", libRow);
+    customWaveLayout->addLayout(libRow);
+
+    QHBoxLayout *nameRow = new QHBoxLayout();
+    QLabel *nameLabel = new QLabel("Wave name", this);
+    nameLabel->setFixedSize(ENTRY_LABEL_WIDTH, ENTRY_ROW_HEIGHT);
+    customWaveNameEdit = new QLineEdit(this);
+    customWaveNameEdit->setFixedHeight(ENTRY_ROW_HEIGHT);
+    customWaveNameEdit->setPlaceholderText("Custom wave name");
+    nameRow->addWidget(nameLabel);
+    nameRow->addWidget(customWaveNameEdit, 1);
+    customWaveButtons["SaveToLibrary"] = createSmallButton("Save to library", nameRow);
+    customWaveLayout->addLayout(nameRow);
+
+    customWaveLayout->addLayout(createEntryRow("Wave Repetitions", "-1=inf", loadEntryEdits));
+    loadEntryEdits["Wave Repetitions"]->setText("-1");
+
+    // File / table manipulation buttons
+    QHBoxLayout *fileRow = new QHBoxLayout();
+    customWaveButtons["LoadFile"]   = createSmallButton("Load file", fileRow);
+    customWaveButtons["ExportFile"] = createSmallButton("Export file", fileRow);
+    fileRow->addStretch();
+    customWaveButtons["AddRow"]     = createSmallButton("Add chunk", fileRow);
+    customWaveButtons["RemoveRow"]  = createSmallButton("Remove chunk", fileRow);
+    customWaveButtons["Clear"]      = createSmallButton("Clear", fileRow);
+    customWaveLayout->addLayout(fileRow);
+
+    QStringList customWaveTableHeader;
+    customWaveTableHeader << "Value [mA]" << "Value dev [mA]" << "Duration [ms]" << "Dur. dev [ms]" << "Repetitions" << "Last in group";
+    customWaveTable = new QTableWidget(0, 6, this);
+    customWaveTable->setHorizontalHeaderLabels(customWaveTableHeader);
+    customWaveTable->horizontalHeader()->setStretchLastSection(true);
+    customWaveTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    customWaveTable->verticalHeader()->setDefaultSectionSize(22);
+    customWaveTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    customWaveTable->setMinimumHeight(160);
+    customWaveLayout->addWidget(customWaveTable, 1);
+
+    customWaveInfoLabel = new QLabel(this);
+    customWaveInfoLabel->setStyleSheet("color: gray;");
+    customWaveLayout->addWidget(customWaveInfoLabel);
+
+    customWaveWidget->setVisible(false);
+    loadTopLayout->addWidget(customWaveWidget);
+
+    connect(customWaveLibraryCombo, QOverload<int>::of(&QComboBox::activated), this, &EnergyControlWnd::onCustomWaveLibrarySelected);
+    connect(customWaveButtons["DeleteFromLibrary"], &QPushButton::clicked, this, &EnergyControlWnd::onCustomWaveDeleteFromLibrary);
+    connect(customWaveButtons["SaveToLibrary"], &QPushButton::clicked, this, &EnergyControlWnd::onCustomWaveSaveToLibrary);
+    connect(customWaveButtons["LoadFile"], &QPushButton::clicked, this, &EnergyControlWnd::onCustomWaveLoadFile);
+    connect(customWaveButtons["ExportFile"], &QPushButton::clicked, this, &EnergyControlWnd::onCustomWaveExportFile);
+    connect(customWaveButtons["AddRow"], &QPushButton::clicked, this, &EnergyControlWnd::onCustomWaveAddRow);
+    connect(customWaveButtons["RemoveRow"], &QPushButton::clicked, this, &EnergyControlWnd::onCustomWaveRemoveRow);
+    connect(customWaveButtons["Clear"], &QPushButton::clicked, this, &EnergyControlWnd::onCustomWaveClear);
+    connect(customWaveTable, &QTableWidget::itemChanged, this, &EnergyControlWnd::onCustomWaveTableChanged);
+    connect(&WaveformLibrary::instance(), &WaveformLibrary::sigLibraryChanged, this, &EnergyControlWnd::onWaveLibraryChanged);
+
+    refreshCustomWaveLibraryCombo();
+    updateStdWaveInfo();
+    updateCustomWaveInfo();
 
     /*IThis should always be visible*/
     loadTopLayout->addLayout(createButtonRow("Set", "Set", loadButtons));
-    loadTopLayout->addLayout(createButtonRow("StartStop", "Start", loadButtons));
+    // Start/Stop row: "Clear wave" on the left (sends "device wave clear"), Start/Stop on the right
+    QHBoxLayout *startStopRow = createButtonRow("StartStop", "Start", loadButtons);
+    QPushButton *clearWaveButton = new QPushButton("Clear wave", this);
+    clearWaveButton->setObjectName("ClearWaveButton");
+    clearWaveButton->setFixedSize(BUTTON_WIDTH, BUTTON_HEIGHT);
+    clearWaveButton->setToolTip("Remove wave loaded on device");
+    loadButtons.insert("ClearWave", clearWaveButton);
+    startStopRow->insertWidget(0, clearWaveButton);
+    loadTopLayout->addLayout(startStopRow);
+    connect(clearWaveButton, &QPushButton::clicked, this, &EnergyControlWnd::onLoadWaveClear);
 
 
 
@@ -111,6 +214,7 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     // Assemble both into the main load layout
     loadLayout->addLayout(loadTopLayout);
     loadLayout->addLayout(loadStatusLayout);
+
 
     loadTab->setLayout(loadLayout);
     tabWidget->addTab(loadTab, "Load");
@@ -1213,6 +1317,8 @@ bool EnergyControlWnd::loadCurrentStatusSet(bool status)
             loadTimeEdits["Discharge Stop Time"]->setEnabled(false);
             loadEntryEdits["Current"]->setEnabled(false);
             loadComboBoxEdits["Mode"]->setEnabled(false);
+            standardWaveWidget->setEnabled(false);
+            customWaveWidget->setEnabled(false);
 
             statusControlButtons["LoadDisable"]->setEnabled(false);
             statusControlButtons["PPathDisable"]->setEnabled(false);
@@ -1234,6 +1340,8 @@ bool EnergyControlWnd::loadCurrentStatusSet(bool status)
             loadTimeEdits["Discharge Stop Time"]->setTime(now);
             loadEntryEdits["Current"]->setEnabled(true);
             loadComboBoxEdits["Mode"]->setEnabled(true);
+            standardWaveWidget->setEnabled(true);
+            customWaveWidget->setEnabled(true);
 
             statusControlButtons["LoadDisable"]->setEnabled(true);
             statusControlButtons["PPathDisable"]->setEnabled(true);
@@ -1649,13 +1757,334 @@ EnergyControlWnd::~EnergyControlWnd()
 
 void EnergyControlWnd::onLoadModeChanged(const QString &mode)
 {
-    bool isStatic = (mode == "Static");
+    loadCurrentWidget->setVisible(mode == "Static");
+    standardWaveWidget->setVisible(mode == "Standard Wave");
+    customWaveWidget->setVisible(mode == "Custom Wave");
+}
 
-    if (loadCurrentWidget)
-        loadCurrentWidget->setVisible(isStatic);
+LoadMode EnergyControlWnd::loadModeGet()
+{
+    QString mode = loadComboBoxEdits["Mode"]->currentText();
+    if(mode == "Standard Wave") return LoadModeStandardWave;
+    if(mode == "Custom Wave") return LoadModeCustomWave;
+    return LoadModeStatic;
+}
 
-    if (dynamicWidget)
-        dynamicWidget->setVisible(!isStatic);
+Waveform EnergyControlWnd::loadActiveWaveGet()
+{
+    return loadActiveWave;
+}
+
+/* ---------------------------- Standard wave ---------------------------- */
+Waveform EnergyControlWnd::buildStandardWave()
+{
+    Waveform wave;
+    waveform_type_t type = Waveform::typeFromString(loadComboBoxEdits["Wave"]->currentText());
+    unsigned int amplitude = loadEntryEdits["Amplitude"]->text().toUInt();
+    unsigned int period = loadEntryEdits["Period"]->text().toUInt();
+    unsigned int points = loadEntryEdits["Points"]->text().toUInt();
+    int repetitions = loadEntryEdits["Repetitions"]->text().toInt();
+
+    wave.generateStandard(type, amplitude, period, points, repetitions);
+    return wave;
+}
+
+void EnergyControlWnd::updateStdWaveInfo()
+{
+    Waveform wave = buildStandardWave();
+    if(!wave.isValid())
+    {
+        stdWaveInfoLabel->setText("Invalid parameters (period > 0, points >= 2)");
+        return;
+    }
+    stdWaveInfoLabel->setText(QString::number(wave.chunks.size()) + " chunks, " +
+                              QString::number(wave.chunks.first().duration) + " ms/chunk, " +
+                              QString::number(wave.getTotalDuration()) + " ms per pass (max " +
+                              QString::number(WAVEFORM_CHUNK_MAX_NO) + " chunks)");
+}
+
+void EnergyControlWnd::onStdWaveParamChanged()
+{
+    updateStdWaveInfo();
+}
+
+/* ----------------------------- Custom wave ----------------------------- */
+QPushButton* EnergyControlWnd::createSmallButton(const QString& text, QHBoxLayout* layout)
+{
+    QPushButton *button = new QPushButton(text, this);
+    button->setFixedHeight(BUTTON_HEIGHT);
+    button->setMinimumWidth(BUTTON_WIDTH);
+    layout->addWidget(button);
+    return button;
+}
+
+void EnergyControlWnd::refreshCustomWaveLibraryCombo()
+{
+    QString current = customWaveLibraryCombo->currentText();
+    QStringList userNames = WaveformLibrary::instance().getNames(WAVEFORM_ORIGIN_USER);
+    QStringList stdNames = WaveformLibrary::instance().getNames(WAVEFORM_ORIGIN_STANDARD);
+    int index;
+
+    customWaveLibraryCombo->blockSignals(true);
+    customWaveLibraryCombo->clear();
+    customWaveLibraryCombo->addItem("<select from library>");
+    for(int i = 0; i < userNames.size(); i++)
+    {
+        customWaveLibraryCombo->addItem(userNames[i]);
+    }
+    for(int i = 0; i < stdNames.size(); i++)
+    {
+        customWaveLibraryCombo->addItem("[std] " + stdNames[i]);
+    }
+    index = customWaveLibraryCombo->findText(current);
+    if(index < 0) index = 0;
+    customWaveLibraryCombo->setCurrentIndex(index);
+    customWaveLibraryCombo->blockSignals(false);
+}
+
+QString EnergyControlWnd::getCustomWaveLibraryName(int index)
+{
+    QString name = customWaveLibraryCombo->itemText(index);
+    if(name.startsWith("[std] "))
+    {
+        name = name.mid(6);
+    }
+    return name;
+}
+
+void EnergyControlWnd::onWaveLibraryChanged()
+{
+    refreshCustomWaveLibraryCombo();
+}
+
+QTableWidgetItem* EnergyControlWnd::createCustomWaveTableItem(QString text)
+{
+    QTableWidgetItem *item = new QTableWidgetItem(text);
+    item->setTextAlignment(Qt::AlignCenter);
+    return item;
+}
+
+QString EnergyControlWnd::getCustomWaveTableText(int row, int column)
+{
+    QTableWidgetItem *item = customWaveTable->item(row, column);
+    if(item == NULL) return "";
+    return item->text();
+}
+
+void EnergyControlWnd::addCustomWaveTableRow(waveform_chunk_t chunk, int row)
+{
+    QTableWidgetItem *lastInGroupItem;
+
+    if(row < 0)
+    {
+        row = customWaveTable->rowCount();
+    }
+    customWaveTable->insertRow(row);
+    customWaveTable->setItem(row, 0, createCustomWaveTableItem(QString::number(chunk.value)));
+    customWaveTable->setItem(row, 1, createCustomWaveTableItem(QString::number(chunk.valueDev)));
+    customWaveTable->setItem(row, 2, createCustomWaveTableItem(QString::number(chunk.duration)));
+    customWaveTable->setItem(row, 3, createCustomWaveTableItem(QString::number(chunk.durationDev)));
+    customWaveTable->setItem(row, 4, createCustomWaveTableItem(QString::number(chunk.repetitions)));
+
+    lastInGroupItem = new QTableWidgetItem();
+    lastInGroupItem->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    lastInGroupItem->setCheckState(chunk.lastInGroup ? Qt::Checked : Qt::Unchecked);
+    lastInGroupItem->setTextAlignment(Qt::AlignCenter);
+    customWaveTable->setItem(row, 5, lastInGroupItem);
+}
+
+void EnergyControlWnd::fillCustomWaveTable(Waveform wave)
+{
+    customWaveTableUpdating = true;
+    customWaveTable->setRowCount(0);
+    for(int i = 0; i < wave.chunks.size(); i++)
+    {
+        addCustomWaveTableRow(wave.chunks[i], -1);
+    }
+    customWaveTableUpdating = false;
+    customWaveNameEdit->setText(wave.name);
+    loadEntryEdits["Wave Repetitions"]->setText(QString::number(wave.repetitionCounter));
+    updateCustomWaveInfo();
+}
+
+Waveform EnergyControlWnd::buildCustomWave()
+{
+    Waveform wave;
+    QTableWidgetItem *lastInGroupItem;
+
+    wave.name = customWaveNameEdit->text().trimmed();
+    wave.type = WAVEFORM_TYPE_CUSTOM;
+    wave.origin = WAVEFORM_ORIGIN_USER;
+    wave.repetitionCounter = loadEntryEdits["Wave Repetitions"]->text().toInt();
+    for(int row = 0; row < customWaveTable->rowCount(); row++)
+    {
+        waveform_chunk_t chunk = Waveform::chunkDefault();
+        chunk.value = getCustomWaveTableText(row, 0).toUInt();
+        chunk.valueDev = getCustomWaveTableText(row, 1).toUInt();
+        chunk.duration = getCustomWaveTableText(row, 2).toUInt();
+        chunk.durationDev = getCustomWaveTableText(row, 3).toUInt();
+        chunk.repetitions = getCustomWaveTableText(row, 4).toInt();
+        if(chunk.duration < 1) chunk.duration = 1;
+        if(chunk.repetitions < 1) chunk.repetitions = 1;
+        lastInGroupItem = customWaveTable->item(row, 5);
+        chunk.lastInGroup = (lastInGroupItem != NULL) && (lastInGroupItem->checkState() == Qt::Checked);
+        wave.chunks.append(chunk);
+    }
+    if(!wave.chunks.isEmpty())
+    {
+        wave.chunks.last().lastInGroup = true;
+    }
+    return wave;
+}
+
+void EnergyControlWnd::updateCustomWaveInfo()
+{
+    Waveform wave = buildCustomWave();
+    customWaveInfoLabel->setText(QString::number(wave.chunks.size()) + " chunks, " +
+                                 QString::number(wave.getTotalDuration()) + " ms per pass (max " +
+                                 QString::number(WAVEFORM_CHUNK_MAX_NO) + " chunks)");
+}
+
+void EnergyControlWnd::onCustomWaveTableChanged()
+{
+    if(customWaveTableUpdating) return;
+    updateCustomWaveInfo();
+}
+
+void EnergyControlWnd::onCustomWaveLibrarySelected(int index)
+{
+    Waveform wave;
+    if(index <= 0) return;
+    if(!WaveformLibrary::instance().get(getCustomWaveLibraryName(index), &wave)) return;
+    fillCustomWaveTable(wave);
+}
+
+void EnergyControlWnd::onCustomWaveLoadFile()
+{
+    Waveform wave;
+    QString error;
+    QString path = QFileDialog::getOpenFileName(this, "Load wave file", QString(), "Wave files (*.txt *.wave);;All files (*)");
+    if(path.isEmpty()) return;
+    if(!wave.loadFromFile(path, &error))
+    {
+        QMessageBox::warning(this, "Load wave", error);
+        return;
+    }
+    fillCustomWaveTable(wave);
+    customWaveLibraryCombo->setCurrentIndex(0);
+}
+
+void EnergyControlWnd::onCustomWaveExportFile()
+{
+    Waveform wave = buildCustomWave();
+    QString error;
+    QString suggested;
+    QString path;
+
+    if(!wave.isValid())
+    {
+        QMessageBox::warning(this, "Export wave", "Wave table is empty");
+        return;
+    }
+    suggested = wave.name.isEmpty() ? "wave.txt" : wave.name + ".txt";
+    path = QFileDialog::getSaveFileName(this, "Export wave file", suggested, "Wave files (*.txt);;All files (*)");
+    if(path.isEmpty()) return;
+    if(!wave.saveToFile(path, &error))
+    {
+        QMessageBox::warning(this, "Export wave", error);
+    }
+}
+
+void EnergyControlWnd::onCustomWaveAddRow()
+{
+    waveform_chunk_t chunk = Waveform::chunkDefault();
+    int row = customWaveTable->currentRow();
+
+    if(row >= 0)
+    {
+        /*Copy selected row as template and insert new row after it*/
+        Waveform wave = buildCustomWave();
+        chunk = wave.chunks[row];
+        chunk.lastInGroup = false;
+        row += 1;
+    }
+    addCustomWaveTableRow(chunk, row);
+    updateCustomWaveInfo();
+}
+
+void EnergyControlWnd::onCustomWaveRemoveRow()
+{
+    QList<QTableWidgetSelectionRange> ranges = customWaveTable->selectedRanges();
+    QList<int> rows;
+
+    for(int i = 0; i < ranges.size(); i++)
+    {
+        for(int row = ranges[i].topRow(); row <= ranges[i].bottomRow(); row++)
+        {
+            if(!rows.contains(row))
+            {
+                rows.append(row);
+            }
+        }
+    }
+    if(rows.isEmpty() && customWaveTable->currentRow() >= 0)
+    {
+        rows.append(customWaveTable->currentRow());
+    }
+
+    /*Remove from bottom to top so remaining row indexes stay valid*/
+    for(int row = customWaveTable->rowCount() - 1; row >= 0; row--)
+    {
+        if(rows.contains(row))
+        {
+            customWaveTable->removeRow(row);
+        }
+    }
+    updateCustomWaveInfo();
+}
+
+void EnergyControlWnd::onCustomWaveClear()
+{
+    customWaveTable->setRowCount(0);
+    updateCustomWaveInfo();
+}
+
+void EnergyControlWnd::onCustomWaveSaveToLibrary()
+{
+    Waveform wave = buildCustomWave();
+    int index;
+
+    if(wave.name.isEmpty())
+    {
+        QMessageBox::warning(this, "Save wave", "Please enter wave name");
+        return;
+    }
+    if(!wave.isValid())
+    {
+        QMessageBox::warning(this, "Save wave", "Wave table is empty");
+        return;
+    }
+    if(WaveformLibrary::instance().contains(wave.name))
+    {
+        if(QMessageBox::question(this, "Save wave", "Wave \"" + wave.name + "\" already exists. Overwrite?") != QMessageBox::Yes) return;
+    }
+    WaveformLibrary::instance().addOrReplace(wave);
+    index = customWaveLibraryCombo->findText(wave.name);
+    if(index >= 0)
+    {
+        customWaveLibraryCombo->setCurrentIndex(index);
+    }
+}
+
+void EnergyControlWnd::onCustomWaveDeleteFromLibrary()
+{
+    int index = customWaveLibraryCombo->currentIndex();
+    QString name;
+
+    if(index <= 0) return;
+    name = getCustomWaveLibraryName(index);
+    if(QMessageBox::question(this, "Delete wave", "Delete \"" + name + "\" from library?") != QMessageBox::Yes) return;
+    WaveformLibrary::instance().remove(name);
 }
 
 void EnergyControlWnd::onLoadStatusChanged()
@@ -1681,10 +2110,52 @@ void EnergyControlWnd::onBatteryStatusChanged()
 
 void EnergyControlWnd::onLoadSet()
 {
-    staticLoadCurrent = loadEntryEdits["Current"]->text().toInt();
-    chdischDischargeCurrentSet(staticLoadCurrent);
-    emit sigLoadCurrentChanged(staticLoadCurrent);
+    Waveform wave;
 
+    switch(loadModeGet())
+    {
+    case LoadModeStatic:
+        staticLoadCurrent = loadEntryEdits["Current"]->text().toInt();
+        chdischDischargeCurrentSet(staticLoadCurrent);
+        emit sigLoadCurrentChanged(staticLoadCurrent);
+        break;
+    case LoadModeStandardWave:
+        wave = buildStandardWave();
+        if(!wave.isValid())
+        {
+            QMessageBox::warning(this, "Warning", "Invalid wave parameters (period > 0, points >= 2)");
+            return;
+        }
+        if(wave.chunks.size() > WAVEFORM_CHUNK_MAX_NO)
+        {
+            QMessageBox::warning(this, "Warning", "Wave exceeds maximum of " + QString::number(WAVEFORM_CHUNK_MAX_NO) + " chunks");
+            return;
+        }
+        loadActiveWave = wave;
+        /*Keep last used standard wave in library so it can be reused later*/
+        WaveformLibrary::instance().addOrReplace(wave);
+        emit sigLoadWaveChanged(wave);
+        break;
+    case LoadModeCustomWave:
+        wave = buildCustomWave();
+        if(!wave.isValid())
+        {
+            QMessageBox::warning(this, "Warning", "Wave table is empty");
+            return;
+        }
+        if(wave.chunks.size() > WAVEFORM_CHUNK_MAX_NO)
+        {
+            QMessageBox::warning(this, "Warning", "Wave exceeds maximum of " + QString::number(WAVEFORM_CHUNK_MAX_NO) + " chunks");
+            return;
+        }
+        if(wave.name.isEmpty())
+        {
+            wave.name = "Unnamed custom wave";
+        }
+        loadActiveWave = wave;
+        emit sigLoadWaveChanged(wave);
+        break;
+    }
 }
 
 void EnergyControlWnd::onLoadStartStop()
@@ -1700,7 +2171,39 @@ void EnergyControlWnd::onLoadStartStop()
         return;
     }
     mode = ModeLoad;
-    emit sigLoadCurrentStatusChanged(!loadStartStopStatus);
+    if(loadModeGet() == LoadModeStatic)
+    {
+        emit sigLoadCurrentStatusChanged(!loadStartStopStatus);
+    }
+    else
+    {
+        if(!loadStartStopStatus && !loadActiveWave.isValid())
+        {
+            QMessageBox::warning(this, "Warning", "Wave is not set. Press Set first!");
+            return;
+        }
+        emit sigLoadWaveStatusChanged(!loadStartStopStatus);
+    }
+}
+
+/*Device reported that wave finished all repetitions: reset Start/Stop UI*/
+bool EnergyControlWnd::loadWaveStopped()
+{
+    if(mode != ModeLoad) return true;
+    if(!loadStartStopStatus) return true;
+    if(loadModeGet() == LoadModeStatic) return true;
+    return loadCurrentStatusSet(false);
+}
+
+void EnergyControlWnd::onLoadWaveClear()
+{
+    if(loadStartStopStatus && loadModeGet() != LoadModeStatic)
+    {
+        QMessageBox::warning(this, "Warning", "Stop the wave before clearing it");
+        return;
+    }
+    loadActiveWave = Waveform();
+    emit sigLoadWaveClear();
 }
 
 void EnergyControlWnd::onDischargeTimerTimeout()

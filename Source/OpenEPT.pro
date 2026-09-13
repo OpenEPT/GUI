@@ -32,6 +32,7 @@ SOURCES += \
     Processing/dataprocessing.cpp \
     Processing/epprocessing.cpp \
     Processing/fileprocessing.cpp \
+    Processing/waveform.cpp \
     Utility/log.cpp \
     Windows/AddDevice/adddevicewnd.cpp \
     Windows/ApplicationConf/applicationconfwnd.cpp \
@@ -67,6 +68,7 @@ HEADERS += \
     Processing/epprocessing.h \
     Processing/fftw/fftw3.h \
     Processing/fileprocessing.h \
+    Processing/waveform.h \
     Utility/log.h \
     Windows/AddDevice/adddevicewnd.h \
     Windows/ApplicationConf/applicationconfwnd.h \

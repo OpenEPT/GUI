@@ -17,6 +17,9 @@
 #include <QRadioButton>
 #include <QButtonGroup>
 #include <QCheckBox>
+#include <QTableWidget>
+#include <QFileDialog>
+#include "Processing/waveform.h"
 
 
 #define ENTRY_LABEL_WIDTH 180
@@ -27,6 +30,12 @@
 #define INDICATOR_WIDTH 30
 #define BUTTON_HEIGHT 28
 
+
+enum LoadMode {
+    LoadModeStatic = 0,
+    LoadModeStandardWave,
+    LoadModeCustomWave
+};
 
 enum Mode {
     ModeUknown,
@@ -94,6 +103,9 @@ public:
     // Load tab
     void loadCurrentSet(int current);
     bool loadCurrentStatusSet(bool status);
+    LoadMode loadModeGet();
+    Waveform loadActiveWaveGet();
+    bool loadWaveStopped();
 
     // Charger tab
     void chargerCurrentSet(int current);
@@ -129,6 +141,9 @@ signals:
 
     void sigLoadCurrentChanged(unsigned int current);
     void sigLoadCurrentStatusChanged(bool start);
+    void sigLoadWaveChanged(Waveform wave);
+    void sigLoadWaveStatusChanged(bool start);
+    void sigLoadWaveClear();
 
     void sigChargingCurrentChanged(unsigned int newCurrent);
     void sigChargingTermVoltageChanged(float newVoltage);
@@ -141,6 +156,17 @@ signals:
 
 private slots:
     void onLoadModeChanged(const QString &mode);
+    void onStdWaveParamChanged();
+    void onWaveLibraryChanged();
+    void onCustomWaveLibrarySelected(int index);
+    void onCustomWaveLoadFile();
+    void onCustomWaveExportFile();
+    void onCustomWaveAddRow();
+    void onCustomWaveRemoveRow();
+    void onCustomWaveClear();
+    void onCustomWaveSaveToLibrary();
+    void onCustomWaveDeleteFromLibrary();
+    void onCustomWaveTableChanged();
 
     void onLoadStatusChanged();
     void onPPathStatusChanged();
@@ -148,6 +174,7 @@ private slots:
 
     void onLoadSet();
     void onLoadStartStop();
+    void onLoadWaveClear();
     void onDischargeTimerTimeout();
 
     void onChargerEntryChanged(const QString &);
@@ -203,8 +230,16 @@ private:
     QLabel *chargingStatus;
 
     QWidget *loadCurrentWidget;             // for Static mode
-    QWidget *dynamicWidget;  // Wrapper for QTextEdit
-    QTextEdit *loadCurrentProfileText;
+    QWidget *standardWaveWidget;            // for Standard wave mode
+    QWidget *customWaveWidget;              // for Custom wave mode
+    QTableWidget *customWaveTable;
+    QComboBox *customWaveLibraryCombo;
+    QLineEdit *customWaveNameEdit;
+    QLabel   *stdWaveInfoLabel;
+    QLabel   *customWaveInfoLabel;
+    QMap<QString, QPushButton*> customWaveButtons;
+    Waveform  loadActiveWave;
+    bool      customWaveTableUpdating;
 
     bool chargerConnected;
 
@@ -244,6 +279,17 @@ private:
     QTimer*      chdischDischargeTimer;
     QWidget*     chdischTab;
 
+    Waveform     buildStandardWave();
+    Waveform     buildCustomWave();
+    void         fillCustomWaveTable(Waveform wave);
+    void         addCustomWaveTableRow(waveform_chunk_t chunk, int row);
+    QTableWidgetItem* createCustomWaveTableItem(QString text);
+    QString      getCustomWaveTableText(int row, int column);
+    void         refreshCustomWaveLibraryCombo();
+    QString      getCustomWaveLibraryName(int index);
+    void         updateStdWaveInfo();
+    void         updateCustomWaveInfo();
+    QPushButton* createSmallButton(const QString& text, QHBoxLayout* layout);
     QHBoxLayout* createEntryRow(const QString& entryName, const QString& unit, QMap<QString, QLineEdit*>& entryMap);
     QHBoxLayout* createTimeEntryRow(const QString &entryName,QMap<QString, QTimeEdit*> &entryMap, bool enabled=true, bool readOnly=false);
     QHBoxLayout* createButtonRow(const QString& entryName, const QString& displayName, QMap<QString, QPushButton*>& buttonMap);

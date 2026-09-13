@@ -13,6 +13,7 @@
 #include "Processing/charginganalysis.h"
 #include "Processing/Parameters/deviceparameters.h"
 #include "Processing/Parameters/applicationparameters.h"
+#include "Processing/waveform.h"
 
 /* Resolution sample time offset based on STM32H755ZI offset */
 #define     DEVICE_ADC_RESOLUTION_16BIT_STIME_OFFSET    8.5
@@ -174,6 +175,9 @@ public:
     bool        getLoadStatus(bool* status= NULL);
     bool        setLoadCurrent(int current);
     bool        getLoadCurrent(int* current= NULL);
+    bool        setLoadWave(Waveform wave);
+    bool        setLoadWaveState(bool active);
+    bool        clearLoadWave();
     bool        setChargerStatus(bool status);
     bool        getChargerStatus(bool* status= NULL);
     bool        setChargerCurrent(int current);
@@ -234,6 +238,7 @@ signals:
     void        sigBDSizeObtained(int value);
     void        sigSamplesNoObained(unsigned int samplesNo);
     void        sigChargingDone();
+    void        sigLoadWaveStopped();
 
     void        sigLoadCurrentObtained(int  current);
 

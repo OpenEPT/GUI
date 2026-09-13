@@ -56,6 +56,10 @@ public slots:
 
     void    onDeviceWndLoadCurrentSetValue(unsigned int current);
     void    onDeviceWndLoadCurrentSetStatus(bool status);
+    void    onDeviceWndLoadWaveSet(Waveform wave);
+    void    onDeviceWndLoadWaveSetStatus(bool status);
+    void    onDeviceWndLoadWaveClear();
+    void    onDeviceLoadWaveStopped();
     void    onDeviceWndChargingCurrentSetValue(unsigned int current);
     void    onDeviceWndChargingTermCurrentSetValue(unsigned int current);
     void    onDeviceWndChargingTermVoltageSetValue(float voltage);

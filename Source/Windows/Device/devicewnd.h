@@ -125,6 +125,7 @@ public:
     bool            setChargerHWSerial(QString serial);
     bool            setChargerFWSerial(QString serial);
     bool            chargingDone();
+    bool            loadWaveStopped();
 
     bool            setChargingStatus(QString status);
 
@@ -187,6 +188,9 @@ signals:
     void            sigLoadStatusChanged(bool status);
     void            sigLoadCurrentChanged(unsigned int current);
     void            sigLoadCurrentStatusChanged(bool newState);
+    void            sigLoadWaveChanged(Waveform wave);
+    void            sigLoadWaveStatusChanged(bool newState);
+    void            sigLoadWaveClear();
     void            sigChargingCurrentChanged(unsigned int current);
     void            sigChargingTermCurrentChanged(unsigned int current);
     void            sigChargingTermVoltageChanged(float voltage);
@@ -237,6 +241,8 @@ public slots:
 
     void            onLoadCurrentStatusChanged(bool newState);
     void            onLoadCurrentChanged(unsigned int current);
+    void            onLoadWaveChanged(Waveform wave);
+    void            onLoadWaveStatusChanged(bool newState);
     void            onChargingCurrentStatusChanged(bool newState);
     void            onChargingCurrentChanged(unsigned int current);
     void            onChargingTermCurrentChanged(unsigned int current);

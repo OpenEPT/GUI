@@ -56,6 +56,8 @@ ConsoleWnd::ConsoleWnd(QWidget *parent) :
         "device load enable",
         "device load disable",
         "device load get",
+        "device load current set",
+        "device load current get",
 
         "device bat enable",
         "device bat disable",

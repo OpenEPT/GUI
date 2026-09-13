@@ -54,6 +54,9 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     connect(energyControlWnd, SIGNAL(sigResetProtection()), this, SLOT(onResetProtection()));
     connect(energyControlWnd, SIGNAL(sigLoadCurrentStatusChanged(bool)), this, SLOT(onLoadCurrentStatusChanged(bool)));
     connect(energyControlWnd, SIGNAL(sigLoadCurrentChanged(unsigned int)), this, SLOT(onLoadCurrentChanged(unsigned int)));
+    connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveChanged, this, &DeviceWnd::onLoadWaveChanged);
+    connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveStatusChanged, this, &DeviceWnd::onLoadWaveStatusChanged);
+    connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveClear, this, &DeviceWnd::sigLoadWaveClear);
     connect(energyControlWnd, SIGNAL(sigChargingCurrentStatusChanged(bool)), this, SLOT(onChargingCurrentStatusChanged(bool)));
     connect(energyControlWnd, SIGNAL(sigChargingCurrentChanged(unsigned int)), this, SLOT(onChargingCurrentChanged(unsigned int)));
     connect(energyControlWnd, SIGNAL(sigChargingTermCurrentChanged(unsigned int)), this, SLOT(onChargingTermCurrentChanged(unsigned int)));
@@ -205,6 +208,16 @@ void DeviceWnd::onLoadCurrentStatusChanged(bool newState)
 void DeviceWnd::onLoadCurrentChanged(unsigned int current)
 {
     emit sigLoadCurrentChanged(current);
+}
+
+void DeviceWnd::onLoadWaveChanged(Waveform wave)
+{
+    emit sigLoadWaveChanged(wave);
+}
+
+void DeviceWnd::onLoadWaveStatusChanged(bool newState)
+{
+    emit sigLoadWaveStatusChanged(newState);
 }
 
 void DeviceWnd::onChargingCurrentStatusChanged(bool newState)
@@ -871,6 +884,11 @@ bool DeviceWnd::chargingDone()
 {
     energyControlWnd->chargingDone();
     return true;
+}
+
+bool DeviceWnd::loadWaveStopped()
+{
+    return energyControlWnd->loadWaveStopped();
 }
 
 bool DeviceWnd::setChargingStatus(QString status)
