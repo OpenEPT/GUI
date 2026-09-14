@@ -22,6 +22,8 @@ public:
     void        setYRange(double min, double max);
     void        setYLabel(QString label);
     void        setXRange(double min, double max);
+    void        setXRangeSynced(QCPRange range);
+    bool        isAxisLocked();
     void        setXLabel(QString label);
     void        setTitle(QString aTitle);
     void        clear();
@@ -29,6 +31,8 @@ public:
 signals:
 
     void        sigScatterKeyAndName(QString name, double key);
+    void        sigXRangeChanged(QCPRange range);
+    void        sigAxisLockChanged(bool locked);
 
 private slots:
     void        onZoomIn();
@@ -37,6 +41,9 @@ private slots:
     void        onZoomArea();
     void        onMoveGraph();
     void        onTrackGraph();
+    void        onSaveImage();
+    void        onLockAxis();
+    void        onXRangeChanged(const QCPRange &range);
 
 private:
     QCustomPlot *plot;
@@ -46,6 +53,8 @@ private:
     QPushButton *zoomExpand;
     QPushButton *zoomArea;
     QPushButton *moveGraph;
+    QPushButton *lockAxis;
+    QPushButton *saveImage;
     QPushButton *trackGraph;
 
     QFont       *scatterFont;
@@ -63,8 +72,12 @@ private:
     bool        enableTracking;
     bool        replotActive;
     bool        scatterGraphAdded;
+    bool        axisLocked;
+    bool        xRangeSyncInProgress;
 
     void        setButtonStyle();
+    bool        saveImageAsPng(QString path);
+    bool        saveImageAsSvg(QString path);
 
 };
 

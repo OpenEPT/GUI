@@ -5,6 +5,9 @@
 #include <QButtonGroup>
 #include <QAbstractButton>
 #include "Windows/Plot/plot.h"
+#include "Windows/Plot/plotdockwidget.h"
+#include <QMainWindow>
+#include <QMenu>
 #include "Windows/Console/consolewnd.h"
 #include "Windows/Device/advcofigurationdata.h"
 #include "Windows/Device/datastatistics.h"
@@ -216,6 +219,10 @@ signals:
     void            sigDeviceReset();
 protected:
     void            closeEvent(QCloseEvent *event);
+    void            createPlotsArea();
+    PlotDockWidget* createPlotDock(QString aTitle, Plot* plot);
+    void            savePlotsLayout();
+    void            restorePlotsLayout();
 
 public slots:
     void            onDeviceConfigSet(QMap<QString, QString> changedFields);
@@ -278,6 +285,11 @@ public slots:
 private slots:
     void            onCalibrationUpdated();
     void            onCalibrationStoreRequest();
+    void            onPlotDockMaximizeToggled(PlotDockWidget* dock, bool maximized);
+    void            onPlotXRangeChanged(QCPRange range);
+    void            onPlotsAreaContextMenu(const QPoint& pos);
+    void            onPlotsLayoutReset();
+    void            onWindowTitleChanged(const QString& title);
 
 private:
     Ui::DeviceWnd               *ui;
@@ -291,6 +303,13 @@ private:
     Plot                        *voltageChart;
     Plot                        *currentChart;
     Plot                        *consumptionChart;
+
+    QMainWindow                 *plotsArea;
+    PlotDockWidget              *voltageDock;
+    PlotDockWidget              *currentDock;
+    PlotDockWidget              *consumptionDock;
+    QByteArray                  plotsDefaultLayout;
+    bool                        plotsDockVisibleBeforeMaximize[3];
 
     QStringList*                adcOptions;
     QStringList*                sampleTimeOptions;

@@ -128,13 +128,12 @@ bool Waveform::generateStandard(waveform_type_t aType, unsigned int aAmplitude, 
 
     if(points < 2 || period == 0) return false;
 
-    /*Chunk duration is in ms, so it can not be lower than 1 ms*/
     stepDuration = period / points;
     if(stepDuration == 0) stepDuration = 1;
 
     for(unsigned int i = 0; i < points; i++)
     {
-        phase = (double)i / (double)points;   /*0 .. <1*/
+        phase = (double)i / (double)points;
         value = 0.0;
         switch(type)
         {
@@ -223,7 +222,6 @@ bool Waveform::parseContent(QString content, QString* error)
         QString line = lines[i].trimmed();
         if(line.isEmpty()) continue;
 
-        /*Header comments (optional)*/
         if(line.startsWith('#'))
         {
             QRegularExpressionMatch nameMatch = nameRe.match(line);
@@ -268,7 +266,6 @@ bool Waveform::parseContent(QString content, QString* error)
         return false;
     }
 
-    /*Last chunk must close the group*/
     chunks.last().lastInGroup = true;
     return true;
 }
@@ -360,9 +357,6 @@ bool Waveform::fromJson(QJsonObject obj)
     return !chunks.isEmpty();
 }
 
-/* ------------------------------------------------------------------------ */
-/* WaveformLibrary                                                          */
-/* ------------------------------------------------------------------------ */
 WaveformLibrary& WaveformLibrary::instance()
 {
     static WaveformLibrary library;
@@ -379,7 +373,6 @@ void WaveformLibrary::ensureDefaults()
 {
     QStringList typeNames = Waveform::standardTypeNames();
 
-    /*Default standard waves are added only if there is no standard entry in library*/
     if(!getNames(WAVEFORM_ORIGIN_STANDARD).isEmpty()) return;
     for(int i = 0; i < typeNames.size(); i++)
     {

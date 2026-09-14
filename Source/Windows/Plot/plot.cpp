@@ -1,5 +1,12 @@
 #include <QtOpenGL>
 #include "plot.h"
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QSvgGenerator>
+#include <QDateTime>
+
+#define IMAGE_PNG_SCALE     4.0
+#define IMAGE_PNG_DPI       300
 
 #define BUTTONS_SIZE 30
 
@@ -28,6 +35,8 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     zoomExpand  = new QPushButton();
     zoomArea    = new QPushButton();
     moveGraph   = new QPushButton();
+    lockAxis    = new QPushButton();
+    saveImage   = new QPushButton();
     trackGraph  = new QPushButton();
 
     QPixmap zoomInPng(":/images/NewSet/zoom_in.png");
@@ -66,6 +75,21 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     moveGraph->setToolTip("Move graph");
     moveGraph->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
+    QPixmap lockAxisPng(":/images/NewSet/lock.png");
+    QIcon lockAxisIcon(lockAxisPng);
+    lockAxis->setIcon(lockAxisIcon);
+    lockAxis->setIconSize(QSize(15,15));
+    lockAxis->setToolTip("Lock X axis with other locked plots");
+    lockAxis->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
+    lockAxis->setCheckable(true);
+
+    QPixmap saveImagePng(":/images/NewSet/save.png");
+    QIcon saveImageIcon(saveImagePng);
+    saveImage->setIcon(saveImageIcon);
+    saveImage->setIconSize(QSize(15,15));
+    saveImage->setToolTip("Save image (PNG / SVG)");
+    saveImage->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
+
     QPixmap trackGraphPng(":/images/NewSet/tracking_graph.png");
     QIcon trackGraphIcon(trackGraphPng);
     trackGraph->setIcon(trackGraphIcon);
@@ -80,6 +104,8 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     buttonsLayout->addWidget(zoomExpand);
     buttonsLayout->addWidget(zoomArea);
     buttonsLayout->addWidget(moveGraph);
+    buttonsLayout->addWidget(lockAxis);
+    buttonsLayout->addWidget(saveImage);
     buttonsLayout->addWidget(trackGraph);
     buttonsLayout->setAlignment(Qt::AlignCenter);
 
@@ -97,6 +123,8 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     enableTracking      = aEnableTracking;
     replotActive        = true;
     scatterGraphAdded   = false;
+    axisLocked          = false;
+    xRangeSyncInProgress = false;
 
     scatterFont = new QFont("Times", 14);
     scatterFont->setBold(true);
@@ -106,6 +134,9 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     connect(zoomExpand, SIGNAL(pressed()), this, SLOT(onZoomExpand()));
     connect(zoomArea, SIGNAL(pressed()), this, SLOT(onZoomArea()));
     connect(moveGraph, SIGNAL(pressed()), this, SLOT(onMoveGraph()));
+    connect(lockAxis, SIGNAL(clicked()), this, SLOT(onLockAxis()));
+    connect(saveImage, SIGNAL(clicked()), this, SLOT(onSaveImage()));
+    connect(plot->xAxis, SIGNAL(rangeChanged(QCPRange)), this, SLOT(onXRangeChanged(QCPRange)));
     connect(trackGraph, SIGNAL(pressed()), this, SLOT(onTrackGraph()));
     setButtonStyle();
 }
@@ -374,6 +405,8 @@ void Plot::setButtonStyle()
         moveGraph->setEnabled(false);
         zoomExpand->setEnabled(false);
         zoomArea->setEnabled(false);
+        saveImage->setEnabled(false);
+        lockAxis->setEnabled(false);
     }
     else
     {
@@ -383,5 +416,109 @@ void Plot::setButtonStyle()
         moveGraph->setEnabled(true);
         zoomExpand->setEnabled(true);
         zoomArea->setEnabled(true);
+        saveImage->setEnabled(true);
+        lockAxis->setEnabled(true);
     }
+}
+
+void Plot::onLockAxis()
+{
+    axisLocked = lockAxis->isChecked();
+    if(axisLocked)
+    {
+        lockAxis->setStyleSheet("background-color:  rgb(255,197,172);");
+        emit sigXRangeChanged(plot->xAxis->range());
+    }
+    else
+    {
+        lockAxis->setStyleSheet("background-color:  rgb(255,255,255);");
+    }
+    emit sigAxisLockChanged(axisLocked);
+}
+
+bool Plot::isAxisLocked()
+{
+    return axisLocked;
+}
+
+void Plot::onXRangeChanged(const QCPRange &range)
+{
+    if(!axisLocked) return;
+    if(xRangeSyncInProgress) return;
+    emit sigXRangeChanged(range);
+}
+
+void Plot::setXRangeSynced(QCPRange range)
+{
+    if(!axisLocked) return;
+    if(plot->xAxis->range() == range) return;
+    xRangeSyncInProgress = true;
+    plot->xAxis->setRange(range);
+    plot->replot();
+    xRangeSyncInProgress = false;
+}
+
+void Plot::onSaveImage()
+{
+    QString pngFilter = "PNG image (*.png)";
+    QString svgFilter = "SVG image (*.svg)";
+    QString selectedFilter = pngFilter;
+    QString suggestedName;
+    QString path;
+    bool ok;
+
+    suggestedName = "oept_" + (title->text().isEmpty() ? "plot" : title->text().toLower().replace(' ', '_')) + "_" +
+                    QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    path = QFileDialog::getSaveFileName(this, "Save plot image", suggestedName + ".png", pngFilter + ";;" + svgFilter, &selectedFilter);
+    if(path.isEmpty()) return;
+
+    if(path.endsWith(".svg", Qt::CaseInsensitive))
+    {
+        ok = saveImageAsSvg(path);
+    }
+    else if(path.endsWith(".png", Qt::CaseInsensitive))
+    {
+        ok = saveImageAsPng(path);
+    }
+    else if(selectedFilter == svgFilter)
+    {
+        ok = saveImageAsSvg(path + ".svg");
+    }
+    else
+    {
+        ok = saveImageAsPng(path + ".png");
+    }
+
+    if(!ok)
+    {
+        QMessageBox::warning(this, "Save plot image", "Unable to save image to:\n" + path);
+    }
+}
+
+bool Plot::saveImageAsPng(QString path)
+{
+    return plot->savePng(path, 0, 0, IMAGE_PNG_SCALE, -1, IMAGE_PNG_DPI);
+}
+
+bool Plot::saveImageAsSvg(QString path)
+{
+    QSvgGenerator generator;
+    int width = plot->width();
+    int height = plot->height();
+
+    generator.setFileName(path);
+    generator.setSize(QSize(width, height));
+    generator.setViewBox(QRect(0, 0, width, height));
+    generator.setTitle(title->text());
+    generator.setDescription("OpenEPT plot export");
+
+    QCPPainter painter;
+    if(!painter.begin(&generator)) return false;
+    painter.setMode(QCPPainter::pmVectorized);
+    painter.setMode(QCPPainter::pmNoCaching);
+    painter.setMode(QCPPainter::pmNonCosmetic);
+    plot->toPainter(&painter, width, height);
+    painter.end();
+
+    return true;
 }

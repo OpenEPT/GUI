@@ -164,7 +164,7 @@ private slots:
     void onCustomWaveAddRow();
     void onCustomWaveRemoveRow();
     void onCustomWaveClear();
-    void onCustomWaveSaveToLibrary();
+    void onLoadWaveSave();
     void onCustomWaveDeleteFromLibrary();
     void onCustomWaveTableChanged();
 
@@ -187,6 +187,7 @@ private slots:
     void onChDschChargingTimerTimeout();
     void onChDschDischargeTimerTimeout();
     void onChdischDirectionChanged();
+    void onChDschProfileChanged(const QString &profile);
     void onChDschConfigSet();
     void onChDschNextStep();
     void onChDschStartStop();
@@ -218,6 +219,10 @@ private:
     QMap<QString, QButtonGroup*> chdischDirectionGroups;
     QMap<QString, QCheckBox*> chdischCheckBox;
     QMap<QString, QCheckBox*> chdischWriteToFileCheckBox;
+    QMap<QString, QComboBox*> chdischComboBoxEdits;
+    QWidget  *chdischStaticProfileWidget;
+    QWidget  *chdischLibraryProfileWidget;
+    Waveform  chdischActiveWave;
 
     QMap<QString, QLabel*>      statusIndicators;
     QMap<QString, QPushButton*> statusControlButtons;
@@ -313,6 +318,11 @@ private:
     void         chdischCycleStepOngoing(ChDschState step);
     void         chdischUpdateCycleStatusSteps(const ChDschCycleStep steps[4]);
     bool         chdischDoneCurrentStep();
+    LoadMode     chdischDischargeProfileGet();
+    bool         chdischDischargeProfileValid();
+    void         chdischDischargeStart();
+    void         chdischDischargeStop();
+    void         chdischRefreshLibraryCombo();
     bool         chdischMoveToNextStep();
     void         chdischCycleCompleted();
 

@@ -6,6 +6,7 @@
 #include <QMdiSubWindow>
 #include <QMdiArea>
 #include <QHeaderView>
+#include <QAbstractItemView>
 
 EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     QWidget(parent),
@@ -115,11 +116,14 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     customWaveNameEdit->setPlaceholderText("Custom wave name");
     nameRow->addWidget(nameLabel);
     nameRow->addWidget(customWaveNameEdit, 1);
-    customWaveButtons["SaveToLibrary"] = createSmallButton("Save to library", nameRow);
     customWaveLayout->addLayout(nameRow);
 
-    customWaveLayout->addLayout(createEntryRow("Wave Repetitions", "-1=inf", loadEntryEdits));
+    QHBoxLayout *repetitionsRow = createEntryRow("Wave Repetitions", "-1=inf", loadEntryEdits);
     loadEntryEdits["Wave Repetitions"]->setText("-1");
+    customWaveInfoLabel = new QLabel(this);
+    customWaveInfoLabel->setStyleSheet("color: gray;");
+    repetitionsRow->insertWidget(3, customWaveInfoLabel);
+    customWaveLayout->addLayout(repetitionsRow);
 
     // File / table manipulation buttons
     QHBoxLayout *fileRow = new QHBoxLayout();
@@ -132,26 +136,27 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     customWaveLayout->addLayout(fileRow);
 
     QStringList customWaveTableHeader;
-    customWaveTableHeader << "Value [mA]" << "Value dev [mA]" << "Duration [ms]" << "Dur. dev [ms]" << "Repetitions" << "Last in group";
+    customWaveTableHeader << "Value [mA]" << "Dev [mA]" << "Dur [ms]" << "Dev [ms]" << "Rep" << "Last";
     customWaveTable = new QTableWidget(0, 6, this);
     customWaveTable->setHorizontalHeaderLabels(customWaveTableHeader);
+    customWaveTable->horizontalHeaderItem(1)->setToolTip("Value deviation [mA]");
+    customWaveTable->horizontalHeaderItem(2)->setToolTip("Chunk duration [ms]");
+    customWaveTable->horizontalHeaderItem(3)->setToolTip("Duration deviation [ms]");
+    customWaveTable->horizontalHeaderItem(4)->setToolTip("Chunk repetitions");
+    customWaveTable->horizontalHeaderItem(5)->setToolTip("Last chunk in group");
     customWaveTable->horizontalHeader()->setStretchLastSection(true);
     customWaveTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     customWaveTable->verticalHeader()->setDefaultSectionSize(22);
     customWaveTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    customWaveTable->setMinimumHeight(160);
+    customWaveTable->setMinimumHeight(100);
+    customWaveTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     customWaveLayout->addWidget(customWaveTable, 1);
-
-    customWaveInfoLabel = new QLabel(this);
-    customWaveInfoLabel->setStyleSheet("color: gray;");
-    customWaveLayout->addWidget(customWaveInfoLabel);
 
     customWaveWidget->setVisible(false);
     loadTopLayout->addWidget(customWaveWidget);
 
     connect(customWaveLibraryCombo, QOverload<int>::of(&QComboBox::activated), this, &EnergyControlWnd::onCustomWaveLibrarySelected);
     connect(customWaveButtons["DeleteFromLibrary"], &QPushButton::clicked, this, &EnergyControlWnd::onCustomWaveDeleteFromLibrary);
-    connect(customWaveButtons["SaveToLibrary"], &QPushButton::clicked, this, &EnergyControlWnd::onCustomWaveSaveToLibrary);
     connect(customWaveButtons["LoadFile"], &QPushButton::clicked, this, &EnergyControlWnd::onCustomWaveLoadFile);
     connect(customWaveButtons["ExportFile"], &QPushButton::clicked, this, &EnergyControlWnd::onCustomWaveExportFile);
     connect(customWaveButtons["AddRow"], &QPushButton::clicked, this, &EnergyControlWnd::onCustomWaveAddRow);
@@ -168,13 +173,21 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     loadTopLayout->addLayout(createButtonRow("Set", "Set", loadButtons));
     // Start/Stop row: "Clear wave" on the left (sends "device wave clear"), Start/Stop on the right
     QHBoxLayout *startStopRow = createButtonRow("StartStop", "Start", loadButtons);
+    QPushButton *saveWaveButton = new QPushButton("Save wave", this);
+    saveWaveButton->setObjectName("SaveWaveButton");
+    saveWaveButton->setFixedSize(BUTTON_WIDTH, BUTTON_HEIGHT);
+    saveWaveButton->setToolTip("Save wave to library for later use");
+    saveWaveButton->setVisible(false);
+    loadButtons.insert("SaveWave", saveWaveButton);
     QPushButton *clearWaveButton = new QPushButton("Clear wave", this);
     clearWaveButton->setObjectName("ClearWaveButton");
     clearWaveButton->setFixedSize(BUTTON_WIDTH, BUTTON_HEIGHT);
     clearWaveButton->setToolTip("Remove wave loaded on device");
     loadButtons.insert("ClearWave", clearWaveButton);
-    startStopRow->insertWidget(0, clearWaveButton);
+    startStopRow->insertWidget(0, saveWaveButton);
+    startStopRow->insertWidget(1, clearWaveButton);
     loadTopLayout->addLayout(startStopRow);
+    connect(saveWaveButton, &QPushButton::clicked, this, &EnergyControlWnd::onLoadWaveSave);
     connect(clearWaveButton, &QPushButton::clicked, this, &EnergyControlWnd::onLoadWaveClear);
 
 
@@ -314,7 +327,27 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     // --- Left side: parameter entries ---
     QVBoxLayout *paramLeftLayout = new QVBoxLayout();
     paramLeftLayout->addLayout(createSectionHeader("Parameters"));
-    paramLeftLayout->addLayout(createEntryRow("Discharge Current", "mA", chdischEntryEdits));
+
+    QStringList dischargeProfiles = {"Static", "From Library"};
+    paramLeftLayout->addLayout(createDropBoxEntry("Discharge Profile", dischargeProfiles, chdischComboBoxEdits));
+    connect(chdischComboBoxEdits["Discharge Profile"], &QComboBox::currentTextChanged, this, &EnergyControlWnd::onChDschProfileChanged);
+
+    chdischStaticProfileWidget = new QWidget(this);
+    QVBoxLayout *chdischStaticProfileLayout = new QVBoxLayout(chdischStaticProfileWidget);
+    chdischStaticProfileLayout->setContentsMargins(0, 0, 0, 0);
+    chdischStaticProfileLayout->addLayout(createEntryRow("Discharge Current", "mA", chdischEntryEdits));
+    paramLeftLayout->addWidget(chdischStaticProfileWidget);
+
+    chdischLibraryProfileWidget = new QWidget(this);
+    QVBoxLayout *chdischLibraryProfileLayout = new QVBoxLayout(chdischLibraryProfileWidget);
+    chdischLibraryProfileLayout->setContentsMargins(0, 0, 0, 0);
+    chdischLibraryProfileLayout->addLayout(createDropBoxEntry("Discharge Wave", QStringList(), chdischComboBoxEdits));
+    chdischComboBoxEdits["Discharge Wave"]->view()->setMinimumWidth(2 * (ENTRY_EDIT_WIDTH + ENTRY_UNIT_WIDTH));
+    connect(chdischComboBoxEdits["Discharge Wave"], &QComboBox::currentTextChanged, chdischComboBoxEdits["Discharge Wave"], &QComboBox::setToolTip);
+    chdischLibraryProfileWidget->setVisible(false);
+    paramLeftLayout->addWidget(chdischLibraryProfileWidget);
+    chdischRefreshLibraryCombo();
+
     paramLeftLayout->addLayout(createTimeEntryRow("Discharge Relax Time", chdischTimeEdits));
     paramLeftLayout->addLayout(createEntryRow("Charge Current", "mA", chdischEntryEdits));
     paramLeftLayout->addLayout(createTimeEntryRow("Charge Relax Time", chdischTimeEdits));
@@ -1037,7 +1070,7 @@ bool EnergyControlWnd::chdischDoneCurrentStep()
         chdischDischargeTimer->stop();
         chdischTimeEdits["Discharge Stop Time"]->setEnabled(true);
         chdischTimeEdits["Discharge Stop Time"]->setTime(now);
-        emit sigLoadCurrentStatusChanged(false);
+        chdischDischargeStop();
     }
     if(chdischCycleSteps[chdischCurrentStepIndex].state == ChDschChargeRelax)
     {
@@ -1104,7 +1137,7 @@ bool EnergyControlWnd::chdischMoveToNextStep()
             {
                 onResetProtection();
             }
-            emit sigLoadCurrentStatusChanged(true);
+            chdischDischargeStart();
         }
         if(chdischCycleSteps[chdischCurrentStepIndex].state == ChDschChargeRelax)
         {
@@ -1600,7 +1633,7 @@ bool EnergyControlWnd::chdischStartStatusSet(bool status, ChDschState state)
                 onResetProtection();
             }
 
-            emit sigLoadCurrentStatusChanged(true);
+            chdischDischargeStart();
             chdischDischargeTimer->start();
         }
         chdischTimeEdits["Charge Stop Time"]->setTime(QTime(0,0,0));
@@ -1610,6 +1643,8 @@ bool EnergyControlWnd::chdischStartStatusSet(bool status, ChDschState state)
 
         chdischTimeEdits["Discharge Relax Time"]->setEnabled(false);
         chdischTimeEdits["Charge Relax Time"]->setEnabled(false);
+        chdischComboBoxEdits["Discharge Profile"]->setEnabled(false);
+        chdischComboBoxEdits["Discharge Wave"]->setEnabled(false);
         chdischEntryEdits["Discharge Current"]->setEnabled(false);
         chdischEntryEdits["Charge Current"]->setEnabled(false);
         chdischEntryEdits["Cycles"]->setEnabled(false);
@@ -1650,7 +1685,7 @@ bool EnergyControlWnd::chdischStartStatusSet(bool status, ChDschState state)
             chdischDischargeTimer->stop();
             chdischTimeEdits["Discharge Stop Time"]->setEnabled(true);
             chdischTimeEdits["Discharge Stop Time"]->setTime(now);
-            emit sigLoadCurrentStatusChanged(false);
+            chdischDischargeStop();
         }
         if(chdischCycleStartStep.state == ChDschChargeRelax)
         {
@@ -1662,6 +1697,8 @@ bool EnergyControlWnd::chdischStartStatusSet(bool status, ChDschState state)
         }
         chdischTimeEdits["Discharge Relax Time"]->setEnabled(true);
         chdischTimeEdits["Charge Relax Time"]->setEnabled(true);
+        chdischComboBoxEdits["Discharge Profile"]->setEnabled(true);
+        chdischComboBoxEdits["Discharge Wave"]->setEnabled(true);
         chdischEntryEdits["Discharge Current"]->setEnabled(true);
         chdischEntryEdits["Charge Current"]->setEnabled(true);
         chdischEntryEdits["Cycles"]->setEnabled(true);
@@ -1760,6 +1797,7 @@ void EnergyControlWnd::onLoadModeChanged(const QString &mode)
     loadCurrentWidget->setVisible(mode == "Static");
     standardWaveWidget->setVisible(mode == "Standard Wave");
     customWaveWidget->setVisible(mode == "Custom Wave");
+    loadButtons["SaveWave"]->setVisible(mode != "Static");
 }
 
 LoadMode EnergyControlWnd::loadModeGet()
@@ -1855,6 +1893,7 @@ QString EnergyControlWnd::getCustomWaveLibraryName(int index)
 void EnergyControlWnd::onWaveLibraryChanged()
 {
     refreshCustomWaveLibraryCombo();
+    chdischRefreshLibraryCombo();
 }
 
 QTableWidgetItem* EnergyControlWnd::createCustomWaveTableItem(QString text)
@@ -2049,30 +2088,57 @@ void EnergyControlWnd::onCustomWaveClear()
     updateCustomWaveInfo();
 }
 
-void EnergyControlWnd::onCustomWaveSaveToLibrary()
+void EnergyControlWnd::onLoadWaveSave()
 {
-    Waveform wave = buildCustomWave();
+    Waveform wave;
+    QString question;
     int index;
 
-    if(wave.name.isEmpty())
+    switch(loadModeGet())
     {
-        QMessageBox::warning(this, "Save wave", "Please enter wave name");
+    case LoadModeStandardWave:
+        wave = buildStandardWave();
+        if(!wave.isValid())
+        {
+            QMessageBox::warning(this, "Save wave", "Invalid wave parameters (period > 0, points >= 2)");
+            return;
+        }
+        break;
+    case LoadModeCustomWave:
+        wave = buildCustomWave();
+        if(wave.name.isEmpty())
+        {
+            QMessageBox::warning(this, "Save wave", "Please enter wave name");
+            return;
+        }
+        if(!wave.isValid())
+        {
+            QMessageBox::warning(this, "Save wave", "Wave table is empty");
+            return;
+        }
+        break;
+    case LoadModeStatic:
+    default:
         return;
     }
-    if(!wave.isValid())
-    {
-        QMessageBox::warning(this, "Save wave", "Wave table is empty");
-        return;
-    }
+
+    question = "Wave named \"" + wave.name + "\" will be saved for later use.";
     if(WaveformLibrary::instance().contains(wave.name))
     {
-        if(QMessageBox::question(this, "Save wave", "Wave \"" + wave.name + "\" already exists. Overwrite?") != QMessageBox::Yes) return;
+        question += "\nWave with the same name already exists and will be overwritten.";
     }
+    question += "\nContinue?";
+    if(QMessageBox::question(this, "Save wave", question) != QMessageBox::Yes) return;
+
     WaveformLibrary::instance().addOrReplace(wave);
-    index = customWaveLibraryCombo->findText(wave.name);
-    if(index >= 0)
+
+    if(loadModeGet() == LoadModeCustomWave)
     {
-        customWaveLibraryCombo->setCurrentIndex(index);
+        index = customWaveLibraryCombo->findText(wave.name);
+        if(index >= 0)
+        {
+            customWaveLibraryCombo->setCurrentIndex(index);
+        }
     }
 }
 
@@ -2132,8 +2198,6 @@ void EnergyControlWnd::onLoadSet()
             return;
         }
         loadActiveWave = wave;
-        /*Keep last used standard wave in library so it can be reused later*/
-        WaveformLibrary::instance().addOrReplace(wave);
         emit sigLoadWaveChanged(wave);
         break;
     case LoadModeCustomWave:
@@ -2189,10 +2253,21 @@ void EnergyControlWnd::onLoadStartStop()
 /*Device reported that wave finished all repetitions: reset Start/Stop UI*/
 bool EnergyControlWnd::loadWaveStopped()
 {
-    if(mode != ModeLoad) return true;
-    if(!loadStartStopStatus) return true;
-    if(loadModeGet() == LoadModeStatic) return true;
-    return loadCurrentStatusSet(false);
+    switch(mode)
+    {
+    case ModeLoad:
+        if(!loadStartStopStatus) return true;
+        if(loadModeGet() == LoadModeStatic) return true;
+        return loadCurrentStatusSet(false);
+    case ModeChDisch:
+        if(!chdischStartStopStatus) return true;
+        if(chdischDischargeProfileGet() == LoadModeStatic) return true;
+        if(chdischCycleSteps[chdischCurrentStepIndex].state != ChDschDischarge) return true;
+        onChDschNextStep();
+        return true;
+    default:
+        return true;
+    }
 }
 
 void EnergyControlWnd::onLoadWaveClear()
@@ -2397,8 +2472,86 @@ void EnergyControlWnd::onChDschNextStep()
 
 void EnergyControlWnd::onChDschStartStop()
 {
+    if(!chdischStartStopStatus && !chdischDischargeProfileValid()) return;
     mode = ModeChDisch;
     chdischStartStatusSet(!chdischStartStopStatus, chdischCycleStartStep.state);
+}
+
+void EnergyControlWnd::onChDschProfileChanged(const QString &profile)
+{
+    chdischStaticProfileWidget->setVisible(profile == "Static");
+    chdischLibraryProfileWidget->setVisible(profile == "From Library");
+}
+
+LoadMode EnergyControlWnd::chdischDischargeProfileGet()
+{
+    if(chdischComboBoxEdits["Discharge Profile"]->currentText() == "From Library") return LoadModeCustomWave;
+    return LoadModeStatic;
+}
+
+void EnergyControlWnd::chdischRefreshLibraryCombo()
+{
+    QString current = chdischComboBoxEdits["Discharge Wave"]->currentText();
+    QStringList names = WaveformLibrary::instance().getNames();
+    int index;
+
+    chdischComboBoxEdits["Discharge Wave"]->blockSignals(true);
+    chdischComboBoxEdits["Discharge Wave"]->clear();
+    for(int i = 0; i < names.size(); i++)
+    {
+        chdischComboBoxEdits["Discharge Wave"]->addItem(names[i]);
+    }
+    index = chdischComboBoxEdits["Discharge Wave"]->findText(current);
+    if(index < 0) index = 0;
+    chdischComboBoxEdits["Discharge Wave"]->setCurrentIndex(index);
+    chdischComboBoxEdits["Discharge Wave"]->blockSignals(false);
+}
+
+bool EnergyControlWnd::chdischDischargeProfileValid()
+{
+    Waveform wave;
+
+    if(chdischDischargeProfileGet() == LoadModeStatic) return true;
+    if(!WaveformLibrary::instance().get(chdischComboBoxEdits["Discharge Wave"]->currentText(), &wave))
+    {
+        QMessageBox::warning(this, "Warning", "Please select discharge wave from library");
+        return false;
+    }
+    if(!wave.isValid())
+    {
+        QMessageBox::warning(this, "Warning", "Selected discharge wave is empty");
+        return false;
+    }
+    return true;
+}
+
+void EnergyControlWnd::chdischDischargeStart()
+{
+    Waveform wave;
+
+    if(chdischDischargeProfileGet() == LoadModeStatic)
+    {
+        emit sigLoadCurrentChanged(chdischEntryEdits["Discharge Current"]->text().toUInt());
+        emit sigLoadCurrentStatusChanged(true);
+        return;
+    }
+
+    if(!WaveformLibrary::instance().get(chdischComboBoxEdits["Discharge Wave"]->currentText(), &wave)) return;
+    chdischActiveWave = wave;
+    emit sigLoadWaveChanged(wave);
+    emit sigLoadWaveStatusChanged(true);
+}
+
+void EnergyControlWnd::chdischDischargeStop()
+{
+    if(chdischDischargeProfileGet() == LoadModeStatic)
+    {
+        emit sigLoadCurrentStatusChanged(false);
+    }
+    else
+    {
+        emit sigLoadWaveStatusChanged(false);
+    }
 }
 
 void EnergyControlWnd::onChDschWriteToFileToogled()

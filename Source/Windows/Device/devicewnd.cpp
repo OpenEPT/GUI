@@ -4,11 +4,13 @@
 #include <QFileDialog>
 #include <QNetworkInterface>
 #include <QOpenGLWidget>
+#include <QSettings>
 //#include <QDebug>
 
 /*TODO: Declare this in config file*/
 #define PLOT_MINIMUM_SIZE_WIDTH     200
 #define PLOT_MINIMUM_SIZE_HEIGHT    100
+#define PLOTS_LAYOUT_SETTINGS_KEY   "DeviceWnd/plotsLayout"
 
 
 DeviceWnd::DeviceWnd(QWidget *parent) :
@@ -109,9 +111,7 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
 
     calibrationWnd = new CalibrationWnd();
 
-    ui->GraphicsTopHorl->addWidget(voltageChart);
-    ui->GraphicsTopHorl->addWidget(currentChart);
-    ui->GraphicsBottomVerl->addWidget(consumptionChart, Qt::AlignCenter);
+    createPlotsArea();
 
     connect(ui->saveToFileCheb, SIGNAL(stateChanged(int)), this, SLOT(onSaveToFileChanged(int)));
     connect(ui->EPControlEnableCheb, SIGNAL(stateChanged(int)), this, SLOT(onEPEnableChanged(int)));
@@ -435,6 +435,7 @@ void DeviceWnd::setDeviceStateConnected()
 }
 void    DeviceWnd::closeEvent(QCloseEvent *event)
 {
+    savePlotsLayout();
     configurationWnd->close();
     consoleWnd->close();
     energyControlWnd->close();
@@ -465,6 +466,137 @@ void DeviceWnd::onDeviceReset()
 DeviceWnd::~DeviceWnd()
 {
     delete ui;
+}
+
+void DeviceWnd::createPlotsArea()
+{
+    plotsArea = new QMainWindow(this);
+    plotsArea->setWindowFlags(Qt::Widget);
+    plotsArea->setDockNestingEnabled(true);
+    plotsArea->setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks | QMainWindow::AllowTabbedDocks);
+    plotsArea->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    plotsArea->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(plotsArea, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(onPlotsAreaContextMenu(QPoint)));
+
+    QWidget *central = new QWidget(plotsArea);
+    central->setMaximumSize(0, 0);
+    plotsArea->setCentralWidget(central);
+    central->hide();
+
+    voltageDock     = createPlotDock("Voltage", voltageChart);
+    currentDock     = createPlotDock("Current", currentChart);
+    consumptionDock = createPlotDock("Consumption", consumptionChart);
+
+    plotsArea->addDockWidget(Qt::TopDockWidgetArea, voltageDock);
+    plotsArea->splitDockWidget(voltageDock, currentDock, Qt::Horizontal);
+    plotsArea->addDockWidget(Qt::BottomDockWidgetArea, consumptionDock);
+    plotsArea->resizeDocks(QList<QDockWidget*>() << voltageDock << consumptionDock, QList<int>() << 1 << 1, Qt::Vertical);
+
+    plotsDefaultLayout = plotsArea->saveState();
+
+    ui->topVerlGraphsVerl->addWidget(plotsArea);
+
+    connect(this, SIGNAL(windowTitleChanged(QString)), this, SLOT(onWindowTitleChanged(QString)));
+
+    connect(voltageChart, SIGNAL(sigXRangeChanged(QCPRange)), this, SLOT(onPlotXRangeChanged(QCPRange)));
+    connect(currentChart, SIGNAL(sigXRangeChanged(QCPRange)), this, SLOT(onPlotXRangeChanged(QCPRange)));
+    connect(consumptionChart, SIGNAL(sigXRangeChanged(QCPRange)), this, SLOT(onPlotXRangeChanged(QCPRange)));
+
+    restorePlotsLayout();
+}
+
+PlotDockWidget* DeviceWnd::createPlotDock(QString aTitle, Plot* plot)
+{
+    PlotDockWidget *dock = new PlotDockWidget(aTitle, plotsArea);
+    dock->setWidget(plot);
+    connect(dock, SIGNAL(sigMaximizeToggled(PlotDockWidget*,bool)), this, SLOT(onPlotDockMaximizeToggled(PlotDockWidget*,bool)));
+    return dock;
+}
+
+void DeviceWnd::onPlotDockMaximizeToggled(PlotDockWidget* dock, bool maximized)
+{
+    PlotDockWidget *docks[3] = {voltageDock, currentDock, consumptionDock};
+
+    for(int i = 0; i < 3; i++)
+    {
+        if(docks[i] == dock) continue;
+
+        if(maximized)
+        {
+            plotsDockVisibleBeforeMaximize[i] = docks[i]->isVisible();
+            docks[i]->hide();
+            docks[i]->setMaximized(false);
+        }
+        else
+        {
+            if(plotsDockVisibleBeforeMaximize[i])
+            {
+                docks[i]->show();
+            }
+        }
+    }
+}
+
+void DeviceWnd::onPlotXRangeChanged(QCPRange range)
+{
+    Plot *source = qobject_cast<Plot*>(sender());
+    Plot *plots[3] = {voltageChart, currentChart, consumptionChart};
+
+    for(int i = 0; i < 3; i++)
+    {
+        if(plots[i] == source) continue;
+        plots[i]->setXRangeSynced(range);
+    }
+}
+
+void DeviceWnd::onPlotsAreaContextMenu(const QPoint& pos)
+{
+    QMenu *menu = plotsArea->createPopupMenu();
+    if(menu == NULL)
+    {
+        menu = new QMenu(this);
+    }
+    menu->addSeparator();
+    menu->addAction("Reset plots layout", this, SLOT(onPlotsLayoutReset()));
+    menu->exec(plotsArea->mapToGlobal(pos));
+    delete menu;
+}
+
+void DeviceWnd::onPlotsLayoutReset()
+{
+    PlotDockWidget *docks[3] = {voltageDock, currentDock, consumptionDock};
+
+    for(int i = 0; i < 3; i++)
+    {
+        docks[i]->setMaximized(false);
+        docks[i]->setFloating(false);
+        docks[i]->show();
+    }
+    plotsArea->restoreState(plotsDefaultLayout);
+}
+
+void DeviceWnd::onWindowTitleChanged(const QString& title)
+{
+    voltageDock->setDeviceName(title);
+    currentDock->setDeviceName(title);
+    consumptionDock->setDeviceName(title);
+}
+
+void DeviceWnd::savePlotsLayout()
+{
+    QSettings settings;
+    settings.setValue(PLOTS_LAYOUT_SETTINGS_KEY, plotsArea->saveState());
+}
+
+void DeviceWnd::restorePlotsLayout()
+{
+    QSettings settings;
+    QByteArray state = settings.value(PLOTS_LAYOUT_SETTINGS_KEY).toByteArray();
+    if(state.isEmpty()) return;
+    if(!plotsArea->restoreState(state))
+    {
+        plotsArea->restoreState(plotsDefaultLayout);
+    }
 }
 
 QPlainTextEdit *DeviceWnd::getLogWidget()

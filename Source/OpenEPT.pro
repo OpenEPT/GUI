@@ -1,5 +1,6 @@
 QT       += core gui opengl concurrent
 QT       += network
+QT       += svg
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport
 
@@ -44,6 +45,7 @@ SOURCES += \
     Windows/Device/devicewnd.cpp \
     Windows/Device/energycontrolwnd.cpp \
     Windows/Plot/plot.cpp \
+    Windows/Plot/plotdockwidget.cpp \
     Windows/WSSelection/selectworkspace.cpp \
     device.cpp \
     devicecontainer.cpp \
@@ -80,6 +82,7 @@ HEADERS += \
     Windows/Device/devicewnd.h \
     Windows/Device/energycontrolwnd.h \
     Windows/Plot/plot.h \
+    Windows/Plot/plotdockwidget.h \
     Windows/WSSelection/selectworkspace.h \
     device.h \
     devicecontainer.h \

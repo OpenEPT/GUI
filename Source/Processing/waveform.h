@@ -7,17 +7,17 @@
 #include <QList>
 #include <QJsonObject>
 
-#define WAVEFORM_CHUNK_MAX_NO           200     /*Same as LOAD_WAVE_CHUNK_MAX_NO in firmware*/
+#define WAVEFORM_CHUNK_MAX_NO           200
 #define WAVEFORM_COUNTER_INFINITE       -1
 
 typedef enum
 {
-    WAVEFORM_TYPE_RAMP = 0,     /*Linear rise 0 -> A*/
-    WAVEFORM_TYPE_SAWTOOTH,     /*Linear fall A -> 0*/
-    WAVEFORM_TYPE_TRIANGLE,     /*Rise then fall*/
-    WAVEFORM_TYPE_SQUARE,       /*A for half period, 0 for other half*/
-    WAVEFORM_TYPE_SINE,         /*0..A sine*/
-    WAVEFORM_TYPE_CUSTOM        /*User defined*/
+    WAVEFORM_TYPE_RAMP = 0,
+    WAVEFORM_TYPE_SAWTOOTH,
+    WAVEFORM_TYPE_TRIANGLE,
+    WAVEFORM_TYPE_SQUARE,
+    WAVEFORM_TYPE_SINE,
+    WAVEFORM_TYPE_CUSTOM
 }waveform_type_t;
 
 typedef enum
@@ -26,17 +26,13 @@ typedef enum
     WAVEFORM_ORIGIN_USER
 }waveform_origin_t;
 
-/*
- * One wave chunk, matches firmware "device wave chunk add -value=..." format:
- * value,valueDev,duration,durationDev,repetitions,lastInGroup
- */
 typedef struct
 {
-    unsigned int    value;          /*[mA]*/
-    unsigned int    valueDev;       /*[mA]*/
-    unsigned int    duration;       /*[ms]*/
-    unsigned int    durationDev;    /*[ms]*/
-    int             repetitions;    /*Chunk repetitions (>0)*/
+    unsigned int    value;
+    unsigned int    valueDev;
+    unsigned int    duration;
+    unsigned int    durationDev;
+    int             repetitions;
     bool            lastInGroup;
 }waveform_chunk_t;
 
@@ -46,11 +42,11 @@ public:
     explicit                Waveform();
 
     bool                    isValid();
-    unsigned int            getTotalDuration();                     /*[ms], one pass*/
+    unsigned int            getTotalDuration();
 
     bool                    generateStandard(waveform_type_t aType, unsigned int aAmplitude, unsigned int aPeriod, unsigned int aPoints, int aRepetitionCounter);
 
-    QStringList             getCommands();                          /*Firmware command list (clear + chunks + counter)*/
+    QStringList             getCommands();
     QString                 getFileContent();
     bool                    parseContent(QString content, QString* error = NULL);
     bool                    loadFromFile(QString path, QString* error = NULL);
@@ -72,18 +68,13 @@ public:
     waveform_type_t         type;
     waveform_origin_t       origin;
     QList<waveform_chunk_t> chunks;
-    int                     repetitionCounter;                      /*-1 = infinite*/
+    int                     repetitionCounter;
 
-    /*Standard wave parameters (valid when origin == WAVEFORM_ORIGIN_STANDARD)*/
-    unsigned int            amplitude;                              /*[mA]*/
-    unsigned int            period;                                 /*[ms]*/
+    unsigned int            amplitude;
+    unsigned int            period;
     unsigned int            points;
 };
 
-/*
- * Central registry of all waves (standard + user defined). Waves stored here can
- * be reused anywhere in application (Load, Charge/Discharge process, ...).
- */
 class WaveformLibrary : public QObject
 {
     Q_OBJECT
@@ -113,4 +104,4 @@ private:
     QList<Waveform>         waves;
 };
 
-#endif // WAVEFORM_H
+#endif
