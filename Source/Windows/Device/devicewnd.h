@@ -129,6 +129,7 @@ public:
     bool            setChargerFWSerial(QString serial);
     bool            chargingDone();
     bool            loadWaveStopped();
+    void            closeSubWindows();
 
     bool            setChargingStatus(QString status);
 
@@ -219,6 +220,7 @@ signals:
     void            sigDeviceReset();
 protected:
     void            closeEvent(QCloseEvent *event);
+    void            showSubWindow(QWidget* wnd);
     void            createPlotsArea();
     PlotDockWidget* createPlotDock(QString aTitle, Plot* plot);
     void            savePlotsLayout();

@@ -36,6 +36,8 @@ class EPProcessing : public QObject
 public:
     explicit EPProcessing(QObject *parent = nullptr);
 
+    void    setSamplesNo(unsigned int aSamplesNo);
+
 signals:
 
     void    sigEPProcessed(double value, double key, QString name);
@@ -47,6 +49,7 @@ public slots:
 private:
     QThread                          *epProcessingThread;
     QVector<EPInfo*>                 epList;
+    unsigned int                     samplesNo;
 
 };
 

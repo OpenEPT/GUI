@@ -45,32 +45,79 @@ waveform_chunk_t Waveform::chunkDefault()
     chunk.durationDev = 0;
     chunk.repetitions = 1;
     chunk.lastInGroup = false;
+    chunk.marker = "";
+    chunk.markerPos = "";
     return chunk;
+}
+
+bool Waveform::chunkHasMarker(waveform_chunk_t chunk)
+{
+    return !chunk.marker.trimmed().isEmpty();
+}
+
+QString Waveform::chunkNormalizeMarkerPos(QString pos)
+{
+    QString p = pos.trimmed().toLower().remove(' ');
+    if(p == "e") return "e";
+    if(p == "s,e" || p == "e,s" || p == "se" || p == "es") return "s,e";
+    return "s";
+}
+
+bool Waveform::chunkMarkerValid(waveform_chunk_t chunk, QString* error)
+{
+    if(!chunkHasMarker(chunk)) return true;
+    if(chunkNormalizeMarkerPos(chunk.markerPos) != "s,e") return true;
+    QStringList parts = chunk.marker.split(',');
+    if(parts.size() != 2 || parts[0].trimmed().isEmpty() || parts[1].trimmed().isEmpty())
+    {
+        if(error != NULL) *error = "Marker \"" + chunk.marker + "\" with position s,e must be in format \"Start name, End name\"";
+        return false;
+    }
+    return true;
 }
 
 QString Waveform::chunkToCommand(waveform_chunk_t chunk)
 {
-    return "device wave chunk add -value=" +
+    QString command = "device wave chunk add -value=" +
             QString::number(chunk.value) + "," +
             QString::number(chunk.valueDev) + "," +
             QString::number(chunk.duration) + "," +
             QString::number(chunk.durationDev) + "," +
             QString::number(chunk.repetitions) + "," +
             QString::number(chunk.lastInGroup ? 1 : 0) + ";";
+    if(chunkHasMarker(chunk))
+    {
+        command += " -marker=\"" + chunk.marker.trimmed() + "\" -pos=" + chunkNormalizeMarkerPos(chunk.markerPos);
+    }
+    return command;
 }
 
 bool Waveform::chunkFromCommand(QString line, waveform_chunk_t* chunk)
 {
     QRegularExpression re("device\\s+wave\\s+chunk\\s+add\\s+-value\\s*=\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*(-?\\d+)\\s*,\\s*(\\d+)");
+    QRegularExpression markerRe("-marker\\s*=\\s*(?:\"([^\"]*)\"|(\\S+))");
+    QRegularExpression posRe("-pos\\s*=\\s*([se](?:,[se])?)");
     QRegularExpressionMatch match = re.match(line);
     if(!match.hasMatch()) return false;
     if(chunk == NULL) return false;
+    *chunk = chunkDefault();
     chunk->value = match.captured(1).toUInt();
     chunk->valueDev = match.captured(2).toUInt();
     chunk->duration = match.captured(3).toUInt();
     chunk->durationDev = match.captured(4).toUInt();
     chunk->repetitions = match.captured(5).toInt();
     chunk->lastInGroup = match.captured(6).toUInt() != 0;
+    QRegularExpressionMatch markerMatch = markerRe.match(line);
+    if(markerMatch.hasMatch())
+    {
+        chunk->marker = markerMatch.captured(1).isEmpty() ? markerMatch.captured(2) : markerMatch.captured(1);
+        chunk->markerPos = "s";
+        QRegularExpressionMatch posMatch = posRe.match(line);
+        if(posMatch.hasMatch())
+        {
+            chunk->markerPos = chunkNormalizeMarkerPos(posMatch.captured(1));
+        }
+    }
     return true;
 }
 
@@ -324,6 +371,8 @@ QJsonObject Waveform::toJson()
         chunkObj["durationDev"] = (int)chunks[i].durationDev;
         chunkObj["repetitions"] = chunks[i].repetitions;
         chunkObj["lastInGroup"] = chunks[i].lastInGroup;
+        chunkObj["marker"] = chunks[i].marker;
+        chunkObj["markerPos"] = chunks[i].markerPos;
         chunksArray.append(chunkObj);
     }
     obj["chunks"] = chunksArray;
@@ -352,6 +401,8 @@ bool Waveform::fromJson(QJsonObject obj)
         chunk.durationDev = chunkObj["durationDev"].toInt();
         chunk.repetitions = chunkObj["repetitions"].toInt(1);
         chunk.lastInGroup = chunkObj["lastInGroup"].toBool();
+        chunk.marker = chunkObj["marker"].toString();
+        chunk.markerPos = chunkObj["markerPos"].toString();
         chunks.append(chunk);
     }
     return !chunks.isEmpty();

@@ -106,6 +106,7 @@ public:
     LoadMode loadModeGet();
     Waveform loadActiveWaveGet();
     bool loadWaveStopped();
+    void epEnabledStatusSet(bool enabled);
 
     // Charger tab
     void chargerCurrentSet(int current);
@@ -244,6 +245,7 @@ private:
     QLabel   *customWaveInfoLabel;
     QMap<QString, QPushButton*> customWaveButtons;
     Waveform  loadActiveWave;
+    bool      epEnabled;
     bool      customWaveTableUpdating;
 
     bool chargerConnected;
@@ -284,6 +286,7 @@ private:
     QTimer*      chdischDischargeTimer;
     QWidget*     chdischTab;
 
+    bool         waveMarkersConfirm(Waveform wave);
     Waveform     buildStandardWave();
     Waveform     buildCustomWave();
     void         fillCustomWaveTable(Waveform wave);

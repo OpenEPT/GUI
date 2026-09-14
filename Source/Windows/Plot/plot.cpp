@@ -193,15 +193,64 @@ void Plot::scatterAddAllDataWithName(QVector<QPair<QString, int>> data)
         textLabel->setColor(Qt::black);  // Set text color
 
 
+        textLabel->setClipToAxisRect(false);
         textData.push_back(textLabel);
     }
 
     plot->replot();
 }
 
+QCPItemText* Plot::createMarkerLabel(double x, double y, QString name)
+{
+    QCPItemText *textLabel = new QCPItemText(plot);
+    textLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
+    textLabel->position->setType(QCPItemPosition::ptPlotCoords);
+    textLabel->position->setCoords(x, y);
+    textLabel->setText(name);
+    textLabel->setFont(*scatterFont);
+    textLabel->setColor(Qt::red);
+    textLabel->setClipToAxisRect(false);
+    textData.push_back(textLabel);
+    return textLabel;
+}
+
+void Plot::rescaleYWithMarkers()
+{
+    QCPRange range;
+    double padding;
+
+    plot->yAxis->rescale(true);
+    if(textData.isEmpty()) return;
+    range = plot->yAxis->range();
+    padding = range.size() * 0.15;
+    if(padding <= 0) padding = 1.0;
+    plot->yAxis->setRange(range.lower, range.upper + padding);
+}
+
+void Plot::trimMarkers(double minKey)
+{
+    if(!scatterGraphAdded) return;
+    plot->graph(1)->data()->removeBefore(minKey);
+    for(int i = 0; i < textData.size(); i++)
+    {
+        textData[i]->setVisible(textData[i]->position->key() >= minKey);
+    }
+}
+
+void Plot::showAllMarkers()
+{
+    if(!scatterGraphAdded) return;
+    plot->graph(1)->data()->clear();
+    for(int i = 0; i < textData.size(); i++)
+    {
+        textData[i]->setVisible(true);
+        plot->graph(1)->addData(textData[i]->position->key(), textData[i]->position->value());
+    }
+}
+
 void Plot::scatterAddDataWithName(double value, double keys, QString name)
 {
-    if(keys >= xData.size() || keys >= yData.size())
+    if(keys < 0 || keys >= xData.size() || keys >= yData.size())
     {
         qDebug() << "Corresponding data not arrived";
         epDataKey.append(keys);
@@ -209,21 +258,9 @@ void Plot::scatterAddDataWithName(double value, double keys, QString name)
         return;
     }
     plot->graph(1)->addData(xData[keys], yData[keys]);
-    QCPItemText *textLabel = new QCPItemText(plot);
+    createMarkerLabel(xData[keys], yData[keys], name);
 
-    // Set text label position above each point
-    textLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
-    textLabel->position->setType(QCPItemPosition::ptPlotCoords);  // Position in plot coordinates
-    textLabel->position->setCoords(xData[keys], yData[keys]);  // Set position slightly above the point
-
-    // Set text style and content
-    textLabel->setText(name);  // Set the text (label)
-    textLabel->setFont(QFont("Times", 14));  // Set font and size
-    textLabel->setColor(Qt::red);  // Set text color
-
-    textData.push_back(textLabel);
-
-    plot->yAxis->rescale(true);
+    rescaleYWithMarkers();
     plot->replot();
 }
 
@@ -231,27 +268,20 @@ void Plot::scatterReplotDataWithName()
 {
     int key;
     double value;
-    for(int i = 0; i < epDataKey.size(); i++)
+    int i = 0;
+    while(i < epDataKey.size())
     {
-        if(epDataKey[i] > xData.size() || epDataKey[i] > yData.size()) break;
+        if(epDataKey[i] < 0 || epDataKey[i] >= xData.size() || epDataKey[i] >= yData.size())
+        {
+            i++;
+            continue;
+        }
         key = epDataKey[i];
         value = yData[key];
         plot->graph(1)->addData(xData[key], yData[key]);
-        QCPItemText *textLabel = new QCPItemText(plot);
+        createMarkerLabel(xData[key], value, epDataName[i]);
 
-        // Set text label position above each point
-        textLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
-        textLabel->position->setType(QCPItemPosition::ptPlotCoords);  // Position in plot coordinates
-        textLabel->position->setCoords(xData[key], value);  // Set position slightly above the point
-
-        // Set text style and content
-        textLabel->setText(epDataName[i]);  // Set the text (label)
-        textLabel->setFont(*scatterFont);  // Set font and size
-        textLabel->setColor(Qt::red);  // Set text color
-
-        textData.push_back(textLabel);
-
-        plot->yAxis->rescale(true);
+        rescaleYWithMarkers();
         plot->replot();
         epDataKey.removeAt(i);
         epDataName.removeAt(i);
@@ -270,25 +300,28 @@ void        Plot::setData(QVector<double> data, QVector<double> keys)
 }
 void        Plot::appendData(QVector<double> data, QVector<double> keys)
 {
-    //plot->graph(0)->addData(keys, data);
+    if(keys.isEmpty() || keys.size() != data.size()) return;
     xData.append(keys);
     yData.append(data);
     plotXData.append(keys);
     plotYData.append(data);
-    if(plotXData.at(plotXData.size()-1) > 10000)
+    if((plotXData.last() > 10000) && (plotXData.size() > data.size()))
     {
         plotXData.remove(0,data.size());
         plotYData.remove(0,data.size());
+        if(replotActive)
+        {
+            trimMarkers(plotXData.first());
+        }
     }
     if(replotActive)
     {
-//        double minxValue = keys.at(keys.size()-1) - 10000;
-//        if(minxValue < 0) minxValue = 0;
-//        double maxxValue = keys.at(keys.size()-1);
         plot->graph(0)->setData(plotXData, plotYData, true);
-        //plot->xAxis->setRange(minxValue, maxxValue);
-        plot->yAxis->rescale(true);
-        plot->xAxis->rescale(true);
+        if(plotXData.first() < plotXData.last())
+        {
+            plot->xAxis->setRange(plotXData.first(), plotXData.last());
+        }
+        rescaleYWithMarkers();
         plot->replot();
         scatterReplotDataWithName();
     }
@@ -329,6 +362,7 @@ void        Plot::clear()
         {
             plot->removeItem(textData[i]);
         }
+        textData.clear();
     }
     xData.clear();
     yData.clear();
@@ -362,9 +396,11 @@ void        Plot::onZoomOut()
 void        Plot::onZoomExpand()
 {
     plot->graph(0)->setData(xData, yData, true);
+    showAllMarkers();
     plot->setInteraction(QCP::iRangeDrag, false);
     plot->setInteraction(QCP::iRangeZoom, false);
     plot->rescaleAxes(true);
+    rescaleYWithMarkers();
     plot->setSelectionRectMode(QCP::srmZoom);
     plot->replot();
     setButtonStyle();
@@ -392,6 +428,11 @@ void       Plot::onTrackGraph()
 {
     enableTracking = enableTracking == false? true : false;
     replotActive = enableTracking;
+    if(!enableTracking)
+    {
+        showAllMarkers();
+        plot->replot();
+    }
     setButtonStyle();
 }
 
@@ -493,6 +534,17 @@ void Plot::onSaveImage()
     {
         QMessageBox::warning(this, "Save plot image", "Unable to save image to:\n" + path);
     }
+}
+
+QString Plot::getTitle()
+{
+    return title->text();
+}
+
+bool Plot::saveImageToFile(QString path)
+{
+    if(path.endsWith(".svg", Qt::CaseInsensitive)) return saveImageAsSvg(path);
+    return saveImageAsPng(path);
 }
 
 bool Plot::saveImageAsPng(QString path)

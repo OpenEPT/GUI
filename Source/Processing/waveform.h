@@ -34,6 +34,8 @@ typedef struct
     unsigned int    durationDev;
     int             repetitions;
     bool            lastInGroup;
+    QString         marker;
+    QString         markerPos;
 }waveform_chunk_t;
 
 class Waveform
@@ -58,6 +60,9 @@ public:
     static QString          chunkToCommand(waveform_chunk_t chunk);
     static bool             chunkFromCommand(QString line, waveform_chunk_t* chunk);
     static waveform_chunk_t chunkDefault();
+    static bool             chunkHasMarker(waveform_chunk_t chunk);
+    static QString          chunkNormalizeMarkerPos(QString pos);
+    static bool             chunkMarkerValid(waveform_chunk_t chunk, QString* error = NULL);
 
     static QString          typeToString(waveform_type_t aType);
     static waveform_type_t  typeFromString(QString aType);

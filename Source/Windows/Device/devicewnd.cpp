@@ -47,6 +47,7 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     ui->streamServerInterfComb->addItems(*networkInterfacesNames);
 
 
+    configurationWnd        = NULL;
     dataAnalyzer            = new DataStatistics();
     energyControlWnd        = new EnergyControlWnd();
 
@@ -115,6 +116,7 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
 
     connect(ui->saveToFileCheb, SIGNAL(stateChanged(int)), this, SLOT(onSaveToFileChanged(int)));
     connect(ui->EPControlEnableCheb, SIGNAL(stateChanged(int)), this, SLOT(onEPEnableChanged(int)));
+    energyControlWnd->epEnabledStatusSet(ui->EPControlEnableCheb->isChecked());
     connect(ui->consNamePusb, SIGNAL(clicked(bool)), this, SLOT(onSetConsumptionName()));
     connect(ui->startPusb, SIGNAL(clicked(bool)), this, SLOT(onStartAcquisition()));
     connect(ui->pausePusb, SIGNAL(clicked(bool)), this, SLOT(onPauseAcquisition()));
@@ -197,6 +199,7 @@ void DeviceWnd::onMaxNumberOfBuffersChanged()
 
 void DeviceWnd::onEPEnableChanged(int value)
 {
+    energyControlWnd->epEnabledStatusSet(ui->EPControlEnableCheb->isChecked());
     emit sigEPEnable(ui->EPControlEnableCheb->isChecked());
 }
 
@@ -294,21 +297,41 @@ void DeviceWnd::onSamplesNoChanged()
 }
 
 
+void DeviceWnd::showSubWindow(QWidget* wnd)
+{
+    if(wnd == NULL) return;
+    if(wnd->isMinimized())
+    {
+        wnd->setWindowState((wnd->windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
+    }
+    wnd->show();
+    wnd->raise();
+    wnd->activateWindow();
+}
+
+void DeviceWnd::closeSubWindows()
+{
+    if(configurationWnd) configurationWnd->close();
+    if(consoleWnd) consoleWnd->close();
+    if(energyControlWnd) energyControlWnd->close();
+    if(calibrationWnd) calibrationWnd->close();
+    if(dataAnalyzer) dataAnalyzer->close();
+}
+
 void    DeviceWnd::onAdvanceConfigurationButtonPressed(bool pressed)
 {
-    configurationWnd->show();
-    configurationWnd->raise();
-    configurationWnd->activateWindow();
+    showSubWindow(configurationWnd);
 }
 
 void DeviceWnd::onCalibrationButtonPressed(bool pressed)
 {
     calibrationWnd->showWnd();
+    showSubWindow(calibrationWnd);
 }
 
 void DeviceWnd::onEnenergyControlButtonPressed(bool pressed)
 {
-    energyControlWnd->show();
+    showSubWindow(energyControlWnd);
 }
 
 void DeviceWnd::onSaveToFileChanged(int value)
@@ -379,12 +402,12 @@ void DeviceWnd::onChargerConfWndBDFormat()
 
 void DeviceWnd::onConsolePressed()
 {
-    consoleWnd->show();
+    showSubWindow(consoleWnd);
 }
 
 void DeviceWnd::onDataAnalyzerPressed()
 {
-    dataAnalyzer->show();
+    showSubWindow(dataAnalyzer);
 }
 
 void DeviceWnd::onStartAcquisition()
@@ -436,9 +459,7 @@ void DeviceWnd::setDeviceStateConnected()
 void    DeviceWnd::closeEvent(QCloseEvent *event)
 {
     savePlotsLayout();
-    configurationWnd->close();
-    consoleWnd->close();
-    energyControlWnd->close();
+    closeSubWindows();
     emit sigWndClosed();
 }
 
@@ -465,6 +486,12 @@ void DeviceWnd::onDeviceReset()
 
 DeviceWnd::~DeviceWnd()
 {
+    closeSubWindows();
+    delete configurationWnd;
+    delete consoleWnd;
+    delete energyControlWnd;
+    delete calibrationWnd;
+    delete dataAnalyzer;
     delete ui;
 }
 

@@ -26,6 +26,8 @@ public:
     bool        isAxisLocked();
     void        setXLabel(QString label);
     void        setTitle(QString aTitle);
+    QString     getTitle();
+    bool        saveImageToFile(QString path);
     void        clear();
 
 signals:
@@ -76,6 +78,10 @@ private:
     bool        xRangeSyncInProgress;
 
     void        setButtonStyle();
+    void        rescaleYWithMarkers();
+    void        trimMarkers(double minKey);
+    void        showAllMarkers();
+    QCPItemText* createMarkerLabel(double x, double y, QString name);
     bool        saveImageAsPng(QString path);
     bool        saveImageAsSvg(QString path);
 

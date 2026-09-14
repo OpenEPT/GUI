@@ -11,6 +11,9 @@
 #include <QTextEdit>
 #include <QMdiSubWindow>
 #include <QDockWidget>
+#include <QToolBar>
+#include <QDir>
+#include <QShowEvent>
 #include <QMainWindow>
 #include <QProgressBar>
 #include <QFuture>
@@ -59,11 +62,19 @@ class DataAnalyzer : public QWidget
     Q_OBJECT
 
 public:
+    void                                setWorkspacePath(QString aWsDirPath);
+
+protected:
+    void                                showEvent(QShowEvent *event) override;
+
+public:
     explicit DataAnalyzer(QWidget *parent = nullptr, QString aWsDirPath="");
     void     loadConsumptionProfileData();
     ~DataAnalyzer();
 
 public slots:
+    void                                onSaveAllPlots();
+    void                                onPlotXRangeChanged(QCPRange range);
     void    onRealoadConsumptionProfiles();
     void    onConsumptionProfileChanged(int index);
     void    onLoadConsumptionProfileData();
@@ -78,6 +89,7 @@ signals:
 private:
     Ui::DataAnalyzer                    *ui;
     QMainWindow                         *mainWindow;
+    QToolBar                            *plotsToolBar;
 
     QLabel*                             detectedProfilesLabe;
 
@@ -110,6 +122,7 @@ private:
 
 
     void                                realoadConsumptionProfiles();
+    void                                listConsumptionProfilesInDir(QDir dir, QString relativePath, QStringList& profiles, int depth);
 };
 
 #endif // DATAANALYZER_H

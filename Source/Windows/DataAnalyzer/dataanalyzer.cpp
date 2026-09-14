@@ -1,5 +1,8 @@
 #include "dataanalyzer.h"
 #include "ui_dataanalyzer.h"
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QDateTime>
 
 
 #define PLOT_MINIMUM_SIZE_HEIGHT 100
@@ -59,10 +62,17 @@ DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
     topLayout->addWidget(detectedProfilesLabe);
     topLayout->addWidget(consumptionProfilesCB);
     topLayout->addWidget(reloadProfileNamesPushb);
-    topLayout->addStretch();
     topLayout->addWidget(processFilePushb);
+    topLayout->addStretch();
 
-     mainLayout->addLayout(topLayout);
+    mainLayout->addLayout(topLayout);
+
+    plotsToolBar = new QToolBar(this);
+    plotsToolBar->setIconSize(QSize(24, 24));
+    QAction *saveAllPlotsAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/save.png")), "Save all plots");
+    saveAllPlotsAction->setToolTip("Save Voltage, Current and Consumption plots (current view) to a folder");
+    connect(saveAllPlotsAction, SIGNAL(triggered(bool)), this, SLOT(onSaveAllPlots()));
+    mainLayout->addWidget(plotsToolBar);
 
     // Create an internal QMainWindow to handle docking
     mainWindow = new QMainWindow(this);
@@ -187,6 +197,10 @@ void DataAnalyzer::createConsumptionSubWin()
     consumptionChart->setYLabel("[mA]");
     consumptionChart->setXLabel("[ms]");
 
+    connect(voltageChart, SIGNAL(sigXRangeChanged(QCPRange)), this, SLOT(onPlotXRangeChanged(QCPRange)));
+    connect(currentChart, SIGNAL(sigXRangeChanged(QCPRange)), this, SLOT(onPlotXRangeChanged(QCPRange)));
+    connect(consumptionChart, SIGNAL(sigXRangeChanged(QCPRange)), this, SLOT(onPlotXRangeChanged(QCPRange)));
+
     layout->addWidget(consumptionChart);
     contentWidget->setLayout(layout);
 
@@ -206,29 +220,35 @@ void DataAnalyzer::createConsumptionSubWin()
 
 QStringList DataAnalyzer::listConsumptionProfiles()
 {
-    QStringList subdirectories;
-
+    QStringList profiles;
     QDir dir(wsDirPath);
 
-    // Check if the main directory exists
-    if (!dir.exists()) return subdirectories;
+    if(!dir.exists()) return profiles;
 
-    // Set the filter to only look for directories, excluding "." and ".."
+    listConsumptionProfilesInDir(dir, "", profiles, 0);
+
+    return profiles;
+}
+
+void DataAnalyzer::listConsumptionProfilesInDir(QDir dir, QString relativePath, QStringList& profiles, int depth)
+{
+    if(depth > 3) return;
+
     dir.setFilter(QDir::Dirs | QDir::NoDotAndDotDot);
 
-    // Iterate through the directory entries and add the directory names to the list
-    foreach (const QFileInfo &entry, dir.entryInfoList()) {
-        if (entry.isDir()) {
-            // Create a QDir object for the subdirectory
-            QDir subDir(entry.filePath());
-            // Check if OpenEPT.txt exists in the subdirectory
-            if (subDir.exists("OpenEPT.txt")) {
-                subdirectories << entry.fileName(); // Add the subdirectory name to the list
-            }
+    foreach(const QFileInfo &entry, dir.entryInfoList())
+    {
+        QDir subDir(entry.filePath());
+        QString subPath = relativePath.isEmpty() ? entry.fileName() : relativePath + "/" + entry.fileName();
+        if(subDir.exists("OpenEPT.txt"))
+        {
+            profiles << subPath;
+        }
+        else
+        {
+            listConsumptionProfilesInDir(subDir, subPath, profiles, depth + 1);
         }
     }
-
-    return subdirectories;
 }
 
 void DataAnalyzer::realoadConsumptionProfiles()
@@ -251,6 +271,67 @@ void DataAnalyzer::realoadConsumptionProfiles()
 DataAnalyzer::~DataAnalyzer()
 {
     delete ui;
+}
+
+void DataAnalyzer::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    realoadConsumptionProfiles();
+}
+
+void DataAnalyzer::setWorkspacePath(QString aWsDirPath)
+{
+    wsDirPath = aWsDirPath;
+    realoadConsumptionProfiles();
+}
+
+void DataAnalyzer::onPlotXRangeChanged(QCPRange range)
+{
+    Plot *source = qobject_cast<Plot*>(sender());
+    Plot *plots[3] = {voltageChart, currentChart, consumptionChart};
+
+    for(int i = 0; i < 3; i++)
+    {
+        if(plots[i] == source) continue;
+        plots[i]->setXRangeSynced(range);
+    }
+}
+
+void DataAnalyzer::onSaveAllPlots()
+{
+    Plot *plots[3] = {voltageChart, currentChart, consumptionChart};
+    QString defaultDir = wsDirPath;
+    QString dir;
+    QString prefix;
+    QString timeStamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    QStringList failed;
+
+    if(!graphLoad)
+    {
+        QMessageBox::warning(this, "Save plots", "No consumption profile loaded");
+        return;
+    }
+    if(!selectedConsumptionProfile.isEmpty())
+    {
+        defaultDir = wsDirPath + "/" + selectedConsumptionProfile;
+    }
+
+    dir = QFileDialog::getExistingDirectory(this, "Select folder for plot images", defaultDir);
+    if(dir.isEmpty()) return;
+
+    prefix = selectedConsumptionProfile.isEmpty() ? "profile" : selectedConsumptionProfile.section('/', -1).toLower().replace(' ', '_');
+
+    for(int i = 0; i < 3; i++)
+    {
+        QString base = dir + "/oept_" + prefix + "_" + plots[i]->getTitle().toLower().replace(' ', '_') + "_" + timeStamp;
+        if(!plots[i]->saveImageToFile(base + ".png")) failed << base + ".png";
+        if(!plots[i]->saveImageToFile(base + ".svg")) failed << base + ".svg";
+    }
+
+    if(!failed.isEmpty())
+    {
+        QMessageBox::warning(this, "Save plots", "Unable to save:\n" + failed.join("\n"));
+    }
 }
 
 void DataAnalyzer::onRealoadConsumptionProfiles()

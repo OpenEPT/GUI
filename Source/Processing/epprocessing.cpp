@@ -8,6 +8,12 @@ EPProcessing::EPProcessing(QObject *parent)
     this->moveToThread(epProcessingThread);
     epProcessingThread->setObjectName("OpenEPT - EP processing thread");
     epProcessingThread->start();
+    samplesNo = DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE/2;
+}
+
+void EPProcessing::setSamplesNo(unsigned int aSamplesNo)
+{
+    samplesNo = aSamplesNo;
 }
 
 void EPProcessing::onNewEPValueReceived(unsigned int PacketID, double value, double key)
@@ -27,7 +33,7 @@ void EPProcessing::onNewEPValueReceived(unsigned int PacketID, double value, dou
 
 void EPProcessing::onNewEPNameReceived(unsigned int PacketID, unsigned int SampleID, QString name)
 {
-    int samplePosition = DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE/2*PacketID + (DATAPROCESSING_DEFAULT_SAMPLES_BUFFER_SIZE - SampleID);
+    int samplePosition = samplesNo*PacketID + SampleID;
     emit sigEPProcessed(0, samplePosition, name);
 }
 

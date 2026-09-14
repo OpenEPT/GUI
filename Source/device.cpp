@@ -336,6 +336,7 @@ bool Device::setSamplesNo(unsigned int aSamplesNo)
     samplesNo = aSamplesNo;
     streamLink->setPacketSize(aSamplesNo*2);
     dataProcessing->setSamplesNo(aSamplesNo);
+    energyPointProcessing->setSamplesNo(aSamplesNo);
     m_params->setParamValue("streamPacketSize", QString::number(aSamplesNo));
     return true;
 }
