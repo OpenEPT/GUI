@@ -9,6 +9,7 @@
 
 #define WAVEFORM_CHUNK_MAX_NO           200
 #define WAVEFORM_COUNTER_INFINITE       -1
+#define WAVEFORM_MARKER_NAME_MAX        63
 
 typedef enum
 {

@@ -23,6 +23,7 @@ public:
     void        setYLabel(QString label);
     void        setXRange(double min, double max);
     void        setXRangeSynced(QCPRange range);
+    void        zoomToKeyRange(double min, double max);
     bool        isAxisLocked();
     void        setXLabel(QString label);
     void        setTitle(QString aTitle);

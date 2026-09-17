@@ -39,6 +39,7 @@ SOURCES += \
     Windows/ApplicationConf/applicationconfwnd.cpp \
     Windows/Console/consolewnd.cpp \
     Windows/DataAnalyzer/dataanalyzer.cpp \
+    Windows/DataAnalyzer/dataanalyzerstatistics.cpp \
     Windows/Device/calibrationwnd.cpp \
     Windows/Device/configurationwnd.cpp \
     Windows/Device/datastatistics.cpp \
@@ -76,6 +77,7 @@ HEADERS += \
     Windows/ApplicationConf/applicationconfwnd.h \
     Windows/Console/consolewnd.h \
     Windows/DataAnalyzer/dataanalyzer.h \
+    Windows/DataAnalyzer/dataanalyzerstatistics.h \
     Windows/Device/calibrationwnd.h \
     Windows/Device/configurationwnd.h \
     Windows/Device/datastatistics.h \

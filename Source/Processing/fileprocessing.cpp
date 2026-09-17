@@ -7,11 +7,30 @@ FileProcessing::FileProcessing(QObject *parent)
 {
     type = FILEPROCESSING_TYPE_UKNOWN;
     sync = new QSemaphore(0);
+    thread = NULL;
+    summaryFile = NULL;
+    samplesFile = NULL;
+    consumptionFile = NULL;
+    epFile = NULL;
+
+    qRegisterMetaType<QVector<double> >("QVector<double>");
+    connect(this, SIGNAL(sigAppendSampleData(QVector<double>,QVector<double>,QVector<double>,QVector<double>)),
+            this, SLOT(onAppendSampleData(QVector<double>,QVector<double>,QVector<double>,QVector<double>)), Qt::QueuedConnection);
+    connect(this, SIGNAL(sigAppendConsumptionData(QVector<double>,QVector<double>)),
+            this, SLOT(onAppendConsumptionData(QVector<double>,QVector<double>)), Qt::QueuedConnection);
+    connect(this, SIGNAL(sigAppendEPData(QString,int)),
+            this, SLOT(onAppendEPData(QString,int)), Qt::QueuedConnection);
+    connect(this, SIGNAL(sigOpenFiles()), this, SLOT(onOpenFiles()), Qt::QueuedConnection);
 }
 
 bool FileProcessing::open(fileprocessing_type_t aType, QString aPath)
 {
     summaryFilePath = aPath + "/OpenEPT.txt";
+    if(summaryFile != NULL)
+    {
+        if(summaryFile->isOpen()) summaryFile->close();
+        delete summaryFile;
+    }
     summaryFile = new QFile(summaryFilePath);
     samplesFilePath = aPath + "/vc.csv";
     consumptionFilePath = aPath + "/cons.csv";
@@ -26,11 +45,18 @@ bool FileProcessing::open(fileprocessing_type_t aType, QString aPath)
         if(!samplesFile->open(QIODevice::WriteOnly | QIODevice::Text)) return false;
         break;
     case FILEPROCESSING_TYPE_SAMPLES:
-        thread = new QThread(this);
-        this->moveToThread(thread);
-        thread->setObjectName("OpenEPT - File processing thread");
-        connect(thread, SIGNAL(started()), this, SLOT(onThreadStart()));
-        thread->start();
+        if(thread == NULL)
+        {
+            thread = new QThread();
+            this->moveToThread(thread);
+            thread->setObjectName("OpenEPT - File processing thread");
+            connect(thread, SIGNAL(started()), this, SLOT(onThreadStart()));
+            thread->start();
+        }
+        else
+        {
+            emit sigOpenFiles();
+        }
         /*Wait until files are created*/
         sync->acquire();
         break;
@@ -230,38 +256,48 @@ bool FileProcessing::reOpenFiles()
     if(epFile->exists())
     {
         epFile->remove();
-        setSummaryFileHeader(summaryFileHeader);
+        setEPFileHeader(epFileHeader);
     }
     return true;
 }
 
 void FileProcessing::onThreadStart()
 {
-    switch(type)
-    {
-    case FILEPROCESSING_TYPE_UKNOWN:
-        break;
-    case FILEPROCESSING_TYPE_LOG:
-        break;
-    case FILEPROCESSING_TYPE_SAMPLES:
-        samplesFile = new QFile(samplesFilePath);
-        consumptionFile = new QFile(consumptionFilePath);
-        epFile = new QFile(epFilePath);
-        samplesFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append);
-        consumptionFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append);
-        epFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append);
-        qDebug() << samplesFile;
-        qRegisterMetaType<QVector<int> >("QVector<double>");
-        connect(this, SIGNAL(sigAppendSampleData(QVector<double>,QVector<double>,QVector<double>,QVector<double>)),
-                this, SLOT(onAppendSampleData(QVector<double>,QVector<double>,QVector<double>,QVector<double>)), Qt::QueuedConnection);
-        connect(this, SIGNAL(sigAppendConsumptionData(QVector<double>,QVector<double>)),
-                this, SLOT(onAppendConsumptionData(QVector<double>,QVector<double>)), Qt::QueuedConnection);
-        connect(this, SIGNAL(sigAppendEPData(QString,int)),
-                this, SLOT(onAppendEPData(QString,int)), Qt::QueuedConnection);
+    onOpenFiles();
+}
 
+void FileProcessing::onOpenFiles()
+{
+    if(type != FILEPROCESSING_TYPE_SAMPLES)
+    {
         sync->release();
-        break;
+        return;
     }
+
+    if(samplesFile != NULL)
+    {
+        if(samplesFile->isOpen()) samplesFile->close();
+        delete samplesFile;
+    }
+    if(consumptionFile != NULL)
+    {
+        if(consumptionFile->isOpen()) consumptionFile->close();
+        delete consumptionFile;
+    }
+    if(epFile != NULL)
+    {
+        if(epFile->isOpen()) epFile->close();
+        delete epFile;
+    }
+
+    samplesFile = new QFile(samplesFilePath);
+    consumptionFile = new QFile(consumptionFilePath);
+    epFile = new QFile(epFilePath);
+    samplesFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append);
+    consumptionFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append);
+    epFile->open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Append);
+
+    sync->release();
 }
 
 void FileProcessing::onAppendSampleData(QVector<double> voltage, QVector<double> voltageKeys, QVector<double> current, QVector<double> currentKeys)

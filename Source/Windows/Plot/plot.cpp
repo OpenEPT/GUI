@@ -8,7 +8,7 @@
 #define IMAGE_PNG_SCALE     4.0
 #define IMAGE_PNG_DPI       300
 
-#define BUTTONS_SIZE 30
+#define BUTTONS_SIZE 24
 
 Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     : QWidget{parent}
@@ -42,7 +42,7 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     QPixmap zoomInPng(":/images/NewSet/zoom_in.png");
     QIcon zoomInIcon(zoomInPng);
     zoomIn->setIcon(zoomInIcon);
-    zoomIn->setIconSize(QSize(15,15));
+    zoomIn->setIconSize(QSize(14,14));
     zoomIn->setToolTip("Zoom in");
     zoomIn->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
@@ -50,35 +50,35 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     QPixmap zoomOutPng(":/images/NewSet/zoom_out.png");
     QIcon zoomOutIcon(zoomOutPng);
     zoomOut->setIcon(zoomOutIcon);
-    zoomOut->setIconSize(QSize(15,15));
+    zoomOut->setIconSize(QSize(14,14));
     zoomOut->setToolTip("Zoom out");
     zoomOut->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
     QPixmap zoomExpandPng(":/images/NewSet/expand.png");
     QIcon zoomExpandIcon(zoomExpandPng);
     zoomExpand->setIcon(zoomExpandIcon);
-    zoomExpand->setIconSize(QSize(15,15));
+    zoomExpand->setIconSize(QSize(14,14));
     zoomExpand->setToolTip("Fit to full data");
     zoomExpand->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
     QPixmap zoomAreaPng(":/images/NewSet/zoom_area.png");
     QIcon zoomAreaIcon(zoomAreaPng);
     zoomArea->setIcon(zoomAreaIcon);
-    zoomArea->setIconSize(QSize(15,15));
+    zoomArea->setIconSize(QSize(14,14));
     zoomArea->setToolTip("Zoom area");
     zoomArea->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
     QPixmap moveGraphPng(":/images/NewSet/moveGraph.png");
     QIcon moveGraphIcon(moveGraphPng);
     moveGraph->setIcon(moveGraphIcon);
-    moveGraph->setIconSize(QSize(15,15));
+    moveGraph->setIconSize(QSize(14,14));
     moveGraph->setToolTip("Move graph");
     moveGraph->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
     QPixmap lockAxisPng(":/images/NewSet/lock.png");
     QIcon lockAxisIcon(lockAxisPng);
     lockAxis->setIcon(lockAxisIcon);
-    lockAxis->setIconSize(QSize(15,15));
+    lockAxis->setIconSize(QSize(14,14));
     lockAxis->setToolTip("Lock X axis with other locked plots");
     lockAxis->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
     lockAxis->setCheckable(true);
@@ -86,14 +86,14 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     QPixmap saveImagePng(":/images/NewSet/save.png");
     QIcon saveImageIcon(saveImagePng);
     saveImage->setIcon(saveImageIcon);
-    saveImage->setIconSize(QSize(15,15));
+    saveImage->setIconSize(QSize(14,14));
     saveImage->setToolTip("Save image (PNG / SVG)");
     saveImage->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
     QPixmap trackGraphPng(":/images/NewSet/tracking_graph.png");
     QIcon trackGraphIcon(trackGraphPng);
     trackGraph->setIcon(trackGraphIcon);
-    trackGraph->setIconSize(QSize(15,15));
+    trackGraph->setIconSize(QSize(14,14));
     trackGraph->setToolTip("Enable graph tracking");
     trackGraph->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
@@ -108,6 +108,8 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     buttonsLayout->addWidget(saveImage);
     buttonsLayout->addWidget(trackGraph);
     buttonsLayout->setAlignment(Qt::AlignCenter);
+    buttonsLayout->setSpacing(2);
+    buttonsLayout->setContentsMargins(0, 0, 0, 0);
 
 
     QHBoxLayout *plotLayout = new QHBoxLayout(this);
@@ -487,6 +489,33 @@ void Plot::onXRangeChanged(const QCPRange &range)
     if(!axisLocked) return;
     if(xRangeSyncInProgress) return;
     emit sigXRangeChanged(range);
+}
+
+void Plot::zoomToKeyRange(double min, double max)
+{
+    double margin = (max - min) * 0.05;
+
+    if(max <= min) return;
+    if(enableTracking) return;
+
+    plot->graph(0)->setData(xData, yData, true);
+    if(scatterGraphAdded) showAllMarkers();
+    xRangeSyncInProgress = true;
+    plot->xAxis->setRange(min - margin, max + margin);
+    xRangeSyncInProgress = false;
+    plot->graph(0)->rescaleValueAxis(false, true);
+    rescaleYWithMarkers();
+    if(!textData.isEmpty())
+    {
+        plot->graph(0)->rescaleValueAxis(false, true);
+        QCPRange range = plot->yAxis->range();
+        plot->yAxis->setRange(range.lower, range.upper + range.size() * 0.15);
+    }
+    plot->replot();
+    if(axisLocked)
+    {
+        emit sigXRangeChanged(plot->xAxis->range());
+    }
 }
 
 void Plot::setXRangeSynced(QCPRange range)

@@ -27,6 +27,7 @@ DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
     QHBoxLayout *topLayout = new QHBoxLayout;
     QPushButton *reloadProfileNamesPushb = new QPushButton();
     QPushButton *processFilePushb = new QPushButton();
+    QPushButton *deleteProfilePushb = new QPushButton();
 
 
     detectedProfilesLabe    = new QLabel("Detect consumption profiles", this);
@@ -58,11 +59,20 @@ DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
 
     connect(processFilePushb, SIGNAL(clicked(bool)), this, SLOT(onLoadConsumptionProfileData()));
 
+    deleteProfilePushb->setIcon(QIcon(QPixmap(":/images/NewSet/stopHand.png")));
+    deleteProfilePushb->setIconSize(QSize(24,24));
+    deleteProfilePushb->setToolTip("Delete selected consumption profile from disk");
+    deleteProfilePushb->setFixedSize(30, 30);
+
+    connect(deleteProfilePushb, SIGNAL(clicked(bool)), this, SLOT(onDeleteConsumptionProfile()));
+
     // Add the button and line edit to the horizontal layout
     topLayout->addWidget(detectedProfilesLabe);
     topLayout->addWidget(consumptionProfilesCB);
     topLayout->addWidget(reloadProfileNamesPushb);
     topLayout->addWidget(processFilePushb);
+    topLayout->addSpacing(20);
+    topLayout->addWidget(deleteProfilePushb);
     topLayout->addStretch();
 
     mainLayout->addLayout(topLayout);
@@ -72,7 +82,25 @@ DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
     QAction *saveAllPlotsAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/save.png")), "Save all plots");
     saveAllPlotsAction->setToolTip("Save Voltage, Current and Consumption plots (current view) to a folder");
     connect(saveAllPlotsAction, SIGNAL(triggered(bool)), this, SLOT(onSaveAllPlots()));
+    QAction *genStatisticsAction = plotsToolBar->addAction("Gen statistics");
+    genStatisticsAction->setToolTip("Generate consumption statistics for segments between \"<name> Start\" and \"<name> Stop\" markers");
+    connect(genStatisticsAction, SIGNAL(triggered(bool)), this, SLOT(onGenerateStatistics()));
     mainLayout->addWidget(plotsToolBar);
+
+    statisticsWnd = new DataAnalyzerStatisticsWnd();
+    qRegisterMetaType<QVector<dataanalyzer_segment_stat_t>>("QVector<dataanalyzer_segment_stat_t>");
+    qRegisterMetaType<QVector<QPair<QString, int>>>("QVector<QPair<QString, int>>");
+    statisticsThread = new QThread(this);
+    statisticsWorker = new DataAnalyzerStatisticsWorker();
+    statisticsWorker->moveToThread(statisticsThread);
+    statisticsThread->setObjectName("OpenEPT - Data Analyzer statistics");
+    connect(this, SIGNAL(sigComputeStatistics(QVector<double>,QVector<double>,QVector<double>,QVector<double>,QVector<QPair<QString, int>>)),
+            statisticsWorker, SLOT(onComputeStatistics(QVector<double>,QVector<double>,QVector<double>,QVector<double>,QVector<QPair<QString, int>>)), Qt::QueuedConnection);
+    qRegisterMetaType<dataanalyzer_segment_stat_t>("dataanalyzer_segment_stat_t");
+    connect(statisticsWorker, SIGNAL(sigStatisticsFinished(QVector<dataanalyzer_segment_stat_t>,dataanalyzer_segment_stat_t,QStringList)),
+            this, SLOT(onStatisticsFinished(QVector<dataanalyzer_segment_stat_t>,dataanalyzer_segment_stat_t,QStringList)), Qt::QueuedConnection);
+    statisticsThread->start();
+    connect(statisticsWnd, SIGNAL(sigSegmentSelected(QString,int,int)), this, SLOT(onStatisticsSegmentSelected(QString,int,int)));
 
     // Create an internal QMainWindow to handle docking
     mainWindow = new QMainWindow(this);
@@ -129,6 +157,7 @@ void DataAnalyzer::createVoltageSubWin() {
     // Create a content widget with a layout for the dock widget
     QWidget *contentWidget = new QWidget;
     QVBoxLayout *layout = new QVBoxLayout(contentWidget);
+    layout->setContentsMargins(2, 2, 2, 2);
 
     voltageChart             = new Plot(PLOT_MINIMUM_SIZE_WIDTH/2, PLOT_MINIMUM_SIZE_HEIGHT, false);
     voltageChart->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -159,6 +188,7 @@ void DataAnalyzer::createCurrentSubWin()
     // Create a content widget with a layout for the dock widget
     QWidget *contentWidget = new QWidget;
     QVBoxLayout *layout = new QVBoxLayout(contentWidget);
+    layout->setContentsMargins(2, 2, 2, 2);
 
 
     currentChart             = new Plot(PLOT_MINIMUM_SIZE_WIDTH/2, PLOT_MINIMUM_SIZE_HEIGHT, false);
@@ -190,6 +220,7 @@ void DataAnalyzer::createConsumptionSubWin()
     // Create a content widget with a layout for the dock widget
     QWidget *contentWidget = new QWidget;
     QVBoxLayout *layout = new QVBoxLayout(contentWidget);
+    layout->setContentsMargins(2, 2, 2, 2);
 
     consumptionChart             = new Plot(PLOT_MINIMUM_SIZE_WIDTH/2, PLOT_MINIMUM_SIZE_HEIGHT, false);
     consumptionChart->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -270,6 +301,10 @@ void DataAnalyzer::realoadConsumptionProfiles()
 
 DataAnalyzer::~DataAnalyzer()
 {
+    statisticsThread->quit();
+    statisticsThread->wait();
+    delete statisticsWorker;
+    delete statisticsWnd;
     delete ui;
 }
 
@@ -295,6 +330,52 @@ void DataAnalyzer::onPlotXRangeChanged(QCPRange range)
         if(plots[i] == source) continue;
         plots[i]->setXRangeSynced(range);
     }
+}
+
+void DataAnalyzer::onGenerateStatistics()
+{
+    if(!graphLoad)
+    {
+        QMessageBox::warning(this, "Statistics", "No consumption profile loaded");
+        return;
+    }
+    if(loadedMarkers.isEmpty())
+    {
+        QMessageBox::warning(this, "Statistics", "Loaded profile has no energy point markers (\"<name> Start\" / \"<name> Stop\" pairs are required)");
+        return;
+    }
+    emit sigComputeStatistics(loadedVoltage, loadedVoltageKeys, loadedCurrent, loadedCurrentKeys, loadedMarkers);
+}
+
+void DataAnalyzer::onStatisticsFinished(QVector<dataanalyzer_segment_stat_t> stats, dataanalyzer_segment_stat_t total, QStringList warnings)
+{
+    if(stats.isEmpty() && warnings.isEmpty())
+    {
+        QMessageBox::information(this, "Statistics", "No \"<name> Start\" / \"<name> Stop\" marker pairs found");
+        return;
+    }
+    statisticsWnd->setStatistics(selectedConsumptionProfile, stats, total, warnings);
+    statisticsWnd->show();
+    statisticsWnd->raise();
+    statisticsWnd->activateWindow();
+}
+
+void DataAnalyzer::onStatisticsSegmentSelected(QString name, int startIndex, int endIndex)
+{
+    double min;
+    double max;
+
+    if(!graphLoad) return;
+    if(startIndex < 0 || endIndex >= loadedVoltageKeys.size() || endIndex <= startIndex) return;
+
+    min = loadedVoltageKeys[startIndex];
+    max = loadedVoltageKeys[endIndex];
+    voltageChart->zoomToKeyRange(min, max);
+    currentChart->zoomToKeyRange(min, max);
+    consumptionChart->zoomToKeyRange(min, max);
+
+    raise();
+    activateWindow();
 }
 
 void DataAnalyzer::onSaveAllPlots()
@@ -332,6 +413,50 @@ void DataAnalyzer::onSaveAllPlots()
     {
         QMessageBox::warning(this, "Save plots", "Unable to save:\n" + failed.join("\n"));
     }
+}
+
+void DataAnalyzer::onDeleteConsumptionProfile()
+{
+    QString profile = consumptionProfilesCB->currentText();
+    QString path;
+    QDir dir;
+
+    if(profile.isEmpty() || !consumptionProfilesCB->isEnabled())
+    {
+        QMessageBox::warning(this, "Delete profile", "No consumption profile selected");
+        return;
+    }
+
+    path = QDir(wsDirPath).filePath(profile);
+    dir = QDir(path);
+    if(!dir.exists() || !dir.exists("OpenEPT.txt"))
+    {
+        QMessageBox::warning(this, "Delete profile", "Profile folder not found:\n" + path);
+        return;
+    }
+
+    if(QMessageBox::question(this, "Delete profile",
+                             "Delete consumption profile \"" + profile + "\"?\n\nFolder and all its files will be permanently removed:\n" + path,
+                             QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+    {
+        return;
+    }
+
+    if(graphLoad && selectedConsumptionProfile == profile)
+    {
+        voltageChart->clear();
+        currentChart->clear();
+        consumptionChart->clear();
+        loadedMarkers.clear();
+        graphLoad = false;
+    }
+
+    if(!dir.removeRecursively())
+    {
+        QMessageBox::warning(this, "Delete profile", "Unable to delete:\n" + path);
+    }
+
+    realoadConsumptionProfiles();
 }
 
 void DataAnalyzer::onRealoadConsumptionProfiles()
@@ -442,6 +567,12 @@ void DataAnalyzer::processingVolCurConDone(QVector<QVector<double> > vc, QVector
     currentChart->setData(vc[2],vc[3]);
     consumptionChart->setData(cons[0], cons[1]);
 
+    loadedVoltage = vc[0];
+    loadedVoltageKeys = vc[1];
+    loadedCurrent = vc[2];
+    loadedCurrentKeys = vc[3];
+    loadedMarkers.clear();
+
     graphLoad = true;
 
 
@@ -457,6 +588,7 @@ void DataAnalyzer::processingVolCurConDone(QVector<QVector<double> > vc, QVector
 
 void DataAnalyzer::processingEPDone(QVector<QPair<QString, int> > epData)
 {
+    loadedMarkers = epData;
     consumptionChart->scatterAddGraph();
     consumptionChart->scatterAddAllDataWithName(epData);
     voltageChart->scatterAddGraph();

@@ -41,9 +41,11 @@ signals:
     void                    sigAppendSampleData(QVector<double> voltage, QVector<double> voltageKeys, QVector<double> current, QVector<double> currentKeys);
     void                    sigAppendConsumptionData(QVector<double> consumption, QVector<double> consumptionKeys);
     void                    sigAppendEPData(QString name, int key);
+    void                    sigOpenFiles();
 
 private slots:
     void                    onThreadStart();
+    void                    onOpenFiles();
 
 public slots:
     void                    onAppendSampleData(QVector<double> voltage, QVector<double> voltageKeys, QVector<double> current, QVector<double> currentKeys);

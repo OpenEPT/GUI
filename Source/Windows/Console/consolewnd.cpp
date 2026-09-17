@@ -84,6 +84,7 @@ ConsoleWnd::ConsoleWnd(QWidget *parent) :
 
         "device wave chunk add",
         "device wave counter set",
+        "device wave seed set",
         "device wave state set",
         "device wave clear",
 

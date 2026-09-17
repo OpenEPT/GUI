@@ -66,6 +66,11 @@ QString Waveform::chunkNormalizeMarkerPos(QString pos)
 bool Waveform::chunkMarkerValid(waveform_chunk_t chunk, QString* error)
 {
     if(!chunkHasMarker(chunk)) return true;
+    if(chunk.marker.trimmed().length() > WAVEFORM_MARKER_NAME_MAX)
+    {
+        if(error != NULL) *error = "Marker \"" + chunk.marker + "\" is longer than " + QString::number(WAVEFORM_MARKER_NAME_MAX) + " characters";
+        return false;
+    }
     if(chunkNormalizeMarkerPos(chunk.markerPos) != "s,e") return true;
     QStringList parts = chunk.marker.split(',');
     if(parts.size() != 2 || parts[0].trimmed().isEmpty() || parts[1].trimmed().isEmpty())
