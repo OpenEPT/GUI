@@ -82,6 +82,11 @@ cp "${DESKTOP_FILE}" "${APPDIR}/usr/share/applications/openept.desktop"
 cp "${ICON_FILE}" "${APPDIR}/openept.png"
 ln -s usr/bin/openept "${APPDIR}/AppRun"
 
+if [[ "${LINUXDEPLOYQT_EXTRA_ARGS}" == *-unsupported-allow-new-glibc* ]] && [ -f /usr/share/doc/libc6/copyright ]; then
+    mkdir -p "${APPDIR}/usr/share/doc/libc6"
+    cp /usr/share/doc/libc6/copyright "${APPDIR}/usr/share/doc/libc6/copyright"
+fi
+
 info "Building AppImage"
 
 cd "${WORK_DIR}"
