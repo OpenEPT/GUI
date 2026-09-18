@@ -49,8 +49,9 @@ jobs:
 
       - name: Create AppImage and Debian package
         env:
-          LINUXDEPLOYQT_EXTRA_ARGS: -unsupported-allow-new-glibc
+          LINUXDEPLOYQT_EXTRA_ARGS: -unsupported-allow-new-glibc -verbose=2
         run: |
+          export QMAKE="$(qmake -query QT_INSTALL_BINS)/qmake"
           ./deploy/linux/build_linux.sh "${{ steps.version.outputs.version }}" build/OpenEPT
 
       - name: Upload artifacts
