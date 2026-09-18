@@ -103,7 +103,7 @@ FORMS += \
     Windows/WSSelection/selectworkspace.ui \
     openept.ui
 
-RC_FILE = appicon.rc
+RC_ICONS = main.ico
 
 QTPLUGIN += qjpeg
 # Default rules for deployment.
