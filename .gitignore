@@ -1,4 +1,4 @@
-build*
+build*/
 .pro*deploy/linux/output/
 deploy/linux/work/
 deploy/linux/linuxdeployqt-continuous-x86_64.AppImage
