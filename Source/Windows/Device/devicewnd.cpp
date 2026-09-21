@@ -523,6 +523,24 @@ void DeviceWnd::createPlotsArea()
 
     ui->topVerlGraphsVerl->addWidget(plotsArea);
 
+    logArea = new QMainWindow(this);
+    logArea->setWindowFlags(Qt::Widget);
+    logArea->setDockOptions(QMainWindow::AnimatedDocks);
+    logArea->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    logArea->setMinimumHeight(120);
+    logArea->setMaximumHeight(220);
+    QWidget *logCentral = new QWidget(logArea);
+    logCentral->setMaximumSize(0, 0);
+    logArea->setCentralWidget(logCentral);
+    logCentral->hide();
+    logDock = new LogDockWidget("Log", logArea);
+    logArea->addDockWidget(Qt::BottomDockWidgetArea, logDock);
+    if(ui->loggingQpte->parentWidget() != NULL && ui->loggingQpte->parentWidget()->layout() != NULL)
+    {
+        ui->loggingQpte->parentWidget()->layout()->replaceWidget(ui->loggingQpte, logArea);
+    }
+    ui->loggingQpte->hide();
+
     connect(this, SIGNAL(windowTitleChanged(QString)), this, SLOT(onWindowTitleChanged(QString)));
 
     connect(voltageChart, SIGNAL(sigXRangeChanged(QCPRange)), this, SLOT(onPlotXRangeChanged(QCPRange)));
@@ -628,7 +646,12 @@ void DeviceWnd::restorePlotsLayout()
 
 QPlainTextEdit *DeviceWnd::getLogWidget()
 {
-    return ui->loggingQpte;
+    return logDock->getTextWidget();
+}
+
+LogDockWidget *DeviceWnd::getLogDock()
+{
+    return logDock;
 }
 
 void DeviceWnd::setParameters(DeviceParameters *params)

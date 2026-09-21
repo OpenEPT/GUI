@@ -14,6 +14,8 @@ DeviceContainer::DeviceContainer(QObject *parent,
     log             = new Log();
     fileProcessing  = new FileProcessing();
     log->assignLogWidget(deviceWnd->getLogWidget());
+    connect(deviceWnd->getLogDock(), SIGNAL(sigFilterChanged(int)), log, SLOT(setFilter(int)));
+    connect(deviceWnd->getLogDock(), SIGNAL(sigClearRequested()), log, SLOT(clear()));
     m_AppParamsRef  = appParam;
     consumptionProfileName = "";
     consumptionProfileNameSet = false;
@@ -508,7 +510,14 @@ void DeviceContainer::onDeviceStatusLinkNewDeviceAdded(QString aDeviceIP)
 
 void DeviceContainer::onDeviceStatusLinkNewMessageReceived(QString aDeviceIP, QString aMessage)
 {
-    log->printLogMessage("New message received from device (IP: " + aDeviceIP + ") :\" " + aMessage + "\"", LOG_MESSAGE_TYPE_INFO, LOG_MESSAGE_DEVICE_TYPE_DEVICE);
+    if(aMessage.startsWith("dut info", Qt::CaseInsensitive))
+    {
+        log->printLogMessage(aMessage.mid(QString("dut info").length()).trimmed(), LOG_MESSAGE_TYPE_INFO, LOG_MESSAGE_DEVICE_TYPE_DEVICE, LOG_MESSAGE_CATEGORY_DUT_INFO);
+    }
+    else
+    {
+        log->printLogMessage("New message received from device (IP: " + aDeviceIP + ") :\" " + aMessage + "\"", LOG_MESSAGE_TYPE_INFO, LOG_MESSAGE_DEVICE_TYPE_DEVICE);
+    }
 }
 
 void DeviceContainer::onDeviceWndClosed()
@@ -1088,7 +1097,7 @@ void DeviceContainer::onDeviceNewEBPFull(double value, double key, QString name)
     {
         fileProcessing->appendEPQueued(name, key);
     }
-    log->printLogMessage("New Energy point received (Value: " + QString::number(value) + "; Key: " + QString::number(key) + "; Name: " + name + ")", LOG_MESSAGE_TYPE_INFO);
+    log->printLogMessage(name + " (value: " + QString::number(value) + ", key: " + QString::number(key) + ")", LOG_MESSAGE_TYPE_INFO, LOG_MESSAGE_DEVICE_TYPE_DEVICE, LOG_MESSAGE_CATEGORY_ENERGY_POINT);
 }
 
 void DeviceContainer::onDeviceMeasurementEnergyFlowStatusChanged(charginganalysis_status_t status)

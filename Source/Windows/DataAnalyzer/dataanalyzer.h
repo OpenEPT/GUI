@@ -77,7 +77,7 @@ public slots:
     void                                onDeleteConsumptionProfile();
     void                                onGenerateStatistics();
     void                                onStatisticsSegmentSelected(QString name, int startIndex, int endIndex);
-    void                                onStatisticsFinished(QVector<dataanalyzer_segment_stat_t> stats, dataanalyzer_segment_stat_t total, QStringList warnings);
+    void                                onStatisticsFinished(QVector<dataanalyzer_segment_stat_t> stats, QVector<dataanalyzer_point_marker_t> points, dataanalyzer_segment_stat_t total, QStringList warnings);
     void                                onSaveAllPlots();
     void                                onPlotXRangeChanged(QCPRange range);
     void    onRealoadConsumptionProfiles();

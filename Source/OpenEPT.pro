@@ -47,6 +47,7 @@ SOURCES += \
     Windows/Device/energycontrolwnd.cpp \
     Windows/Plot/plot.cpp \
     Windows/Plot/plotdockwidget.cpp \
+    Windows/Device/logdockwidget.cpp \
     Windows/WSSelection/selectworkspace.cpp \
     device.cpp \
     devicecontainer.cpp \
@@ -85,6 +86,7 @@ HEADERS += \
     Windows/Device/energycontrolwnd.h \
     Windows/Plot/plot.h \
     Windows/Plot/plotdockwidget.h \
+    Windows/Device/logdockwidget.h \
     Windows/WSSelection/selectworkspace.h \
     device.h \
     devicecontainer.h \

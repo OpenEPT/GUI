@@ -1896,7 +1896,12 @@ void Device::onStatusLinkNewMessageReceived(QString aDeviceIP, QString aMessage)
         }
         else
         {
-            emit sigStatusLinkNewMessageReceived(aDeviceIP, message);
+            QString content = message;
+            if(!content.isEmpty() && content[0] == QChar(0))
+            {
+                content = content.mid(1);
+            }
+            emit sigStatusLinkNewMessageReceived(aDeviceIP, content.trimmed());
         }
     }
 }

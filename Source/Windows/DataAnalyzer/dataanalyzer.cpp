@@ -1,6 +1,7 @@
 #include "dataanalyzer.h"
 #include "ui_dataanalyzer.h"
 #include <QFileDialog>
+#include <math.h>
 #include <QMessageBox>
 #include <QDateTime>
 
@@ -97,8 +98,9 @@ DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
     connect(this, SIGNAL(sigComputeStatistics(QVector<double>,QVector<double>,QVector<double>,QVector<double>,QVector<QPair<QString, int>>)),
             statisticsWorker, SLOT(onComputeStatistics(QVector<double>,QVector<double>,QVector<double>,QVector<double>,QVector<QPair<QString, int>>)), Qt::QueuedConnection);
     qRegisterMetaType<dataanalyzer_segment_stat_t>("dataanalyzer_segment_stat_t");
-    connect(statisticsWorker, SIGNAL(sigStatisticsFinished(QVector<dataanalyzer_segment_stat_t>,dataanalyzer_segment_stat_t,QStringList)),
-            this, SLOT(onStatisticsFinished(QVector<dataanalyzer_segment_stat_t>,dataanalyzer_segment_stat_t,QStringList)), Qt::QueuedConnection);
+    qRegisterMetaType<QVector<dataanalyzer_point_marker_t>>("QVector<dataanalyzer_point_marker_t>");
+    connect(statisticsWorker, SIGNAL(sigStatisticsFinished(QVector<dataanalyzer_segment_stat_t>,QVector<dataanalyzer_point_marker_t>,dataanalyzer_segment_stat_t,QStringList)),
+            this, SLOT(onStatisticsFinished(QVector<dataanalyzer_segment_stat_t>,QVector<dataanalyzer_point_marker_t>,dataanalyzer_segment_stat_t,QStringList)), Qt::QueuedConnection);
     statisticsThread->start();
     connect(statisticsWnd, SIGNAL(sigSegmentSelected(QString,int,int)), this, SLOT(onStatisticsSegmentSelected(QString,int,int)));
 
@@ -347,14 +349,14 @@ void DataAnalyzer::onGenerateStatistics()
     emit sigComputeStatistics(loadedVoltage, loadedVoltageKeys, loadedCurrent, loadedCurrentKeys, loadedMarkers);
 }
 
-void DataAnalyzer::onStatisticsFinished(QVector<dataanalyzer_segment_stat_t> stats, dataanalyzer_segment_stat_t total, QStringList warnings)
+void DataAnalyzer::onStatisticsFinished(QVector<dataanalyzer_segment_stat_t> stats, QVector<dataanalyzer_point_marker_t> points, dataanalyzer_segment_stat_t total, QStringList warnings)
 {
-    if(stats.isEmpty() && warnings.isEmpty())
+    if(stats.isEmpty() && points.isEmpty() && warnings.isEmpty())
     {
         QMessageBox::information(this, "Statistics", "No \"<name> Start\" / \"<name> Stop\" marker pairs found");
         return;
     }
-    statisticsWnd->setStatistics(selectedConsumptionProfile, stats, total, warnings);
+    statisticsWnd->setStatistics(selectedConsumptionProfile, stats, points, total, warnings);
     statisticsWnd->show();
     statisticsWnd->raise();
     statisticsWnd->activateWindow();
@@ -679,64 +681,128 @@ void DataAnalyzerWorker::processEPData(const QString &wsDirPath, const QString &
     emit processingEPFinished(epData);
 }
 
+#define DATAANALYZER_LINE_BUFFER    512
+
+static const char* prvDATAANALYZER_ParseDouble(const char* p, double* value)
+{
+    double result = 0;
+    double scale = 1;
+    int sign = 1;
+    int digits = 0;
+
+    while(*p == ' ' || *p == '\t') p++;
+    if(*p == '-') { sign = -1; p++; }
+    else if(*p == '+') p++;
+    while(*p >= '0' && *p <= '9')
+    {
+        result = result * 10.0 + (double)(*p - '0');
+        p++;
+        digits++;
+    }
+    if(*p == '.')
+    {
+        p++;
+        while(*p >= '0' && *p <= '9')
+        {
+            result = result * 10.0 + (double)(*p - '0');
+            scale *= 10.0;
+            p++;
+            digits++;
+        }
+    }
+    if(digits == 0) return NULL;
+    result = sign * result / scale;
+    if(*p == 'e' || *p == 'E')
+    {
+        int expSign = 1;
+        int exponent = 0;
+        int expDigits = 0;
+        p++;
+        if(*p == '-') { expSign = -1; p++; }
+        else if(*p == '+') p++;
+        while(*p >= '0' && *p <= '9')
+        {
+            exponent = exponent * 10 + (*p - '0');
+            p++;
+            expDigits++;
+        }
+        if(expDigits == 0) return NULL;
+        result *= pow(10.0, expSign * exponent);
+    }
+    while(*p == ' ' || *p == '\t') p++;
+    *value = result;
+    return p;
+}
+
+static bool prvDATAANALYZER_ParseLine(const char* line, int count, double* values)
+{
+    const char* p = line;
+
+    for(int i = 0; i < count; i++)
+    {
+        p = prvDATAANALYZER_ParseDouble(p, &values[i]);
+        if(p == NULL) return false;
+        if(i < count - 1)
+        {
+            if(*p != ',') return false;
+            p++;
+        }
+    }
+    return (*p == 0 || *p == '\r' || *p == '\n');
+}
+
+static bool prvDATAANALYZER_LineComplete(const char* line, qint64 length)
+{
+    return (length > 0 && line[length - 1] == '\n');
+}
+
 QVector<QVector<double> > DataAnalyzerWorker::parseVCData(const QString &filePath)
 {
-    // Create a QVector to store each column
-    QVector<QVector<double>> data(4);  // Initialize with 4 QVectors
+    QVector<QVector<double>> data(4);
+    char line[DATAANALYZER_LINE_BUFFER];
+    double values[4];
+    qint64 limit;
+    qint64 length;
+    int lastPercent = -1;
+    int skipped = 0;
 
-    // Open the CSV file
     QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    if(!file.open(QIODevice::ReadOnly))
+    {
         qWarning() << "Failed to open file:" << filePath;
         return data;
     }
 
-    QTextStream in(&file);
+    limit = file.size();
+    for(int i = 0; i < 4; i++) data[i].reserve((int)(limit / 32) + 16);
 
-    // Skip the first two lines
-    in.readLine();
-    in.readLine();
+    file.readLine(line, sizeof(line));
+    file.readLine(line, sizeof(line));
 
-    int totalLines = 0;
-    while (!in.atEnd()) {
-        in.readLine();
-        totalLines++;
-    }
-
-    file.seek(0);  // Reset file pointer
-    in.readLine();  // Skip header
-    in.readLine();
-
-
-    int processedLines = 0;
-    // Read each line and parse the data
-    while (!in.atEnd()) {
-        QString line = in.readLine();
-        QStringList values = line.split(',');
-
-        // Ensure we have exactly 4 columns in the line
-        if (values.size() == 4) {
-            bool ok;
-
-            // Parse and add each column to the corresponding QVector
-            double voltage = values[0].toDouble(&ok);
-            if (ok) data[0].append(voltage);
-
-            double time1 = values[1].toDouble(&ok);
-            if (ok) data[1].append(time1);
-
-            double current = values[2].toDouble(&ok);
-            if (ok) data[2].append(current);
-
-            double time2 = values[3].toDouble(&ok);
-            if (ok) data[3].append(time2);
-        } else {
-            qWarning() << "Unexpected number of columns in line:" << line;
+    while(file.pos() < limit)
+    {
+        length = file.readLine(line, sizeof(line));
+        if(length <= 0) break;
+        if(!prvDATAANALYZER_LineComplete(line, length)) break;
+        if(prvDATAANALYZER_ParseLine(line, 4, values))
+        {
+            data[0].append(values[0]);
+            data[1].append(values[1]);
+            data[2].append(values[2]);
+            data[3].append(values[3]);
         }
-        processedLines++;
-        int percentage = (processedLines * range) / totalLines;  // Map to 0-40% range
-        emit progressUpdated(vcDataProcessingStartPercentage + percentage);  // Start from 10%
+        else
+        {
+            skipped++;
+        }
+        int percent = (int)((file.pos() * (qint64)range) / limit);
+        if(percent != lastPercent)
+        {
+            lastPercent = percent;
+            emit progressUpdated(vcDataProcessingStartPercentage + percent);
+        }
     }
+    if(skipped > 0) qWarning() << "vc.csv: skipped" << skipped << "malformed lines";
 
     file.close();
     return data;
@@ -744,116 +810,103 @@ QVector<QVector<double> > DataAnalyzerWorker::parseVCData(const QString &filePat
 
  QVector<QVector<double>> DataAnalyzerWorker::parseConsumptionData(const QString &filePath)
 {
-    // Create a QVector to store each column
-    QVector<QVector<double>> data(2);  // Initialize with 4 QVectors
+    QVector<QVector<double>> data(2);
+    char line[DATAANALYZER_LINE_BUFFER];
+    double values[2];
+    qint64 limit;
+    qint64 length;
+    int lastPercent = -1;
+    int skipped = 0;
 
-    // Open the CSV file
     QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    if(!file.open(QIODevice::ReadOnly))
+    {
         qWarning() << "Failed to open file:" << filePath;
         return data;
     }
 
-    QTextStream in(&file);
+    limit = file.size();
+    for(int i = 0; i < 2; i++) data[i].reserve((int)(limit / 16) + 16);
 
-    // Skip the first two lines
-    in.readLine();
-    in.readLine();
+    file.readLine(line, sizeof(line));
+    file.readLine(line, sizeof(line));
 
-    int totalLines = 0;
-    while (!in.atEnd()) {
-        in.readLine();
-        totalLines++;
-    }
-
-    file.seek(0);  // Reset file pointer
-    in.readLine();  // Skip header
-    in.readLine();
-
-
-    int processedLines = 0;
-
-    // Read each line and parse the data
-    while (!in.atEnd()) {
-        QString line = in.readLine();
-        QStringList values = line.split(',');
-
-        // Ensure we have exactly 4 columns in the line
-        if (values.size() == 2) {
-            bool ok;
-
-            // Parse and add each column to the corresponding QVector
-            double voltage = values[0].toDouble(&ok);
-            if (ok) data[0].append(voltage);
-
-            double time1 = values[1].toDouble(&ok);
-            if (ok) data[1].append(time1);
-
-        } else {
-            qWarning() << "Unexpected number of columns in line:" << line;
+    while(file.pos() < limit)
+    {
+        length = file.readLine(line, sizeof(line));
+        if(length <= 0) break;
+        if(!prvDATAANALYZER_LineComplete(line, length)) break;
+        if(prvDATAANALYZER_ParseLine(line, 2, values))
+        {
+            data[0].append(values[0]);
+            data[1].append(values[1]);
         }
-        processedLines++;
-        int percentage = (processedLines * range) / totalLines;  // Map to 0-40% range
-        emit progressUpdated(consumptionDataProcessingStartPercentage + percentage);  // Start from 10%    }
+        else
+        {
+            skipped++;
+        }
+        int percent = (int)((file.pos() * (qint64)range) / limit);
+        if(percent != lastPercent)
+        {
+            lastPercent = percent;
+            emit progressUpdated(consumptionDataProcessingStartPercentage + percent);
+        }
     }
+    if(skipped > 0) qWarning() << "cons.csv: skipped" << skipped << "malformed lines";
+
     file.close();
     return data;
 }
 
 QVector<QPair<QString, int> > DataAnalyzerWorker::parseEPFile(const QString &filePath)
 {
-    // QVector to store name (QString) and key (int)
     QVector<QPair<QString, int>> data;
+    qint64 limit;
+    int lastPercent = -1;
+    int skipped = 0;
 
-    // Open the CSV file
     QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    if(!file.open(QIODevice::ReadOnly))
+    {
         qWarning() << "Failed to open file:" << filePath;
         return data;
     }
 
-    QTextStream in(&file);
+    limit = file.size();
+    file.readLine();
+    file.readLine();
 
-    // Skip the first two lines
-    in.readLine();
-    in.readLine();
-
-    int totalLines = 0;
-    while (!in.atEnd()) {
-        in.readLine();
-        totalLines++;
-    }
-
-    file.seek(0);  // Reset file pointer
-    in.readLine();  // Skip header
-    in.readLine();
-
-
-    int processedLines = 0;
-
-    // Read and parse the data line by line
-    while (!in.atEnd()) {
-        QString line = in.readLine();
-        QStringList values = line.split(',');
-
-        // Ensure there are exactly two columns
-        if (values.size() == 2) {
-            QString name = values[0].trimmed(); // Trim any whitespace
+    while(file.pos() < limit)
+    {
+        QByteArray line = file.readLine();
+        if(line.isEmpty()) break;
+        if(!line.endsWith('\n')) break;
+        int comma = line.lastIndexOf(',');
+        if(comma > 0)
+        {
             bool ok;
-            int key = values[1].toInt(&ok);
-
-            if (ok) {
-                data.append(qMakePair(name, key));
-            } else {
-                qWarning() << "Invalid key value in line:" << line;
+            int key = line.mid(comma + 1).trimmed().toInt(&ok);
+            if(ok)
+            {
+                data.append(qMakePair(QString::fromUtf8(line.left(comma)).trimmed(), key));
             }
-        } else {
-            qWarning() << "Unexpected number of columns in line:" << line;
+            else
+            {
+                skipped++;
+            }
         }
-        processedLines++;
-        int percentage = (processedLines * range) / totalLines;  // Map to 0-40% range
-        emit progressUpdated(epDataProcessingStartPercentage + percentage);  // Start from 10%    }
+        else
+        {
+            skipped++;
+        }
+        int percent = (int)((file.pos() * (qint64)range) / limit);
+        if(percent != lastPercent)
+        {
+            lastPercent = percent;
+            emit progressUpdated(epDataProcessingStartPercentage + percent);
+        }
     }
+    if(skipped > 0) qWarning() << "ep.csv: skipped" << skipped << "malformed lines";
 
     file.close();
     return data;

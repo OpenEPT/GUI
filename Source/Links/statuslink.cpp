@@ -62,8 +62,9 @@ void StatusLink::onReadPendingData()
     QString clientIp;
     QTcpSocket *clientSocket = qobject_cast<QTcpSocket*>(sender());
     clientIp = QHostAddress(clientSocket->peerAddress().toIPv4Address()).toString();
-    while(clientSocket->read(message, STATUS_LINK_BUFFER_SIZE) != 0)
+    qint64 length;
+    while((length = clientSocket->read(message, STATUS_LINK_BUFFER_SIZE)) > 0)
     {
-        emit sigNewStatusMessageReceived(clientIp, QString(message));
+        emit sigNewStatusMessageReceived(clientIp, QString::fromUtf8(message, (int)length));
     }
 }

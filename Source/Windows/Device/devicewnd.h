@@ -7,6 +7,7 @@
 #include "Windows/Plot/plot.h"
 #include "Windows/Plot/plotdockwidget.h"
 #include <QMainWindow>
+#include "Windows/Device/logdockwidget.h"
 #include <QMenu>
 #include "Windows/Console/consolewnd.h"
 #include "Windows/Device/advcofigurationdata.h"
@@ -87,6 +88,7 @@ public:
     ~DeviceWnd();
 
     QPlainTextEdit* getLogWidget();
+    LogDockWidget*  getLogDock();
     void            setParameters(DeviceParameters* params);
     void            setDeviceNetworkState(device_state_t aDeviceState);
     void            setDeviceAcqState(device_acq_mode_t aAcqState);
@@ -307,6 +309,10 @@ private:
     Plot                        *consumptionChart;
 
     QMainWindow                 *plotsArea;
+
+    QMainWindow     *logArea;
+
+    LogDockWidget   *logDock;
     PlotDockWidget              *voltageDock;
     PlotDockWidget              *currentDock;
     PlotDockWidget              *consumptionDock;
