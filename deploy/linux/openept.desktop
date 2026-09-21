@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=OpenEPT
+Comment=OpenEPT Energy Profiling Tool
+Exec=openept
+Icon=openept
+StartupWMClass=OpenEPT
+Categories=Development;Utility;
+Terminal=false

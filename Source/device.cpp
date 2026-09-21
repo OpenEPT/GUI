@@ -336,6 +336,7 @@ bool Device::setSamplesNo(unsigned int aSamplesNo)
     samplesNo = aSamplesNo;
     streamLink->setPacketSize(aSamplesNo*2);
     dataProcessing->setSamplesNo(aSamplesNo);
+    energyPointProcessing->setSamplesNo(aSamplesNo);
     m_params->setParamValue("streamPacketSize", QString::number(aSamplesNo));
     return true;
 }
@@ -1569,10 +1570,8 @@ double  Device::computeFittedValueInverse(double current)
 bool Device::setLoadCurrent(int current)
 {
     QString response;
-    //int adcValue = (int)((((float)current))/1.060445387);
-    //int adcValue = computeFittedValue(current);
-    int adcValue = current;
-    QString command = "device dac value set -value=" + QString::number(adcValue);
+    /*Current in mA. Firmware converts it to DAC value and applies it when DAC is enabled (Start)*/
+    QString command = "device load current set -value=" + QString::number(current);
     if(controlLink == NULL) return false;
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     if(response != "OK"){
@@ -1584,12 +1583,48 @@ bool Device::setLoadCurrent(int current)
 bool Device::getLoadCurrent(int *current)
 {
     QString response;
-    QString command = "device dac value get";
+    QString command = "device load current get";
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     //Parse response
-    loadValue = computeFittedValueInverse(response.toInt());
+    loadValue = response.toInt();
     if(current != NULL) *current = loadValue;
     emit sigLoadCurrentObtained(loadValue);
+    return true;
+}
+
+bool Device::setLoadWave(Waveform wave)
+{
+    QString response;
+    QStringList commands = wave.getCommands();
+    if(controlLink == NULL) return false;
+    /*Wave commands are sent one by one: clear, chunks, counter*/
+    for(int i = 0; i < commands.size(); i++)
+    {
+        response.clear();
+        if(!controlLink->executeCommand(commands[i], &response, 1000)) return false;
+        if(response != "OK") return false;
+    }
+    return true;
+}
+
+bool Device::setLoadWaveState(bool active)
+{
+    QString response;
+    /*Firmware: 1 = LOAD_WAVE_STATE_ACTIVE, 2 = LOAD_WAVE_STATE_INACTIVE*/
+    QString command = "device wave state set -value=" + QString::number(active ? 1 : 2);
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 3000)) return false;
+    if(response != "OK") return false;
+    return true;
+}
+
+bool Device::clearLoadWave()
+{
+    QString response;
+    QString command = "device wave clear";
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK") return false;
     return true;
 }
 
@@ -1846,6 +1881,10 @@ void Device::onStatusLinkNewMessageReceived(QString aDeviceIP, QString aMessage)
             {
                 emit sigChargingDone();
             }
+            else if (content.compare("load wave stopped", Qt::CaseInsensitive) == 0)
+            {
+                emit sigLoadWaveStopped();
+            }
             else if(content.compare("charger connection connected", Qt::CaseInsensitive) == 0)
             {
                 emit sigChargerConnectionStatusObtained(true);
@@ -1857,7 +1896,12 @@ void Device::onStatusLinkNewMessageReceived(QString aDeviceIP, QString aMessage)
         }
         else
         {
-            emit sigStatusLinkNewMessageReceived(aDeviceIP, message);
+            QString content = message;
+            if(!content.isEmpty() && content[0] == QChar(0))
+            {
+                content = content.mid(1);
+            }
+            emit sigStatusLinkNewMessageReceived(aDeviceIP, content.trimmed());
         }
     }
 }

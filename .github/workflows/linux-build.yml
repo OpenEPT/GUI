@@ -1,0 +1,72 @@
+name: Linux build
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            qtbase5-dev \
+            qtbase5-dev-tools \
+            qt5-qmake \
+            libqt5svg5-dev \
+            libqt5opengl5-dev \
+            libgl1-mesa-dev \
+            libfuse2 \
+            dpkg-dev \
+            file \
+            curl
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0+git.$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build OpenEPT
+        run: |
+          mkdir -p build
+          cd build
+          qmake ../Source/OpenEPT.pro CONFIG+=release
+          make -j"$(nproc)"
+
+      - name: Create AppImage and Debian package
+        env:
+          LINUXDEPLOYQT_EXTRA_ARGS: -unsupported-allow-new-glibc -verbose=2
+        run: |
+          export QMAKE="$(qmake -query QT_INSTALL_BINS)/qmake"
+          ./deploy/linux/build_linux.sh "${{ steps.version.outputs.version }}" build/OpenEPT
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenEPT-linux-${{ steps.version.outputs.version }}
+          path: |
+            deploy/linux/output/*.AppImage
+            deploy/linux/output/*.deb
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            deploy/linux/output/*.AppImage
+            deploy/linux/output/*.deb

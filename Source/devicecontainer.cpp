@@ -14,6 +14,8 @@ DeviceContainer::DeviceContainer(QObject *parent,
     log             = new Log();
     fileProcessing  = new FileProcessing();
     log->assignLogWidget(deviceWnd->getLogWidget());
+    connect(deviceWnd->getLogDock(), SIGNAL(sigFilterChanged(int)), log, SLOT(setFilter(int)));
+    connect(deviceWnd->getLogDock(), SIGNAL(sigClearRequested()), log, SLOT(clear()));
     m_AppParamsRef  = appParam;
     consumptionProfileName = "";
     consumptionProfileNameSet = false;
@@ -53,6 +55,9 @@ DeviceContainer::DeviceContainer(QObject *parent,
     connect(deviceWnd,  SIGNAL(sigResetProtection()),                               this, SLOT(onDeviceWndResetProtection()));
     connect(deviceWnd,  SIGNAL(sigLoadCurrentStatusChanged(bool)),                  this, SLOT(onDeviceWndLoadCurrentSetStatus(bool)));
     connect(deviceWnd,  SIGNAL(sigLoadCurrentChanged(unsigned int)),                this, SLOT(onDeviceWndLoadCurrentSetValue(unsigned int)));
+    connect(deviceWnd,  &DeviceWnd::sigLoadWaveChanged,                              this, &DeviceContainer::onDeviceWndLoadWaveSet);
+    connect(deviceWnd,  &DeviceWnd::sigLoadWaveStatusChanged,                        this, &DeviceContainer::onDeviceWndLoadWaveSetStatus);
+    connect(deviceWnd,  &DeviceWnd::sigLoadWaveClear,                                this, &DeviceContainer::onDeviceWndLoadWaveClear);
     connect(deviceWnd,  SIGNAL(sigChargingCurrentStatusChanged(bool)),              this, SLOT(onDeviceWndChargingCurrentSetStatus(bool)));
     connect(deviceWnd,  SIGNAL(sigChargingCurrentChanged(unsigned int)),            this, SLOT(onDeviceWndChargingCurrentSetValue(unsigned int)));
     connect(deviceWnd,  SIGNAL(sigChargingTermCurrentChanged(unsigned int)),        this, SLOT(onDeviceWndChargingTermCurrentSetValue(unsigned int)));
@@ -85,6 +90,7 @@ DeviceContainer::DeviceContainer(QObject *parent,
     connect(device,     SIGNAL(sigChargerTermVoltageObtained(float )),              this,  SLOT(onDeviceChargerTermVoltageObtained(float)));
     connect(device,     SIGNAL(sigChargerMaxChargingCurrentObtained(int )),         this,  SLOT(onDeviceChargerMaxCurrentObtained(int)));
     connect(device,     SIGNAL(sigChargingDone()),                                  this,  SLOT(onDeviceChargingDone()));
+    connect(device,     &Device::sigLoadWaveStopped,                                this,  &DeviceContainer::onDeviceLoadWaveStopped);
 
 
     connect(device,     SIGNAL(sigChargerHWSerialObtained(QString)),                this,  SLOT(onDeviceChargerHWSerialObtained(QString)));
@@ -504,7 +510,14 @@ void DeviceContainer::onDeviceStatusLinkNewDeviceAdded(QString aDeviceIP)
 
 void DeviceContainer::onDeviceStatusLinkNewMessageReceived(QString aDeviceIP, QString aMessage)
 {
-    log->printLogMessage("New message received from device (IP: " + aDeviceIP + ") :\" " + aMessage + "\"", LOG_MESSAGE_TYPE_INFO, LOG_MESSAGE_DEVICE_TYPE_DEVICE);
+    if(aMessage.startsWith("dut info", Qt::CaseInsensitive))
+    {
+        log->printLogMessage(aMessage.mid(QString("dut info").length()).trimmed(), LOG_MESSAGE_TYPE_INFO, LOG_MESSAGE_DEVICE_TYPE_DEVICE, LOG_MESSAGE_CATEGORY_DUT_INFO);
+    }
+    else
+    {
+        log->printLogMessage("New message received from device (IP: " + aDeviceIP + ") :\" " + aMessage + "\"", LOG_MESSAGE_TYPE_INFO, LOG_MESSAGE_DEVICE_TYPE_DEVICE);
+    }
 }
 
 void DeviceContainer::onDeviceWndClosed()
@@ -1084,7 +1097,7 @@ void DeviceContainer::onDeviceNewEBPFull(double value, double key, QString name)
     {
         fileProcessing->appendEPQueued(name, key);
     }
-    log->printLogMessage("New Energy point received (Value: " + QString::number(value) + "; Key: " + QString::number(key) + "; Name: " + name + ")", LOG_MESSAGE_TYPE_INFO);
+    log->printLogMessage(name + " (value: " + QString::number(value) + ", key: " + QString::number(key) + ")", LOG_MESSAGE_TYPE_INFO, LOG_MESSAGE_DEVICE_TYPE_DEVICE, LOG_MESSAGE_CATEGORY_ENERGY_POINT);
 }
 
 void DeviceContainer::onDeviceMeasurementEnergyFlowStatusChanged(charginganalysis_status_t status)
@@ -1328,6 +1341,47 @@ void DeviceContainer::onDeviceChargerFWVersionObtained(QString serial)
     logResult(ok,
               "Charger fw version successfully obtained and presented",
               "Unable to obtain charger fw version");
+}
+
+void DeviceContainer::onDeviceWndLoadWaveSet(Waveform wave)
+{
+    bool ok = device->setLoadWave(wave);
+
+    logResult(ok,
+              "Load wave \"" + wave.name + "\" successfully set (" + QString::number(wave.chunks.size()) + " chunks)",
+              "Unable to set load wave \"" + wave.name + "\"");
+}
+
+void DeviceContainer::onDeviceWndLoadWaveSetStatus(bool status)
+{
+    QString statusStr = status ? "Started" : "Stopped";
+
+    bool ok = device->setLoadWaveState(status);
+
+    if(ok)
+        deviceWnd->setLoadCurrentStatus(status);
+
+    logResult(ok,
+              "Load wave " + statusStr,
+              "Unable to " + QString(status ? "start" : "stop") + " load wave");
+}
+
+void DeviceContainer::onDeviceLoadWaveStopped()
+{
+    bool ok = deviceWnd->loadWaveStopped();
+
+    logResult(ok,
+              "Load wave completed",
+              "Unable to process load wave stopped event");
+}
+
+void DeviceContainer::onDeviceWndLoadWaveClear()
+{
+    bool ok = device->clearLoadWave();
+
+    logResult(ok,
+              "Load wave cleared",
+              "Unable to clear load wave");
 }
 
 void DeviceContainer::onDeviceWndLoadCurrentSetValue(unsigned int current)

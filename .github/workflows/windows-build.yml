@@ -1,0 +1,72 @@
+name: Windows build
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-git.$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 5.15.2
+          arch: win64_msvc2019_64
+          cache: true
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build OpenEPT
+        shell: cmd
+        run: |
+          mkdir build
+          cd build
+          qmake ..\Source\OpenEPT.pro CONFIG+=release
+          nmake
+
+      - name: Deploy Qt runtime
+        shell: cmd
+        run: |
+          mkdir deploy\windows\GUI_Deploy
+          copy build\release\OpenEPT.exe deploy\windows\GUI_Deploy\
+          copy libs\win\libfftw3-3.dll deploy\windows\GUI_Deploy\
+          windeployqt --release --no-translations --no-opengl-sw deploy\windows\GUI_Deploy\OpenEPT.exe
+
+      - name: Create installer
+        shell: cmd
+        run: |
+          iscc /DMyAppVersion=${{ steps.version.outputs.version }} /DMyAppSourceDir=GUI_Deploy deploy\windows\OpenEPT.iss
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenEPT-windows-${{ steps.version.outputs.version }}
+          path: deploy/windows/Output/*.exe
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: deploy/windows/Output/*.exe

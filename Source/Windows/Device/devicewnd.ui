@@ -37,20 +37,6 @@
            <property name="sizeConstraint">
             <enum>QLayout::SetDefaultConstraint</enum>
            </property>
-           <item>
-            <layout class="QHBoxLayout" name="GraphicsTopHorl">
-             <property name="sizeConstraint">
-              <enum>QLayout::SetMinimumSize</enum>
-             </property>
-            </layout>
-           </item>
-           <item>
-            <layout class="QVBoxLayout" name="GraphicsBottomVerl">
-             <property name="sizeConstraint">
-              <enum>QLayout::SetMinimumSize</enum>
-             </property>
-            </layout>
-           </item>
           </layout>
          </item>
          <item>

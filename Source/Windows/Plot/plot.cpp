@@ -1,7 +1,14 @@
 #include <QtOpenGL>
 #include "plot.h"
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QSvgGenerator>
+#include <QDateTime>
 
-#define BUTTONS_SIZE 30
+#define IMAGE_PNG_SCALE     4.0
+#define IMAGE_PNG_DPI       300
+
+#define BUTTONS_SIZE 24
 
 Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     : QWidget{parent}
@@ -28,12 +35,14 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     zoomExpand  = new QPushButton();
     zoomArea    = new QPushButton();
     moveGraph   = new QPushButton();
+    lockAxis    = new QPushButton();
+    saveImage   = new QPushButton();
     trackGraph  = new QPushButton();
 
     QPixmap zoomInPng(":/images/NewSet/zoom_in.png");
     QIcon zoomInIcon(zoomInPng);
     zoomIn->setIcon(zoomInIcon);
-    zoomIn->setIconSize(QSize(15,15));
+    zoomIn->setIconSize(QSize(14,14));
     zoomIn->setToolTip("Zoom in");
     zoomIn->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
@@ -41,35 +50,50 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     QPixmap zoomOutPng(":/images/NewSet/zoom_out.png");
     QIcon zoomOutIcon(zoomOutPng);
     zoomOut->setIcon(zoomOutIcon);
-    zoomOut->setIconSize(QSize(15,15));
+    zoomOut->setIconSize(QSize(14,14));
     zoomOut->setToolTip("Zoom out");
     zoomOut->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
     QPixmap zoomExpandPng(":/images/NewSet/expand.png");
     QIcon zoomExpandIcon(zoomExpandPng);
     zoomExpand->setIcon(zoomExpandIcon);
-    zoomExpand->setIconSize(QSize(15,15));
+    zoomExpand->setIconSize(QSize(14,14));
     zoomExpand->setToolTip("Fit to full data");
     zoomExpand->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
     QPixmap zoomAreaPng(":/images/NewSet/zoom_area.png");
     QIcon zoomAreaIcon(zoomAreaPng);
     zoomArea->setIcon(zoomAreaIcon);
-    zoomArea->setIconSize(QSize(15,15));
+    zoomArea->setIconSize(QSize(14,14));
     zoomArea->setToolTip("Zoom area");
     zoomArea->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
     QPixmap moveGraphPng(":/images/NewSet/moveGraph.png");
     QIcon moveGraphIcon(moveGraphPng);
     moveGraph->setIcon(moveGraphIcon);
-    moveGraph->setIconSize(QSize(15,15));
+    moveGraph->setIconSize(QSize(14,14));
     moveGraph->setToolTip("Move graph");
     moveGraph->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
+
+    QPixmap lockAxisPng(":/images/NewSet/lock.png");
+    QIcon lockAxisIcon(lockAxisPng);
+    lockAxis->setIcon(lockAxisIcon);
+    lockAxis->setIconSize(QSize(14,14));
+    lockAxis->setToolTip("Lock X axis with other locked plots");
+    lockAxis->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
+    lockAxis->setCheckable(true);
+
+    QPixmap saveImagePng(":/images/NewSet/save.png");
+    QIcon saveImageIcon(saveImagePng);
+    saveImage->setIcon(saveImageIcon);
+    saveImage->setIconSize(QSize(14,14));
+    saveImage->setToolTip("Save image (PNG / SVG)");
+    saveImage->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
     QPixmap trackGraphPng(":/images/NewSet/tracking_graph.png");
     QIcon trackGraphIcon(trackGraphPng);
     trackGraph->setIcon(trackGraphIcon);
-    trackGraph->setIconSize(QSize(15,15));
+    trackGraph->setIconSize(QSize(14,14));
     trackGraph->setToolTip("Enable graph tracking");
     trackGraph->setFixedSize(BUTTONS_SIZE, BUTTONS_SIZE);
 
@@ -80,8 +104,12 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     buttonsLayout->addWidget(zoomExpand);
     buttonsLayout->addWidget(zoomArea);
     buttonsLayout->addWidget(moveGraph);
+    buttonsLayout->addWidget(lockAxis);
+    buttonsLayout->addWidget(saveImage);
     buttonsLayout->addWidget(trackGraph);
     buttonsLayout->setAlignment(Qt::AlignCenter);
+    buttonsLayout->setSpacing(2);
+    buttonsLayout->setContentsMargins(0, 0, 0, 0);
 
 
     QHBoxLayout *plotLayout = new QHBoxLayout(this);
@@ -97,6 +125,8 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     enableTracking      = aEnableTracking;
     replotActive        = true;
     scatterGraphAdded   = false;
+    axisLocked          = false;
+    xRangeSyncInProgress = false;
 
     scatterFont = new QFont("Times", 14);
     scatterFont->setBold(true);
@@ -106,6 +136,9 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     connect(zoomExpand, SIGNAL(pressed()), this, SLOT(onZoomExpand()));
     connect(zoomArea, SIGNAL(pressed()), this, SLOT(onZoomArea()));
     connect(moveGraph, SIGNAL(pressed()), this, SLOT(onMoveGraph()));
+    connect(lockAxis, SIGNAL(clicked()), this, SLOT(onLockAxis()));
+    connect(saveImage, SIGNAL(clicked()), this, SLOT(onSaveImage()));
+    connect(plot->xAxis, SIGNAL(rangeChanged(QCPRange)), this, SLOT(onXRangeChanged(QCPRange)));
     connect(trackGraph, SIGNAL(pressed()), this, SLOT(onTrackGraph()));
     setButtonStyle();
 }
@@ -162,15 +195,64 @@ void Plot::scatterAddAllDataWithName(QVector<QPair<QString, int>> data)
         textLabel->setColor(Qt::black);  // Set text color
 
 
+        textLabel->setClipToAxisRect(false);
         textData.push_back(textLabel);
     }
 
     plot->replot();
 }
 
+QCPItemText* Plot::createMarkerLabel(double x, double y, QString name)
+{
+    QCPItemText *textLabel = new QCPItemText(plot);
+    textLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
+    textLabel->position->setType(QCPItemPosition::ptPlotCoords);
+    textLabel->position->setCoords(x, y);
+    textLabel->setText(name);
+    textLabel->setFont(*scatterFont);
+    textLabel->setColor(Qt::red);
+    textLabel->setClipToAxisRect(false);
+    textData.push_back(textLabel);
+    return textLabel;
+}
+
+void Plot::rescaleYWithMarkers()
+{
+    QCPRange range;
+    double padding;
+
+    plot->yAxis->rescale(true);
+    if(textData.isEmpty()) return;
+    range = plot->yAxis->range();
+    padding = range.size() * 0.15;
+    if(padding <= 0) padding = 1.0;
+    plot->yAxis->setRange(range.lower, range.upper + padding);
+}
+
+void Plot::trimMarkers(double minKey)
+{
+    if(!scatterGraphAdded) return;
+    plot->graph(1)->data()->removeBefore(minKey);
+    for(int i = 0; i < textData.size(); i++)
+    {
+        textData[i]->setVisible(textData[i]->position->key() >= minKey);
+    }
+}
+
+void Plot::showAllMarkers()
+{
+    if(!scatterGraphAdded) return;
+    plot->graph(1)->data()->clear();
+    for(int i = 0; i < textData.size(); i++)
+    {
+        textData[i]->setVisible(true);
+        plot->graph(1)->addData(textData[i]->position->key(), textData[i]->position->value());
+    }
+}
+
 void Plot::scatterAddDataWithName(double value, double keys, QString name)
 {
-    if(keys >= xData.size() || keys >= yData.size())
+    if(keys < 0 || keys >= xData.size() || keys >= yData.size())
     {
         qDebug() << "Corresponding data not arrived";
         epDataKey.append(keys);
@@ -178,21 +260,9 @@ void Plot::scatterAddDataWithName(double value, double keys, QString name)
         return;
     }
     plot->graph(1)->addData(xData[keys], yData[keys]);
-    QCPItemText *textLabel = new QCPItemText(plot);
+    createMarkerLabel(xData[keys], yData[keys], name);
 
-    // Set text label position above each point
-    textLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
-    textLabel->position->setType(QCPItemPosition::ptPlotCoords);  // Position in plot coordinates
-    textLabel->position->setCoords(xData[keys], yData[keys]);  // Set position slightly above the point
-
-    // Set text style and content
-    textLabel->setText(name);  // Set the text (label)
-    textLabel->setFont(QFont("Times", 14));  // Set font and size
-    textLabel->setColor(Qt::red);  // Set text color
-
-    textData.push_back(textLabel);
-
-    plot->yAxis->rescale(true);
+    rescaleYWithMarkers();
     plot->replot();
 }
 
@@ -200,27 +270,20 @@ void Plot::scatterReplotDataWithName()
 {
     int key;
     double value;
-    for(int i = 0; i < epDataKey.size(); i++)
+    int i = 0;
+    while(i < epDataKey.size())
     {
-        if(epDataKey[i] > xData.size() || epDataKey[i] > yData.size()) break;
+        if(epDataKey[i] < 0 || epDataKey[i] >= xData.size() || epDataKey[i] >= yData.size())
+        {
+            i++;
+            continue;
+        }
         key = epDataKey[i];
         value = yData[key];
         plot->graph(1)->addData(xData[key], yData[key]);
-        QCPItemText *textLabel = new QCPItemText(plot);
+        createMarkerLabel(xData[key], value, epDataName[i]);
 
-        // Set text label position above each point
-        textLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
-        textLabel->position->setType(QCPItemPosition::ptPlotCoords);  // Position in plot coordinates
-        textLabel->position->setCoords(xData[key], value);  // Set position slightly above the point
-
-        // Set text style and content
-        textLabel->setText(epDataName[i]);  // Set the text (label)
-        textLabel->setFont(*scatterFont);  // Set font and size
-        textLabel->setColor(Qt::red);  // Set text color
-
-        textData.push_back(textLabel);
-
-        plot->yAxis->rescale(true);
+        rescaleYWithMarkers();
         plot->replot();
         epDataKey.removeAt(i);
         epDataName.removeAt(i);
@@ -239,25 +302,28 @@ void        Plot::setData(QVector<double> data, QVector<double> keys)
 }
 void        Plot::appendData(QVector<double> data, QVector<double> keys)
 {
-    //plot->graph(0)->addData(keys, data);
+    if(keys.isEmpty() || keys.size() != data.size()) return;
     xData.append(keys);
     yData.append(data);
     plotXData.append(keys);
     plotYData.append(data);
-    if(plotXData.at(plotXData.size()-1) > 10000)
+    if((plotXData.last() > 10000) && (plotXData.size() > data.size()))
     {
         plotXData.remove(0,data.size());
         plotYData.remove(0,data.size());
+        if(replotActive)
+        {
+            trimMarkers(plotXData.first());
+        }
     }
     if(replotActive)
     {
-//        double minxValue = keys.at(keys.size()-1) - 10000;
-//        if(minxValue < 0) minxValue = 0;
-//        double maxxValue = keys.at(keys.size()-1);
         plot->graph(0)->setData(plotXData, plotYData, true);
-        //plot->xAxis->setRange(minxValue, maxxValue);
-        plot->yAxis->rescale(true);
-        plot->xAxis->rescale(true);
+        if(plotXData.first() < plotXData.last())
+        {
+            plot->xAxis->setRange(plotXData.first(), plotXData.last());
+        }
+        rescaleYWithMarkers();
         plot->replot();
         scatterReplotDataWithName();
     }
@@ -298,6 +364,7 @@ void        Plot::clear()
         {
             plot->removeItem(textData[i]);
         }
+        textData.clear();
     }
     xData.clear();
     yData.clear();
@@ -331,9 +398,11 @@ void        Plot::onZoomOut()
 void        Plot::onZoomExpand()
 {
     plot->graph(0)->setData(xData, yData, true);
+    showAllMarkers();
     plot->setInteraction(QCP::iRangeDrag, false);
     plot->setInteraction(QCP::iRangeZoom, false);
     plot->rescaleAxes(true);
+    rescaleYWithMarkers();
     plot->setSelectionRectMode(QCP::srmZoom);
     plot->replot();
     setButtonStyle();
@@ -361,6 +430,11 @@ void       Plot::onTrackGraph()
 {
     enableTracking = enableTracking == false? true : false;
     replotActive = enableTracking;
+    if(!enableTracking)
+    {
+        showAllMarkers();
+        plot->replot();
+    }
     setButtonStyle();
 }
 
@@ -374,6 +448,8 @@ void Plot::setButtonStyle()
         moveGraph->setEnabled(false);
         zoomExpand->setEnabled(false);
         zoomArea->setEnabled(false);
+        saveImage->setEnabled(false);
+        lockAxis->setEnabled(false);
     }
     else
     {
@@ -383,5 +459,147 @@ void Plot::setButtonStyle()
         moveGraph->setEnabled(true);
         zoomExpand->setEnabled(true);
         zoomArea->setEnabled(true);
+        saveImage->setEnabled(true);
+        lockAxis->setEnabled(true);
     }
+}
+
+void Plot::onLockAxis()
+{
+    axisLocked = lockAxis->isChecked();
+    if(axisLocked)
+    {
+        lockAxis->setStyleSheet("background-color:  rgb(255,197,172);");
+        emit sigXRangeChanged(plot->xAxis->range());
+    }
+    else
+    {
+        lockAxis->setStyleSheet("background-color:  rgb(255,255,255);");
+    }
+    emit sigAxisLockChanged(axisLocked);
+}
+
+bool Plot::isAxisLocked()
+{
+    return axisLocked;
+}
+
+void Plot::onXRangeChanged(const QCPRange &range)
+{
+    if(!axisLocked) return;
+    if(xRangeSyncInProgress) return;
+    emit sigXRangeChanged(range);
+}
+
+void Plot::zoomToKeyRange(double min, double max)
+{
+    double margin = (max - min) * 0.05;
+
+    if(max <= min) return;
+    if(enableTracking) return;
+
+    plot->graph(0)->setData(xData, yData, true);
+    if(scatterGraphAdded) showAllMarkers();
+    xRangeSyncInProgress = true;
+    plot->xAxis->setRange(min - margin, max + margin);
+    xRangeSyncInProgress = false;
+    plot->graph(0)->rescaleValueAxis(false, true);
+    rescaleYWithMarkers();
+    if(!textData.isEmpty())
+    {
+        plot->graph(0)->rescaleValueAxis(false, true);
+        QCPRange range = plot->yAxis->range();
+        plot->yAxis->setRange(range.lower, range.upper + range.size() * 0.15);
+    }
+    plot->replot();
+    if(axisLocked)
+    {
+        emit sigXRangeChanged(plot->xAxis->range());
+    }
+}
+
+void Plot::setXRangeSynced(QCPRange range)
+{
+    if(!axisLocked) return;
+    if(plot->xAxis->range() == range) return;
+    xRangeSyncInProgress = true;
+    plot->xAxis->setRange(range);
+    plot->replot();
+    xRangeSyncInProgress = false;
+}
+
+void Plot::onSaveImage()
+{
+    QString pngFilter = "PNG image (*.png)";
+    QString svgFilter = "SVG image (*.svg)";
+    QString selectedFilter = pngFilter;
+    QString suggestedName;
+    QString path;
+    bool ok;
+
+    suggestedName = "oept_" + (title->text().isEmpty() ? "plot" : title->text().toLower().replace(' ', '_')) + "_" +
+                    QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    path = QFileDialog::getSaveFileName(this, "Save plot image", suggestedName + ".png", pngFilter + ";;" + svgFilter, &selectedFilter);
+    if(path.isEmpty()) return;
+
+    if(path.endsWith(".svg", Qt::CaseInsensitive))
+    {
+        ok = saveImageAsSvg(path);
+    }
+    else if(path.endsWith(".png", Qt::CaseInsensitive))
+    {
+        ok = saveImageAsPng(path);
+    }
+    else if(selectedFilter == svgFilter)
+    {
+        ok = saveImageAsSvg(path + ".svg");
+    }
+    else
+    {
+        ok = saveImageAsPng(path + ".png");
+    }
+
+    if(!ok)
+    {
+        QMessageBox::warning(this, "Save plot image", "Unable to save image to:\n" + path);
+    }
+}
+
+QString Plot::getTitle()
+{
+    return title->text();
+}
+
+bool Plot::saveImageToFile(QString path)
+{
+    if(path.endsWith(".svg", Qt::CaseInsensitive)) return saveImageAsSvg(path);
+    return saveImageAsPng(path);
+}
+
+bool Plot::saveImageAsPng(QString path)
+{
+    return plot->savePng(path, 0, 0, IMAGE_PNG_SCALE, -1, IMAGE_PNG_DPI);
+}
+
+bool Plot::saveImageAsSvg(QString path)
+{
+    QSvgGenerator generator;
+    int width = plot->width();
+    int height = plot->height();
+
+    generator.setFileName(path);
+    generator.setSize(QSize(width, height));
+    generator.setViewBox(QRect(0, 0, width, height));
+    generator.setTitle(title->text());
+    generator.setDescription("OpenEPT plot export");
+
+    QCPPainter painter;
+    if(!painter.begin(&generator)) return false;
+    painter.setMode(QCPPainter::pmVectorized);
+    painter.setMode(QCPPainter::pmNoCaching);
+    painter.setMode(QCPPainter::pmNonCosmetic);
+    plot->toPainter(&painter, width, height);
+    painter.end();
+
+    return true;
 }

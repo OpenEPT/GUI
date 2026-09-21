@@ -5,6 +5,10 @@
 #include <QButtonGroup>
 #include <QAbstractButton>
 #include "Windows/Plot/plot.h"
+#include "Windows/Plot/plotdockwidget.h"
+#include <QMainWindow>
+#include "Windows/Device/logdockwidget.h"
+#include <QMenu>
 #include "Windows/Console/consolewnd.h"
 #include "Windows/Device/advcofigurationdata.h"
 #include "Windows/Device/datastatistics.h"
@@ -84,6 +88,7 @@ public:
     ~DeviceWnd();
 
     QPlainTextEdit* getLogWidget();
+    LogDockWidget*  getLogDock();
     void            setParameters(DeviceParameters* params);
     void            setDeviceNetworkState(device_state_t aDeviceState);
     void            setDeviceAcqState(device_acq_mode_t aAcqState);
@@ -125,6 +130,8 @@ public:
     bool            setChargerHWSerial(QString serial);
     bool            setChargerFWSerial(QString serial);
     bool            chargingDone();
+    bool            loadWaveStopped();
+    void            closeSubWindows();
 
     bool            setChargingStatus(QString status);
 
@@ -187,6 +194,9 @@ signals:
     void            sigLoadStatusChanged(bool status);
     void            sigLoadCurrentChanged(unsigned int current);
     void            sigLoadCurrentStatusChanged(bool newState);
+    void            sigLoadWaveChanged(Waveform wave);
+    void            sigLoadWaveStatusChanged(bool newState);
+    void            sigLoadWaveClear();
     void            sigChargingCurrentChanged(unsigned int current);
     void            sigChargingTermCurrentChanged(unsigned int current);
     void            sigChargingTermVoltageChanged(float voltage);
@@ -212,6 +222,11 @@ signals:
     void            sigDeviceReset();
 protected:
     void            closeEvent(QCloseEvent *event);
+    void            showSubWindow(QWidget* wnd);
+    void            createPlotsArea();
+    PlotDockWidget* createPlotDock(QString aTitle, Plot* plot);
+    void            savePlotsLayout();
+    void            restorePlotsLayout();
 
 public slots:
     void            onDeviceConfigSet(QMap<QString, QString> changedFields);
@@ -237,6 +252,8 @@ public slots:
 
     void            onLoadCurrentStatusChanged(bool newState);
     void            onLoadCurrentChanged(unsigned int current);
+    void            onLoadWaveChanged(Waveform wave);
+    void            onLoadWaveStatusChanged(bool newState);
     void            onChargingCurrentStatusChanged(bool newState);
     void            onChargingCurrentChanged(unsigned int current);
     void            onChargingTermCurrentChanged(unsigned int current);
@@ -272,6 +289,11 @@ public slots:
 private slots:
     void            onCalibrationUpdated();
     void            onCalibrationStoreRequest();
+    void            onPlotDockMaximizeToggled(PlotDockWidget* dock, bool maximized);
+    void            onPlotXRangeChanged(QCPRange range);
+    void            onPlotsAreaContextMenu(const QPoint& pos);
+    void            onPlotsLayoutReset();
+    void            onWindowTitleChanged(const QString& title);
 
 private:
     Ui::DeviceWnd               *ui;
@@ -285,6 +307,17 @@ private:
     Plot                        *voltageChart;
     Plot                        *currentChart;
     Plot                        *consumptionChart;
+
+    QMainWindow                 *plotsArea;
+
+    QMainWindow     *logArea;
+
+    LogDockWidget   *logDock;
+    PlotDockWidget              *voltageDock;
+    PlotDockWidget              *currentDock;
+    PlotDockWidget              *consumptionDock;
+    QByteArray                  plotsDefaultLayout;
+    bool                        plotsDockVisibleBeforeMaximize[3];
 
     QStringList*                adcOptions;
     QStringList*                sampleTimeOptions;

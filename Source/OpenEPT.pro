@@ -1,5 +1,6 @@
 QT       += core gui opengl concurrent
 QT       += network
+QT       += svg
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport
 
@@ -32,17 +33,21 @@ SOURCES += \
     Processing/dataprocessing.cpp \
     Processing/epprocessing.cpp \
     Processing/fileprocessing.cpp \
+    Processing/waveform.cpp \
     Utility/log.cpp \
     Windows/AddDevice/adddevicewnd.cpp \
     Windows/ApplicationConf/applicationconfwnd.cpp \
     Windows/Console/consolewnd.cpp \
     Windows/DataAnalyzer/dataanalyzer.cpp \
+    Windows/DataAnalyzer/dataanalyzerstatistics.cpp \
     Windows/Device/calibrationwnd.cpp \
     Windows/Device/configurationwnd.cpp \
     Windows/Device/datastatistics.cpp \
     Windows/Device/devicewnd.cpp \
     Windows/Device/energycontrolwnd.cpp \
     Windows/Plot/plot.cpp \
+    Windows/Plot/plotdockwidget.cpp \
+    Windows/Device/logdockwidget.cpp \
     Windows/WSSelection/selectworkspace.cpp \
     device.cpp \
     devicecontainer.cpp \
@@ -67,17 +72,21 @@ HEADERS += \
     Processing/epprocessing.h \
     Processing/fftw/fftw3.h \
     Processing/fileprocessing.h \
+    Processing/waveform.h \
     Utility/log.h \
     Windows/AddDevice/adddevicewnd.h \
     Windows/ApplicationConf/applicationconfwnd.h \
     Windows/Console/consolewnd.h \
     Windows/DataAnalyzer/dataanalyzer.h \
+    Windows/DataAnalyzer/dataanalyzerstatistics.h \
     Windows/Device/calibrationwnd.h \
     Windows/Device/configurationwnd.h \
     Windows/Device/datastatistics.h \
     Windows/Device/devicewnd.h \
     Windows/Device/energycontrolwnd.h \
     Windows/Plot/plot.h \
+    Windows/Plot/plotdockwidget.h \
+    Windows/Device/logdockwidget.h \
     Windows/WSSelection/selectworkspace.h \
     device.h \
     devicecontainer.h \
@@ -96,7 +105,7 @@ FORMS += \
     Windows/WSSelection/selectworkspace.ui \
     openept.ui
 
-RC_FILE = appicon.rc
+RC_ICONS = main.ico
 
 QTPLUGIN += qjpeg
 # Default rules for deployment.

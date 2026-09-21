@@ -56,6 +56,8 @@ ConsoleWnd::ConsoleWnd(QWidget *parent) :
         "device load enable",
         "device load disable",
         "device load get",
+        "device load current set",
+        "device load current get",
 
         "device bat enable",
         "device bat disable",
@@ -82,6 +84,7 @@ ConsoleWnd::ConsoleWnd(QWidget *parent) :
 
         "device wave chunk add",
         "device wave counter set",
+        "device wave seed set",
         "device wave state set",
         "device wave clear",
 

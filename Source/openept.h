@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QList>
 #include <QMessageBox>
+#include <QCloseEvent>
 #include "Windows/AddDevice/adddevicewnd.h"
 #include "Windows/DataAnalyzer/dataanalyzer.h"
 #include "devicecontainer.h"
@@ -22,6 +23,9 @@ class OpenEPT : public QMainWindow
 public:
     OpenEPT(QString aWorkspacePath, QWidget *parent = nullptr);
     ~OpenEPT();
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
 
 
 private slots:

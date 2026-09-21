@@ -72,6 +72,21 @@ OpenEPT::OpenEPT(QString aWorkspacePath, QWidget *parent)
 
  }
 
+void OpenEPT::closeEvent(QCloseEvent *event)
+{
+    for(int i = 0; i < deviceList.size(); i++)
+    {
+        if(deviceList[i]->getDeviceWnd())
+        {
+            deviceList[i]->getDeviceWnd()->closeSubWindows();
+        }
+    }
+    if(dataAnalyzerWnd) dataAnalyzerWnd->close();
+    if(appConfWnd) appConfWnd->close();
+    if(addDeviceWnd) addDeviceWnd->close();
+    QMainWindow::closeEvent(event);
+}
+
 OpenEPT::~OpenEPT()
 {
     onDeviceContainerAllDeviceWndClosed();
