@@ -40,6 +40,7 @@ bool Device::acquisitionStart()
 {
     QString response;
     int streamID = m_params->getParamVariant("streamId").toInt();
+    syncSamplesNoFromParameters();
     streamLink->flush();
     if(adc == DEVICE_ADC_UNKNOWN) return false;
     QString command = "device stream start -sid=" + QString::number(streamID) + " -adc=" + QString::number(adc-1);
@@ -324,6 +325,22 @@ bool Device::getResolution(device_adc_resolution_t *resolution)
     m_params->setParamValue("adcResolution", selection);
 
     return true;
+}
+
+void Device::syncSamplesNoFromParameters()
+{
+    unsigned int packetSize;
+    bool ok = false;
+
+    if(m_params == NULL) return;
+
+    packetSize = m_params->getParamValue("streamPacketSize").toUInt(&ok);
+    if(!ok || packetSize == 0) return;
+    if(packetSize == samplesNo) return;
+
+    samplesNo = packetSize;
+    dataProcessing->setSamplesNo(packetSize);
+    energyPointProcessing->setSamplesNo(packetSize);
 }
 
 bool Device::setSamplesNo(unsigned int aSamplesNo)
