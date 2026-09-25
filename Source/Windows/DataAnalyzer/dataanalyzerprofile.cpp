@@ -33,11 +33,12 @@ DataAnalyzerProfile::DataAnalyzerProfile(QString aWsDirPath, QString aProfileNam
     QAction *saveAllPlotsAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/save.png")), "Save all plots");
     saveAllPlotsAction->setToolTip("Save Voltage, Current and Consumption plots (current view) to a folder");
     connect(saveAllPlotsAction, SIGNAL(triggered(bool)), this, SLOT(onSaveAllPlots()));
-    QAction *genStatisticsAction = plotsToolBar->addAction("Gen statistics");
+    QAction *genStatisticsAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/analysis.png")), "Gen statistics");
     genStatisticsAction->setToolTip("Generate consumption statistics for segments between \"<name> Start\" and \"<name> Stop\" markers");
     connect(genStatisticsAction, SIGNAL(triggered(bool)), this, SLOT(onGenerateStatistics()));
-    detachAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/expand.png")), "Detach");
-    detachAction->setToolTip("Show this profile in a separate window");
+    detachAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/expand.png")), "Attach");
+    detachAction->setToolTip("Show this profile back as a tab of the Data Analyzer");
+    detachAction->setVisible(false);
     connect(detachAction, SIGNAL(triggered(bool)), this, SLOT(onDetachClicked()));
     mainLayout->addWidget(plotsToolBar);
 
@@ -103,16 +104,7 @@ QString DataAnalyzerProfile::getProfileName()
 
 void DataAnalyzerProfile::setDetached(bool detached)
 {
-    if(detached)
-    {
-        detachAction->setText("Attach");
-        detachAction->setToolTip("Show this profile back as a tab of the Data Analyzer");
-    }
-    else
-    {
-        detachAction->setText("Detach");
-        detachAction->setToolTip("Show this profile in a separate window");
-    }
+    detachAction->setVisible(detached);
 }
 
 void DataAnalyzerProfile::onDetachClicked()

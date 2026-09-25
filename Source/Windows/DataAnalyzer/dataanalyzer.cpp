@@ -9,6 +9,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
+#include <QTabBar>
 
 DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
     QWidget(parent),
@@ -50,17 +51,16 @@ DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
     processFilePushb->setFixedSize(30, 30);
     connect(processFilePushb, SIGNAL(clicked(bool)), this, SLOT(onLoadConsumptionProfileData()));
 
-    deleteProfilePushb->setIcon(QIcon(QPixmap(":/images/NewSet/stopHand.png")));
-    deleteProfilePushb->setIconSize(QSize(24,24));
+    deleteProfilePushb->setIcon(QIcon(QPixmap(":/images/NewSet/delete.png")));
+    deleteProfilePushb->setIconSize(QSize(30,30));
     deleteProfilePushb->setToolTip("Delete selected consumption profile from disk");
     deleteProfilePushb->setFixedSize(30, 30);
     connect(deleteProfilePushb, SIGNAL(clicked(bool)), this, SLOT(onDeleteConsumptionProfile()));
 
     topLayout->addWidget(detectedProfilesLabe);
-    topLayout->addWidget(consumptionProfilesCB);
     topLayout->addWidget(reloadProfileNamesPushb);
+    topLayout->addWidget(consumptionProfilesCB);
     topLayout->addWidget(processFilePushb);
-    topLayout->addSpacing(20);
     topLayout->addWidget(deleteProfilePushb);
     topLayout->addStretch();
 
@@ -80,6 +80,17 @@ DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
     mdiArea->setDocumentMode(true);
     mdiArea->setTabPosition(QTabWidget::North);
     mainLayout->addWidget(mdiArea);
+
+    maximizeProfilePushb = new QToolButton(mdiArea);
+    maximizeProfilePushb->setIcon(QIcon(QPixmap(":/images/NewSet/expand.png")));
+    maximizeProfilePushb->setIconSize(QSize(20,20));
+    maximizeProfilePushb->setToolTip("Maximize selected profile in a separate window");
+    maximizeProfilePushb->setAutoRaise(true);
+    maximizeProfilePushb->setFixedSize(24, 24);
+    maximizeProfilePushb->hide();
+    connect(maximizeProfilePushb, SIGNAL(clicked(bool)), this, SLOT(onMaximizeProfile()));
+
+    mdiArea->installEventFilter(this);
 }
 
 DataAnalyzer::~DataAnalyzer()
@@ -175,6 +186,7 @@ void DataAnalyzer::attachProfile(DataAnalyzerProfile *profile, QString title)
     mdiArea->setActiveSubWindow(subWindow);
     profile->setDetached(false);
     profile->show();
+    updateMaximizeButton();
 }
 
 void DataAnalyzer::onLoadConsumptionProfileData()
@@ -217,9 +229,52 @@ QMdiSubWindow* DataAnalyzer::subWindowFor(DataAnalyzerProfile *profile)
     return NULL;
 }
 
+bool DataAnalyzer::eventFilter(QObject *object, QEvent *event)
+{
+    if(object == mdiArea && (event->type() == QEvent::Resize ||
+                             event->type() == QEvent::Show ||
+                             event->type() == QEvent::LayoutRequest))
+    {
+        updateMaximizeButton();
+    }
+
+    return QWidget::eventFilter(object, event);
+}
+
+void DataAnalyzer::updateMaximizeButton()
+{
+    QTabBar *tabBar = mdiArea->findChild<QTabBar*>();
+
+    if(tabBar == NULL || mdiArea->subWindowList().isEmpty())
+    {
+        maximizeProfilePushb->hide();
+        return;
+    }
+
+    tabBar->setMaximumWidth(mdiArea->width() - maximizeProfilePushb->width() - 4);
+
+    maximizeProfilePushb->move(mdiArea->width() - maximizeProfilePushb->width() - 2,
+                               (tabBar->height() - maximizeProfilePushb->height()) / 2);
+    maximizeProfilePushb->show();
+    maximizeProfilePushb->raise();
+}
+
+void DataAnalyzer::onMaximizeProfile()
+{
+    QMdiSubWindow *activeSubWindow = mdiArea->activeSubWindow();
+
+    if(activeSubWindow == NULL) return;
+
+    toggleProfileDockState(qobject_cast<DataAnalyzerProfile*>(activeSubWindow->widget()));
+}
+
 void DataAnalyzer::onProfileDockStateToggleRequested()
 {
-    DataAnalyzerProfile *profile = qobject_cast<DataAnalyzerProfile*>(sender());
+    toggleProfileDockState(qobject_cast<DataAnalyzerProfile*>(sender()));
+}
+
+void DataAnalyzer::toggleProfileDockState(DataAnalyzerProfile *profile)
+{
     QMdiSubWindow *subWindow;
 
     if(profile == NULL) return;
@@ -243,12 +298,14 @@ void DataAnalyzer::onProfileDockStateToggleRequested()
         profile->show();
         profile->raise();
         profile->activateWindow();
+        updateMaximizeButton();
         return;
     }
 
     profile->setAttribute(Qt::WA_DeleteOnClose, false);
     profile->setWindowFlags(Qt::Widget);
     attachProfile(profile, profile->windowTitle().section(" - ", -1));
+    updateMaximizeButton();
 }
 
 void DataAnalyzer::onProfileDestroyed(QObject *object)

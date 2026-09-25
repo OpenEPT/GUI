@@ -48,5 +48,6 @@
         <file>images/NewSet/filter.png</file>
         <file>images/NewSet/export.png</file>
         <file>images/NewSet/lock.png</file>
+        <file>images/NewSet/delete.png</file>
     </qresource>
 </RCC>

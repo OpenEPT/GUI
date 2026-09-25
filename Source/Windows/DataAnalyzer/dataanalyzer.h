@@ -12,6 +12,8 @@
 #include <QDir>
 #include <QShowEvent>
 #include <QMap>
+#include <QToolButton>
+#include <QEvent>
 
 #include "dataanalyzerworker.h"
 #include "dataanalyzerprofile.h"
@@ -32,6 +34,7 @@ public:
 
 protected:
     void                                showEvent(QShowEvent *event) override;
+    bool                                eventFilter(QObject *object, QEvent *event) override;
 
 public slots:
     void                                onDeleteConsumptionProfile();
@@ -39,12 +42,14 @@ public slots:
     void                                onConsumptionProfileChanged(int index);
     void                                onLoadConsumptionProfileData();
     void                                onProfileDockStateToggleRequested();
+    void                                onMaximizeProfile();
     void                                onProfileDestroyed(QObject *object);
 
 private:
     Ui::DataAnalyzer                    *ui;
 
     QMdiArea                            *mdiArea;
+    QToolButton                         *maximizeProfilePushb;
     QLabel*                             detectedProfilesLabe;
     QComboBox                           *consumptionProfilesCB;
     QStringList                         consumptionProfilesName;
@@ -60,6 +65,8 @@ private:
     void                                realoadConsumptionProfiles();
     QMdiSubWindow*                      subWindowFor(DataAnalyzerProfile *profile);
     void                                attachProfile(DataAnalyzerProfile *profile, QString title);
+    void                                toggleProfileDockState(DataAnalyzerProfile *profile);
+    void                                updateMaximizeButton();
 };
 
 #endif // DATAANALYZER_H
