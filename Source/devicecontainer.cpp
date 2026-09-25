@@ -16,6 +16,8 @@ DeviceContainer::DeviceContainer(QObject *parent,
     log->assignLogWidget(deviceWnd->getLogWidget());
     connect(deviceWnd->getLogDock(), SIGNAL(sigFilterChanged(int)), log, SLOT(setFilter(int)));
     connect(deviceWnd->getLogDock(), SIGNAL(sigClearRequested()), log, SLOT(clear()));
+    connect(deviceWnd->getLogDock(), SIGNAL(sigFollowOutputChanged(bool)), log, SLOT(setFollowOutput(bool)));
+    log->setFollowOutput(deviceWnd->getLogDock()->getFollowOutput());
     m_AppParamsRef  = appParam;
     consumptionProfileName = "";
     consumptionProfileNameSet = false;
@@ -1098,6 +1100,29 @@ void DeviceContainer::onDeviceNewEBPFull(double value, double key, QString name)
         fileProcessing->appendEPQueued(name, key);
     }
     log->printLogMessage(name + " (value: " + QString::number(value) + ", key: " + QString::number(key) + ")", LOG_MESSAGE_TYPE_INFO, LOG_MESSAGE_DEVICE_TYPE_DEVICE, LOG_MESSAGE_CATEGORY_ENERGY_POINT);
+
+    checkAcquisitionPauseMarker(name);
+}
+
+void DeviceContainer::checkAcquisitionPauseMarker(QString name)
+{
+    auto params = device->parameters();
+    if(params == NULL) return;
+    if(params->getParamVariant("acqStopOnMarkerEnabled").toBool() == false) return;
+
+    QString pauseMarker = params->getParamValue("acqStopOnMarkerName").trimmed();
+    if(pauseMarker.isEmpty()) return;
+    if(name.trimmed().compare(pauseMarker, Qt::CaseInsensitive) != 0) return;
+
+    log->printLogMessage("Pause marker \"" + pauseMarker + "\" received, pausing acquisition", LOG_MESSAGE_TYPE_INFO);
+
+    onDeviceWndAcquisitionPause();
+
+    QMessageBox msgBox;
+    msgBox.setWindowIcon(QIcon(QPixmap(":/images/NewSet/pause.png")));
+    msgBox.setWindowTitle("Acquisition paused");
+    msgBox.setText("Acquisition paused because marker \"" + pauseMarker + "\" was detected.");
+    msgBox.exec();
 }
 
 void DeviceContainer::onDeviceMeasurementEnergyFlowStatusChanged(charginganalysis_status_t status)

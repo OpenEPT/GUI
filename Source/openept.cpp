@@ -2,6 +2,7 @@
 #include <QAction>
 #include <QMenu>
 #include "openept.h"
+#include "Windows/About/aboutwnd.h"
 #include "Windows/Device/devicewnd.h"
 #include "ui_openept.h"
 #include "Links/controllink.h"
@@ -50,6 +51,7 @@ OpenEPT::OpenEPT(QString aWorkspacePath, QWidget *parent)
     connect(ui->actionAddSingleDevice, &QAction::triggered, this,  &OpenEPT::onActionAddSingleDeviceTriggered);
     connect(ui->actionDataAnalyzer, &QAction::triggered, this,  &OpenEPT::onActionOpenAndProcessData);
     connect(ui->actionApplicationSettings, &QAction::triggered, this,  &OpenEPT::onActionAppSettings);
+    connect(ui->actionAbout, &QAction::triggered, this,  &OpenEPT::onActionAbout);
 
     workspacePath = aWorkspacePath;
 
@@ -67,6 +69,11 @@ OpenEPT::OpenEPT(QString aWorkspacePath, QWidget *parent)
             &ApplicationConfWnd::sigApplicationConfigSet,
             this,
             &OpenEPT::onAppConfigUpdated);
+
+    aboutWnd = new AboutWnd(this);
+    aboutWnd->setWindowModality(Qt::WindowModal);
+
+    setWindowTitle(QString("Open EPT - MCU Energy profiler (v%1)").arg(APP_VERSION));
 
     connectedDeviceNumber = 0;
 
@@ -251,6 +258,11 @@ void OpenEPT::onActionAppSettings()
     appConfWnd->show();
     appConfWnd->raise();
     appConfWnd->activateWindow();
+}
+
+void OpenEPT::onActionAbout()
+{
+    aboutWnd->exec();
 }
 
 void OpenEPT::onAppConfigUpdated(QMap<QString, QString> changedFields)

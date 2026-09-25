@@ -15,6 +15,7 @@ public:
     void        scatterAddGraph();
     void        scatterAddData(QVector<double> data, QVector<double> keys);
     void        scatterAddAllDataWithName(QVector<QPair<QString, int>> data);
+    void        scatterClearMarkers();
     void        scatterAddDataWithName(double value, double keys, QString name);
     void        scatterReplotDataWithName();
     void        setData(QVector<double> data, QVector<double> keys);

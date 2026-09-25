@@ -202,6 +202,18 @@ void Plot::scatterAddAllDataWithName(QVector<QPair<QString, int>> data)
     plot->replot();
 }
 
+void Plot::scatterClearMarkers()
+{
+    if(!scatterGraphAdded) return;
+    plot->graph(1)->data()->clear();
+    for(int i = 0; i < textData.size(); i++)
+    {
+        plot->removeItem(textData[i]);
+    }
+    textData.clear();
+    plot->replot();
+}
+
 QCPItemText* Plot::createMarkerLabel(double x, double y, QString name)
 {
     QCPItemText *textLabel = new QCPItemText(plot);

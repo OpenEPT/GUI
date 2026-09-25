@@ -5,6 +5,15 @@ QT       += svg
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport
 
 CONFIG += c++17
+
+isEmpty(APP_VERSION) {
+    APP_VERSION = $$cat($$PWD/../VERSION, lines)
+}
+isEmpty(APP_VERSION) {
+    APP_VERSION = 0.0.0-dev
+}
+VERSION = $$replace(APP_VERSION, "[-+].*", "")
+DEFINES += APP_VERSION=\\\"$$APP_VERSION\\\"
 #DEFINES += QCUSTOMPLOT_USE_OPENGL
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -35,10 +44,12 @@ SOURCES += \
     Processing/fileprocessing.cpp \
     Processing/waveform.cpp \
     Utility/log.cpp \
+    Windows/About/aboutwnd.cpp \
     Windows/AddDevice/adddevicewnd.cpp \
     Windows/ApplicationConf/applicationconfwnd.cpp \
     Windows/Console/consolewnd.cpp \
     Windows/DataAnalyzer/dataanalyzer.cpp \
+    Windows/DataAnalyzer/dataanalyzerprofile.cpp \
     Windows/DataAnalyzer/dataanalyzerstatistics.cpp \
     Windows/Device/calibrationwnd.cpp \
     Windows/Device/configurationwnd.cpp \
@@ -74,10 +85,13 @@ HEADERS += \
     Processing/fileprocessing.h \
     Processing/waveform.h \
     Utility/log.h \
+    Windows/About/aboutwnd.h \
     Windows/AddDevice/adddevicewnd.h \
     Windows/ApplicationConf/applicationconfwnd.h \
     Windows/Console/consolewnd.h \
     Windows/DataAnalyzer/dataanalyzer.h \
+    Windows/DataAnalyzer/dataanalyzerprofile.h \
+    Windows/DataAnalyzer/dataanalyzerworker.h \
     Windows/DataAnalyzer/dataanalyzerstatistics.h \
     Windows/Device/calibrationwnd.h \
     Windows/Device/configurationwnd.h \

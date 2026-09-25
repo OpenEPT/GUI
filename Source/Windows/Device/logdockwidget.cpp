@@ -44,6 +44,15 @@ LogDockWidget::LogDockWidget(QString aTitle, QWidget *parent)
     }
     filterButton->setMenu(filterMenu);
 
+    followButton = new QToolButton(content);
+    followButton->setIcon(QIcon(":/images/NewSet/tracking_graph.png"));
+    followButton->setIconSize(QSize(18, 18));
+    followButton->setFixedSize(24, 24);
+    followButton->setToolTip("Follow last message");
+    followButton->setCheckable(true);
+    followButton->setChecked(true);
+    followButton->setAutoRaise(true);
+
     floatButton = new QToolButton(content);
     floatButton->setIcon(style()->standardIcon(QStyle::SP_TitleBarNormalButton));
     floatButton->setFixedSize(24, 24);
@@ -58,6 +67,7 @@ LogDockWidget::LogDockWidget(QString aTitle, QWidget *parent)
     clearButton->setAutoRaise(true);
 
     toolRow->addStretch();
+    toolRow->addWidget(followButton);
     toolRow->addWidget(filterButton);
     toolRow->addWidget(clearButton);
     toolRow->addWidget(floatButton);
@@ -74,6 +84,7 @@ LogDockWidget::LogDockWidget(QString aTitle, QWidget *parent)
 
     connect(filterGroup, SIGNAL(triggered(QAction*)), this, SLOT(onFilterActionTriggered(QAction*)));
     connect(clearButton, SIGNAL(clicked()), this, SIGNAL(sigClearRequested()));
+    connect(followButton, SIGNAL(toggled(bool)), this, SLOT(onFollowButtonToggled(bool)));
     connect(floatButton, SIGNAL(clicked()), this, SLOT(onFloatClicked()));
     connect(this, SIGNAL(topLevelChanged(bool)), this, SLOT(onTopLevelChanged(bool)));
 }
@@ -108,6 +119,22 @@ void LogDockWidget::onFilterActionTriggered(QAction* action)
     filter = (log_filter_t)action->data().toInt();
     filterButton->setToolTip("Filter: " + action->text());
     emit sigFilterChanged((int)filter);
+}
+
+bool LogDockWidget::getFollowOutput()
+{
+    return followButton->isChecked();
+}
+
+void LogDockWidget::setFollowOutput(bool aFollow)
+{
+    followButton->setChecked(aFollow);
+}
+
+void LogDockWidget::onFollowButtonToggled(bool checked)
+{
+    followButton->setToolTip(checked ? "Follow last message" : "Do not follow last message");
+    emit sigFollowOutputChanged(checked);
 }
 
 void LogDockWidget::onFloatClicked()

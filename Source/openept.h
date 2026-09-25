@@ -5,6 +5,7 @@
 #include <QList>
 #include <QMessageBox>
 #include <QCloseEvent>
+#include "Windows/About/aboutwnd.h"
 #include "Windows/AddDevice/adddevicewnd.h"
 #include "Windows/DataAnalyzer/dataanalyzer.h"
 #include "devicecontainer.h"
@@ -35,6 +36,7 @@ private slots:
     void onDeviceContainerAllDeviceWndClosed();
     void onActionOpenAndProcessData();
     void onActionAppSettings();
+    void onActionAbout();
 
     void onAppConfigUpdated(QMap<QString, QString> changedFields);
 
@@ -43,6 +45,8 @@ private:
     Ui::OpenEPT                 *ui;
     /**/
     AddDeviceWnd                *addDeviceWnd;
+    /**/
+    AboutWnd                    *aboutWnd;
     /**/
     QList<DeviceContainer*>     deviceList;
     /**/

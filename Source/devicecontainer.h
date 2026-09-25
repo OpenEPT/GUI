@@ -142,6 +142,7 @@ private:
     FileProcessing*                 fileProcessing;
 
     void                            fillDeviceSetFunctions();
+    void                            checkAcquisitionPauseMarker(QString name);
     bool                            createSubDir(const QString &subDirName, QString &fullPath);
 
     void                            logResult(bool status, const QString& successMsg, const QString& errorMsg);

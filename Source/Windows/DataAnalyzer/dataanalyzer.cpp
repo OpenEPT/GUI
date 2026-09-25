@@ -4,32 +4,28 @@
 #include <math.h>
 #include <QMessageBox>
 #include <QDateTime>
-
-
-#define PLOT_MINIMUM_SIZE_HEIGHT 100
-#define PLOT_MINIMUM_SIZE_WIDTH 500
+#include <QPushButton>
+#include <QThread>
+#include <QFile>
+#include <QTextStream>
+#include <QDebug>
 
 DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
     QWidget(parent),
     ui(new Ui::DataAnalyzer)
 {
-    ui->setupUi(this);    
+    ui->setupUi(this);
 
     wsDirPath = aWsDirPath;
 
-    QFont defaultFont("Arial", 10); // Set desired font and size
+    QFont defaultFont("Arial", 10);
     setFont(defaultFont);
 
-    // Set up the main layout for DataAnalyzer
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
-
-
-    // Create a horizontal layout for the button and line edit
     QHBoxLayout *topLayout = new QHBoxLayout;
     QPushButton *reloadProfileNamesPushb = new QPushButton();
     QPushButton *processFilePushb = new QPushButton();
     QPushButton *deleteProfilePushb = new QPushButton();
-
 
     detectedProfilesLabe    = new QLabel("Detect consumption profiles", this);
     detectedProfilesLabe->setFixedSize(260, 30);
@@ -42,32 +38,24 @@ DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
     connect(consumptionProfilesCB, SIGNAL(currentIndexChanged(int)), this, SLOT(onConsumptionProfileChanged(int)));
     realoadConsumptionProfiles();
 
-    QPixmap buttonIconPng(":/images/NewSet/reload.png");
-    QIcon buttonIcon(buttonIconPng);
-    reloadProfileNamesPushb->setIcon(buttonIcon);
+    reloadProfileNamesPushb->setIcon(QIcon(QPixmap(":/images/NewSet/reload.png")));
     reloadProfileNamesPushb->setIconSize(QSize(30,30));
     reloadProfileNamesPushb->setToolTip("Reload consumption profiles");
     reloadProfileNamesPushb->setFixedSize(30, 30);
-
     connect(reloadProfileNamesPushb, SIGNAL(clicked(bool)), this, SLOT(onRealoadConsumptionProfiles()));
 
-    QPixmap processIconPng(":/images/NewSet/load.png");
-    QIcon processIcon(processIconPng);
-    processFilePushb->setIcon(processIcon);
+    processFilePushb->setIcon(QIcon(QPixmap(":/images/NewSet/load.png")));
     processFilePushb->setIconSize(QSize(30,30));
-    processFilePushb->setToolTip("Process consumption profile data");
+    processFilePushb->setToolTip("Load selected consumption profile in a new tab");
     processFilePushb->setFixedSize(30, 30);
-
     connect(processFilePushb, SIGNAL(clicked(bool)), this, SLOT(onLoadConsumptionProfileData()));
 
     deleteProfilePushb->setIcon(QIcon(QPixmap(":/images/NewSet/stopHand.png")));
     deleteProfilePushb->setIconSize(QSize(24,24));
     deleteProfilePushb->setToolTip("Delete selected consumption profile from disk");
     deleteProfilePushb->setFixedSize(30, 30);
-
     connect(deleteProfilePushb, SIGNAL(clicked(bool)), this, SLOT(onDeleteConsumptionProfile()));
 
-    // Add the button and line edit to the horizontal layout
     topLayout->addWidget(detectedProfilesLabe);
     topLayout->addWidget(consumptionProfilesCB);
     topLayout->addWidget(reloadProfileNamesPushb);
@@ -78,192 +66,58 @@ DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
 
     mainLayout->addLayout(topLayout);
 
-    plotsToolBar = new QToolBar(this);
-    plotsToolBar->setIconSize(QSize(24, 24));
-    QAction *saveAllPlotsAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/save.png")), "Save all plots");
-    saveAllPlotsAction->setToolTip("Save Voltage, Current and Consumption plots (current view) to a folder");
-    connect(saveAllPlotsAction, SIGNAL(triggered(bool)), this, SLOT(onSaveAllPlots()));
-    QAction *genStatisticsAction = plotsToolBar->addAction("Gen statistics");
-    genStatisticsAction->setToolTip("Generate consumption statistics for segments between \"<name> Start\" and \"<name> Stop\" markers");
-    connect(genStatisticsAction, SIGNAL(triggered(bool)), this, SLOT(onGenerateStatistics()));
-    mainLayout->addWidget(plotsToolBar);
-
-    statisticsWnd = new DataAnalyzerStatisticsWnd();
     qRegisterMetaType<QVector<dataanalyzer_segment_stat_t>>("QVector<dataanalyzer_segment_stat_t>");
     qRegisterMetaType<QVector<QPair<QString, int>>>("QVector<QPair<QString, int>>");
-    statisticsThread = new QThread(this);
-    statisticsWorker = new DataAnalyzerStatisticsWorker();
-    statisticsWorker->moveToThread(statisticsThread);
-    statisticsThread->setObjectName("OpenEPT - Data Analyzer statistics");
-    connect(this, SIGNAL(sigComputeStatistics(QVector<double>,QVector<double>,QVector<double>,QVector<double>,QVector<QPair<QString, int>>)),
-            statisticsWorker, SLOT(onComputeStatistics(QVector<double>,QVector<double>,QVector<double>,QVector<double>,QVector<QPair<QString, int>>)), Qt::QueuedConnection);
     qRegisterMetaType<dataanalyzer_segment_stat_t>("dataanalyzer_segment_stat_t");
     qRegisterMetaType<QVector<dataanalyzer_point_marker_t>>("QVector<dataanalyzer_point_marker_t>");
-    connect(statisticsWorker, SIGNAL(sigStatisticsFinished(QVector<dataanalyzer_segment_stat_t>,QVector<dataanalyzer_point_marker_t>,dataanalyzer_segment_stat_t,QStringList)),
-            this, SLOT(onStatisticsFinished(QVector<dataanalyzer_segment_stat_t>,QVector<dataanalyzer_point_marker_t>,dataanalyzer_segment_stat_t,QStringList)), Qt::QueuedConnection);
-    statisticsThread->start();
-    connect(statisticsWnd, SIGNAL(sigSegmentSelected(QString,int,int)), this, SLOT(onStatisticsSegmentSelected(QString,int,int)));
-
-    // Create an internal QMainWindow to handle docking
-    mainWindow = new QMainWindow(this);
-    mainWindow->setWindowFlags(Qt::Widget);  // Make QMainWindow behave as a regular widget
-    mainWindow->setDockNestingEnabled(true); // Allow nested docking if needed
-
-    // Add QMainWindow to the layout
-    mainLayout->addWidget(mainWindow);
-
-
-    createVoltageSubWin();
-    createCurrentSubWin();
-    createConsumptionSubWin();
-
-    epEnabledFlag = false;
-    graphLoad = false;
-
-
-    thread = new QThread(this);
-    dataProcesingClass = new DataAnalyzerWorker();
-    dataProcesingClass->moveToThread(thread);
-    thread->setObjectName("OpenEPT - Data Analyzer");
-
     qRegisterMetaType<QVector<int> >("QVector<QVector<double>>");
     qRegisterMetaType<QVector<int> >("QVector<QPair<QString, int>>");
 
-    connect(this, SIGNAL(processVolCurConRequest(QString,QString)),
-            dataProcesingClass, SLOT(processVoltCurConData(QString,QString)), Qt::QueuedConnection);
-
-    connect(dataProcesingClass, SIGNAL(processingVolCurConFinished(QVector<QVector<double>>, QVector<QVector<double>>)),
-            this, SLOT(processingVolCurConDone(QVector<QVector<double>>, QVector<QVector<double>>)), Qt::QueuedConnection);
-
-    connect(this, SIGNAL(processEPRequest(QString,QString)),
-            dataProcesingClass, SLOT(processEPData(QString,QString)), Qt::QueuedConnection);
-
-
-    connect(dataProcesingClass, SIGNAL(processingEPFinished(QVector<QPair<QString, int>>)),
-            this, SLOT(processingEPDone(QVector<QPair<QString, int>>)), Qt::QueuedConnection);
-
-
-    connect(dataProcesingClass, SIGNAL(progressUpdated(int)),
-            this, SLOT(updateProgress(int)), Qt::QueuedConnection);
-    connect(dataProcesingClass, SIGNAL(updateProgressText(QString)),
-            this, SLOT(updateProgressText(QString)), Qt::QueuedConnection);
-
-    thread->start();
+    mdiArea = new QMdiArea(this);
+    mdiArea->setViewMode(QMdiArea::TabbedView);
+    mdiArea->setTabsClosable(true);
+    mdiArea->setTabsMovable(true);
+    mdiArea->setDocumentMode(true);
+    mdiArea->setTabPosition(QTabWidget::North);
+    mainLayout->addWidget(mdiArea);
 }
 
-void DataAnalyzer::createVoltageSubWin() {
-    // Create a dock widget
-    QDockWidget *dockWidget = new QDockWidget("Voltage", this);
-    dockWidget->setAllowedAreas(Qt::AllDockWidgetAreas);
-
-    // Create a content widget with a layout for the dock widget
-    QWidget *contentWidget = new QWidget;
-    QVBoxLayout *layout = new QVBoxLayout(contentWidget);
-    layout->setContentsMargins(2, 2, 2, 2);
-
-    voltageChart             = new Plot(PLOT_MINIMUM_SIZE_WIDTH/2, PLOT_MINIMUM_SIZE_HEIGHT, false);
-    voltageChart->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    voltageChart->setTitle("Voltage");
-    voltageChart->setYLabel("[V]");
-    voltageChart->setXLabel("[ms]");
-
-    layout->addWidget(voltageChart);
-    contentWidget->setLayout(layout);
-
-
-    // Set the content widget in the dock widget
-    dockWidget->setWidget(contentWidget);
-
-    // Add the dock widget to the specified area in the main window
-    mainWindow->addDockWidget(Qt::LeftDockWidgetArea, dockWidget);
-
-    // Make dock widgets floatable and closable
-    dockWidget->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
-}
-
-void DataAnalyzer::createCurrentSubWin()
+DataAnalyzer::~DataAnalyzer()
 {
-    // Create a dock widget
-    QDockWidget *dockWidget = new QDockWidget("Current", this);
-    dockWidget->setAllowedAreas(Qt::AllDockWidgetAreas);
+    for(int i = profiles.size() - 1; i >= 0; i--)
+    {
+        if(subWindowFor(profiles[i]) != NULL) continue;
+        delete profiles[i];
+    }
 
-    // Create a content widget with a layout for the dock widget
-    QWidget *contentWidget = new QWidget;
-    QVBoxLayout *layout = new QVBoxLayout(contentWidget);
-    layout->setContentsMargins(2, 2, 2, 2);
-
-
-    currentChart             = new Plot(PLOT_MINIMUM_SIZE_WIDTH/2, PLOT_MINIMUM_SIZE_HEIGHT, false);
-    currentChart->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    currentChart->setTitle("Current");
-    currentChart->setYLabel("[mA]");
-    currentChart->setXLabel("[ms]");
-
-    layout->addWidget(currentChart);
-    contentWidget->setLayout(layout);
-
-
-    // Set the content widget in the dock widget
-    dockWidget->setWidget(contentWidget);
-
-    // Add the dock widget to the specified area in the main window
-    mainWindow->addDockWidget(Qt::LeftDockWidgetArea, dockWidget);
-
-    // Make dock widgets floatable and closable
-    dockWidget->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+    delete ui;
 }
 
-void DataAnalyzer::createConsumptionSubWin()
+void DataAnalyzer::showEvent(QShowEvent *event)
 {
-    // Create a dock widget
-    QDockWidget *dockWidget = new QDockWidget("Consumption", this);
-    dockWidget->setAllowedAreas(Qt::AllDockWidgetAreas);
-
-    // Create a content widget with a layout for the dock widget
-    QWidget *contentWidget = new QWidget;
-    QVBoxLayout *layout = new QVBoxLayout(contentWidget);
-    layout->setContentsMargins(2, 2, 2, 2);
-
-    consumptionChart             = new Plot(PLOT_MINIMUM_SIZE_WIDTH/2, PLOT_MINIMUM_SIZE_HEIGHT, false);
-    consumptionChart->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    consumptionChart->setTitle("Consumption");
-    consumptionChart->setYLabel("[mA]");
-    consumptionChart->setXLabel("[ms]");
-
-    connect(voltageChart, SIGNAL(sigXRangeChanged(QCPRange)), this, SLOT(onPlotXRangeChanged(QCPRange)));
-    connect(currentChart, SIGNAL(sigXRangeChanged(QCPRange)), this, SLOT(onPlotXRangeChanged(QCPRange)));
-    connect(consumptionChart, SIGNAL(sigXRangeChanged(QCPRange)), this, SLOT(onPlotXRangeChanged(QCPRange)));
-
-    layout->addWidget(consumptionChart);
-    contentWidget->setLayout(layout);
-
-
-    // Set the content widget in the dock widget
-    dockWidget->setWidget(contentWidget);
-
-    // Add the dock widget to the specified area in the main window
-    mainWindow->addDockWidget(Qt::LeftDockWidgetArea, dockWidget);
-
-    // Make dock widgets floatable and closable
-    dockWidget->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+    QWidget::showEvent(event);
+    realoadConsumptionProfiles();
 }
 
-
-
+void DataAnalyzer::setWorkspacePath(QString aWsDirPath)
+{
+    wsDirPath = aWsDirPath;
+    realoadConsumptionProfiles();
+}
 
 QStringList DataAnalyzer::listConsumptionProfiles()
 {
-    QStringList profiles;
+    QStringList profileList;
     QDir dir(wsDirPath);
 
-    if(!dir.exists()) return profiles;
+    if(!dir.exists()) return profileList;
 
-    listConsumptionProfilesInDir(dir, "", profiles, 0);
+    listConsumptionProfilesInDir(dir, "", profileList, 0);
 
-    return profiles;
+    return profileList;
 }
 
-void DataAnalyzer::listConsumptionProfilesInDir(QDir dir, QString relativePath, QStringList& profiles, int depth)
+void DataAnalyzer::listConsumptionProfilesInDir(QDir dir, QString relativePath, QStringList& profileList, int depth)
 {
     if(depth > 3) return;
 
@@ -275,11 +129,11 @@ void DataAnalyzer::listConsumptionProfilesInDir(QDir dir, QString relativePath, 
         QString subPath = relativePath.isEmpty() ? entry.fileName() : relativePath + "/" + entry.fileName();
         if(subDir.exists("OpenEPT.txt"))
         {
-            profiles << subPath;
+            profileList << subPath;
         }
         else
         {
-            listConsumptionProfilesInDir(subDir, subPath, profiles, depth + 1);
+            listConsumptionProfilesInDir(subDir, subPath, profileList, depth + 1);
         }
     }
 }
@@ -301,119 +155,111 @@ void DataAnalyzer::realoadConsumptionProfiles()
     }
 }
 
-DataAnalyzer::~DataAnalyzer()
+void DataAnalyzer::onRealoadConsumptionProfiles()
 {
-    statisticsThread->quit();
-    statisticsThread->wait();
-    delete statisticsWorker;
-    delete statisticsWnd;
-    delete ui;
-}
-
-void DataAnalyzer::showEvent(QShowEvent *event)
-{
-    QWidget::showEvent(event);
     realoadConsumptionProfiles();
 }
 
-void DataAnalyzer::setWorkspacePath(QString aWsDirPath)
+void DataAnalyzer::onConsumptionProfileChanged(int index)
 {
-    wsDirPath = aWsDirPath;
-    realoadConsumptionProfiles();
+    selectedConsumptionProfile = consumptionProfilesCB->itemText(index);
 }
 
-void DataAnalyzer::onPlotXRangeChanged(QCPRange range)
+void DataAnalyzer::attachProfile(DataAnalyzerProfile *profile, QString title)
 {
-    Plot *source = qobject_cast<Plot*>(sender());
-    Plot *plots[3] = {voltageChart, currentChart, consumptionChart};
+    QMdiSubWindow *subWindow = mdiArea->addSubWindow(profile);
 
-    for(int i = 0; i < 3; i++)
-    {
-        if(plots[i] == source) continue;
-        plots[i]->setXRangeSynced(range);
-    }
+    subWindow->setWindowTitle(title);
+    subWindow->setAttribute(Qt::WA_DeleteOnClose);
+    subWindow->showMaximized();
+    mdiArea->setActiveSubWindow(subWindow);
+    profile->setDetached(false);
+    profile->show();
 }
 
-void DataAnalyzer::onGenerateStatistics()
+void DataAnalyzer::onLoadConsumptionProfileData()
 {
-    if(!graphLoad)
+    DataAnalyzerProfile *profile;
+    QString title;
+    int counter;
+
+    if(selectedConsumptionProfile.isEmpty() || !consumptionProfilesCB->isEnabled())
     {
-        QMessageBox::warning(this, "Statistics", "No consumption profile loaded");
+        QMessageBox::warning(this, "Load profile", "No consumption profile selected");
         return;
     }
-    if(loadedMarkers.isEmpty())
-    {
-        QMessageBox::warning(this, "Statistics", "Loaded profile has no energy point markers (\"<name> Start\" / \"<name> Stop\" pairs are required)");
-        return;
-    }
-    emit sigComputeStatistics(loadedVoltage, loadedVoltageKeys, loadedCurrent, loadedCurrentKeys, loadedMarkers);
+
+    counter = profileCounters.value(selectedConsumptionProfile, 0) + 1;
+    profileCounters[selectedConsumptionProfile] = counter;
+    title = selectedConsumptionProfile.section('/', -1);
+    if(counter > 1) title += " (" + QString::number(counter) + ")";
+
+    profile = new DataAnalyzerProfile(wsDirPath, selectedConsumptionProfile);
+    profiles.append(profile);
+
+    connect(profile, SIGNAL(sigDockStateToggleRequested()), this, SLOT(onProfileDockStateToggleRequested()));
+    connect(profile, SIGNAL(destroyed(QObject*)), this, SLOT(onProfileDestroyed(QObject*)));
+
+    attachProfile(profile, title);
+
+    profile->startLoading();
 }
 
-void DataAnalyzer::onStatisticsFinished(QVector<dataanalyzer_segment_stat_t> stats, QVector<dataanalyzer_point_marker_t> points, dataanalyzer_segment_stat_t total, QStringList warnings)
+QMdiSubWindow* DataAnalyzer::subWindowFor(DataAnalyzerProfile *profile)
 {
-    if(stats.isEmpty() && points.isEmpty() && warnings.isEmpty())
+    QList<QMdiSubWindow*> subWindows = mdiArea->subWindowList();
+
+    for(int i = 0; i < subWindows.size(); i++)
     {
-        QMessageBox::information(this, "Statistics", "No \"<name> Start\" / \"<name> Stop\" marker pairs found");
-        return;
+        if(subWindows[i]->widget() == profile) return subWindows[i];
     }
-    statisticsWnd->setStatistics(selectedConsumptionProfile, stats, points, total, warnings);
-    statisticsWnd->show();
-    statisticsWnd->raise();
-    statisticsWnd->activateWindow();
+
+    return NULL;
 }
 
-void DataAnalyzer::onStatisticsSegmentSelected(QString name, int startIndex, int endIndex)
+void DataAnalyzer::onProfileDockStateToggleRequested()
 {
-    double min;
-    double max;
+    DataAnalyzerProfile *profile = qobject_cast<DataAnalyzerProfile*>(sender());
+    QMdiSubWindow *subWindow;
 
-    if(!graphLoad) return;
-    if(startIndex < 0 || endIndex >= loadedVoltageKeys.size() || endIndex <= startIndex) return;
+    if(profile == NULL) return;
 
-    min = loadedVoltageKeys[startIndex];
-    max = loadedVoltageKeys[endIndex];
-    voltageChart->zoomToKeyRange(min, max);
-    currentChart->zoomToKeyRange(min, max);
-    consumptionChart->zoomToKeyRange(min, max);
+    subWindow = subWindowFor(profile);
 
-    raise();
-    activateWindow();
-}
-
-void DataAnalyzer::onSaveAllPlots()
-{
-    Plot *plots[3] = {voltageChart, currentChart, consumptionChart};
-    QString defaultDir = wsDirPath;
-    QString dir;
-    QString prefix;
-    QString timeStamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
-    QStringList failed;
-
-    if(!graphLoad)
+    if(subWindow != NULL)
     {
-        QMessageBox::warning(this, "Save plots", "No consumption profile loaded");
+        QString title = subWindow->windowTitle();
+
+        subWindow->setWidget(NULL);
+        profile->setParent(NULL);
+        mdiArea->removeSubWindow(subWindow);
+        subWindow->deleteLater();
+
+        profile->setWindowTitle("Data Analyzer - " + title);
+        profile->setWindowFlags(Qt::Window);
+        profile->setAttribute(Qt::WA_DeleteOnClose);
+        profile->setDetached(true);
+        profile->resize(1000, 700);
+        profile->show();
+        profile->raise();
+        profile->activateWindow();
         return;
     }
-    if(!selectedConsumptionProfile.isEmpty())
+
+    profile->setAttribute(Qt::WA_DeleteOnClose, false);
+    profile->setWindowFlags(Qt::Widget);
+    attachProfile(profile, profile->windowTitle().section(" - ", -1));
+}
+
+void DataAnalyzer::onProfileDestroyed(QObject *object)
+{
+    for(int i = 0; i < profiles.size(); i++)
     {
-        defaultDir = wsDirPath + "/" + selectedConsumptionProfile;
-    }
-
-    dir = QFileDialog::getExistingDirectory(this, "Select folder for plot images", defaultDir);
-    if(dir.isEmpty()) return;
-
-    prefix = selectedConsumptionProfile.isEmpty() ? "profile" : selectedConsumptionProfile.section('/', -1).toLower().replace(' ', '_');
-
-    for(int i = 0; i < 3; i++)
-    {
-        QString base = dir + "/oept_" + prefix + "_" + plots[i]->getTitle().toLower().replace(' ', '_') + "_" + timeStamp;
-        if(!plots[i]->saveImageToFile(base + ".png")) failed << base + ".png";
-        if(!plots[i]->saveImageToFile(base + ".svg")) failed << base + ".svg";
-    }
-
-    if(!failed.isEmpty())
-    {
-        QMessageBox::warning(this, "Save plots", "Unable to save:\n" + failed.join("\n"));
+        if(profiles[i] == object)
+        {
+            profiles.remove(i);
+            return;
+        }
     }
 }
 
@@ -444,13 +290,13 @@ void DataAnalyzer::onDeleteConsumptionProfile()
         return;
     }
 
-    if(graphLoad && selectedConsumptionProfile == profile)
+    for(int i = profiles.size() - 1; i >= 0; i--)
     {
-        voltageChart->clear();
-        currentChart->clear();
-        consumptionChart->clear();
-        loadedMarkers.clear();
-        graphLoad = false;
+        if(profiles[i]->getProfileName() != profile) continue;
+
+        QMdiSubWindow *subWindow = subWindowFor(profiles[i]);
+        if(subWindow != NULL) subWindow->close();
+        else profiles[i]->close();
     }
 
     if(!dir.removeRecursively())
@@ -460,165 +306,6 @@ void DataAnalyzer::onDeleteConsumptionProfile()
 
     realoadConsumptionProfiles();
 }
-
-void DataAnalyzer::onRealoadConsumptionProfiles()
-{
-    realoadConsumptionProfiles();
-}
-
-void DataAnalyzer::onConsumptionProfileChanged(int index)
-{
-    selectedConsumptionProfile = consumptionProfilesCB->itemText(index);
-}
-
-void DataAnalyzer::loadConsumptionProfileData()
-{
-    QString summaryFilePath = wsDirPath + "/" + selectedConsumptionProfile + "/OpenEPT.txt";
-    QVector<QPair<QString, QString>>    summaryInfo = parseSummaryFile(summaryFilePath);
-    epEnabledFlag = false;
-
-    QString epEnabled   = getValueForKey(summaryInfo, "EP Enabled");
-    if(epEnabled == "1") epEnabledFlag = true;
-
-    if(epEnabledFlag)
-    {
-        dataProcesingClass->setLimits(3);
-    }
-    else
-    {
-        dataProcesingClass->setLimits(2);
-    }
-
-    // Create a progress dialog without Cancel and Close buttons
-    progressDialog = new QProgressDialog("Loading Data... ", "Cancel", 0, 100, this);
-    progressDialog->setWindowModality(Qt::WindowModal);
-    progressDialog->setMinimumDuration(0);
-    progressDialog->setAutoClose(true);
-
-    // Remove Close (X) button and Cancel button
-    progressDialog->setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-    progressDialog->setWindowTitle("Load OpenEPT Data");
-
-    progressDialog->show();
-
-    emit processVolCurConRequest(wsDirPath, selectedConsumptionProfile);
-}
-
-QString DataAnalyzer::getValueForKey(const QVector<QPair<QString, QString>> &parsedData, const QString &key)
-{
-    for (const auto &pair : parsedData) {
-        if (pair.first == key) {
-            return pair.second;  // Return the corresponding value
-        }
-    }
-    return "";  // Return empty string if key is not found
-}
-
-QVector<QPair<QString, QString>> DataAnalyzer::parseSummaryFile(const QString &filePath)
-{
-    QVector<QPair<QString, QString>> data;  // Store key-value pairs
-
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qWarning() << "Failed to open file:" << filePath;
-        return data;
-    }
-
-    QTextStream in(&file);
-
-    // Skip the first two lines (header)
-    in.readLine();
-    in.readLine();
-
-    // Read and parse key-value pairs
-    while (!in.atEnd()) {
-        QString line = in.readLine().trimmed();  // Read and remove extra spaces
-        if (line.isEmpty()) continue;  // Skip empty lines
-
-        QStringList parts = line.split(":", Qt::SkipEmptyParts);  // Split at ':'
-        if (parts.size() == 2) {
-            QString key = parts[0].trimmed();   // Extract and trim key
-            QString value = parts[1].trimmed(); // Extract and trim value
-
-            data.append(qMakePair(key, value));
-        } else {
-            qWarning() << "Invalid format in line:" << line;
-        }
-    }
-
-    file.close();
-    return data;
-}
-void DataAnalyzer::onLoadConsumptionProfileData()
-{
-    loadConsumptionProfileData();
-
-}
-
-void DataAnalyzer::processingVolCurConDone(QVector<QVector<double> > vc, QVector<QVector<double> > cons)
-{
-    if(graphLoad)
-    {
-        voltageChart->clear();
-        currentChart->clear();
-        consumptionChart->clear();
-        graphLoad = false;
-    }
-
-    voltageChart->setData(vc[0],vc[1]);
-    currentChart->setData(vc[2],vc[3]);
-    consumptionChart->setData(cons[0], cons[1]);
-
-    loadedVoltage = vc[0];
-    loadedVoltageKeys = vc[1];
-    loadedCurrent = vc[2];
-    loadedCurrentKeys = vc[3];
-    loadedMarkers.clear();
-
-    graphLoad = true;
-
-
-    if(epEnabledFlag){
-        emit processEPRequest(wsDirPath, selectedConsumptionProfile);
-    }
-    else{
-        if (progressDialog) {
-            progressDialog->close();
-        }
-    }
-}
-
-void DataAnalyzer::processingEPDone(QVector<QPair<QString, int> > epData)
-{
-    loadedMarkers = epData;
-    consumptionChart->scatterAddGraph();
-    consumptionChart->scatterAddAllDataWithName(epData);
-    voltageChart->scatterAddGraph();
-    voltageChart->scatterAddAllDataWithName(epData);
-    currentChart->scatterAddGraph();
-    currentChart->scatterAddAllDataWithName(epData);
-    if (progressDialog) {
-        progressDialog->close();
-    }
-}
-
-void DataAnalyzer::updateProgress(int percentage)
-{
-    if (progressDialog) {
-        progressDialog->setValue(percentage);
-        if (percentage >= 100) {
-            progressDialog->close();
-        }
-    }
-}
-
-void DataAnalyzer::updateProgressText(QString text)
-{
-    if (progressDialog) {
-        progressDialog->setLabelText(text);
-    }
-}
-
 
 DataAnalyzerWorker::DataAnalyzerWorker(QObject *parent) : QObject(parent)
 {

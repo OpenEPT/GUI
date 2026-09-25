@@ -29,6 +29,12 @@ QList<Params::GroupMeta> defaultGroupMeta()
             "Charger Configuration",
             "Charger COnfiguration if it is connected",
             4
+        },
+        {
+            DeviceParamDefs::AcquisitionConfig,
+            "Acquisition",
+            "Application side acquisition control rules.",
+            5
         }
     };
 }
@@ -125,6 +131,12 @@ QList<Params::SubGroupMeta> defaultSubGroupMeta()
             "Memory",
             "Charger Memory Editing",
             14
+        },
+        {
+            DeviceParamDefs::AcquisitionControl,
+            "Acquisition Control",
+            "Rules that automatically control the acquisition.",
+            15
         },
     };
 }
@@ -1078,6 +1090,49 @@ QList<Params::Param> defaultParams()
             },
             0,
             false
+        },
+        {
+            {
+                "acqStopOnMarkerEnabled",
+                "Pause Acquisition On Marker",
+                "Pause the acquisition when the energy point marker with the configured name is received.",
+                "",
+                DeviceParamDefs::AcquisitionConfig,
+                DeviceParamDefs::AcquisitionControl,
+                Params::Access::ReadWrite,
+                Params::Storage::LoadSave,
+                Params::Target::Application,
+                false,
+                QVariant(),
+                QVariant(),
+                {},
+                true,
+                42,
+                Params::Editor::CheckBox
+            },
+            false,
+            true
+        },
+        {
+            {
+                "acqStopOnMarkerName",
+                "Pause Marker Name",
+                "Name of the energy point marker that pauses the acquisition.",
+                "",
+                DeviceParamDefs::AcquisitionConfig,
+                DeviceParamDefs::AcquisitionControl,
+                Params::Access::ReadWrite,
+                Params::Storage::LoadSave,
+                Params::Target::Application,
+                "",
+                QVariant(),
+                QVariant(),
+                {},
+                true,
+                43
+            },
+            "",
+            true
         }
     };
 }
