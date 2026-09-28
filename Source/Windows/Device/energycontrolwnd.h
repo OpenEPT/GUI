@@ -34,7 +34,8 @@
 enum LoadMode {
     LoadModeStatic = 0,
     LoadModeStandardWave,
-    LoadModeCustomWave
+    LoadModeCustomWave,
+    LoadModeBatParamExtraction
 };
 
 enum Mode {
@@ -145,6 +146,9 @@ signals:
     void sigLoadWaveChanged(Waveform wave);
     void sigLoadWaveStatusChanged(bool start);
     void sigLoadWaveClear();
+    void sigBatParamViewRequested();
+    void sigBatParamCapacityChanged(double capacity);
+    void sigBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, int passes);
 
     void sigChargingCurrentChanged(unsigned int newCurrent);
     void sigChargingTermVoltageChanged(float newVoltage);
@@ -168,6 +172,7 @@ private slots:
     void onLoadWaveSave();
     void onCustomWaveDeleteFromLibrary();
     void onCustomWaveTableChanged();
+    void onBatParamChanged();
 
     void onLoadStatusChanged();
     void onPPathStatusChanged();
@@ -238,11 +243,16 @@ private:
     QWidget *loadCurrentWidget;             // for Static mode
     QWidget *standardWaveWidget;            // for Standard wave mode
     QWidget *customWaveWidget;              // for Custom wave mode
+    QWidget *batParamWidget;                // for Battery parameter extraction mode
     QTableWidget *customWaveTable;
     QComboBox *customWaveLibraryCombo;
     QLineEdit *customWaveNameEdit;
     QLabel   *stdWaveInfoLabel;
     QLabel   *customWaveInfoLabel;
+    QTableWidget *batParamTable;
+    QPushButton  *batParamViewButton;
+    QComboBox    *batParamRelaxCombo;
+    QLabel   *batParamInfoLabel;
     QMap<QString, QPushButton*> customWaveButtons;
     Waveform  loadActiveWave;
     bool      epEnabled;
@@ -287,9 +297,17 @@ private:
     QWidget*     chdischTab;
 
     bool         waveMarkersConfirm(Waveform wave);
+    void         loadStopRequest();
     Waveform     buildStandardWave();
     Waveform     buildCustomWave();
+    Waveform     buildBatParamWave();
+    bool         batParamCompute(unsigned int *pulseDuration, int *repetitions, QString *error);
+    bool         batParamRelaxationEnabled();
+    void         updateBatParamInfo();
     void         fillCustomWaveTable(Waveform wave);
+    QTableWidget* createWaveTable(bool editable);
+    void         fillWaveTable(QTableWidget *table, Waveform wave);
+    void         addWaveTableRow(QTableWidget *table, waveform_chunk_t chunk, int row);
     void         addCustomWaveTableRow(waveform_chunk_t chunk, int row);
     QTableWidgetItem* createCustomWaveTableItem(QString text);
     QString      getCustomWaveTableText(int row, int column);

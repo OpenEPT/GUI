@@ -1,4 +1,5 @@
 #include "energycontrolwnd.h"
+#include <limits.h>
 #include "ui_energycontrolwnd.h"
 
 #include <QTabBar>
@@ -49,9 +50,19 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     QVBoxLayout *loadTopLayout = new QVBoxLayout();
     // Section label with horizontal lines
     loadTopLayout->addLayout(createSectionHeader("Parameters"));
-    QStringList loadTypes = {"Static", "Standard Wave", "Custom Wave"};
-    loadTopLayout->addLayout(createDropBoxEntry("Mode", loadTypes, loadComboBoxEdits));
+    QStringList loadTypes = {"Static", "Standard Wave", "Custom Wave", "Bat Param Extraction"};
+    QHBoxLayout *loadModeRow = createDropBoxEntry("Mode", loadTypes, loadComboBoxEdits);
+    batParamViewButton = new QPushButton("Battery params", this);
+    batParamViewButton->setFixedHeight(BUTTON_HEIGHT);
+    batParamViewButton->setMinimumWidth(BUTTON_WIDTH);
+    batParamViewButton->setToolTip("Open real time battery parameters view.\nAvailable while the wave is running");
+    batParamViewButton->setEnabled(false);
+    batParamViewButton->setVisible(false);
+    loadButtons.insert("BatParamView", batParamViewButton);
+    loadModeRow->addWidget(batParamViewButton);
+    loadTopLayout->addLayout(loadModeRow);
 
+    connect(batParamViewButton, &QPushButton::clicked, this, &EnergyControlWnd::sigBatParamViewRequested);
     connect(loadComboBoxEdits["Mode"], &QComboBox::currentTextChanged,this, &EnergyControlWnd::onLoadModeChanged);
 
     // --- Static mode widget ---
@@ -144,23 +155,7 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     customWaveButtons["Clear"]      = createSmallButton("Clear", fileRow);
     customWaveLayout->addLayout(fileRow);
 
-    QStringList customWaveTableHeader;
-    customWaveTableHeader << "Value [mA]" << "Dev [mA]" << "Dur [ms]" << "Dev [ms]" << "Rep" << "Last" << "Marker" << "Pos";
-    customWaveTable = new QTableWidget(0, 8, this);
-    customWaveTable->setHorizontalHeaderLabels(customWaveTableHeader);
-    customWaveTable->horizontalHeaderItem(1)->setToolTip("Value deviation [mA]");
-    customWaveTable->horizontalHeaderItem(2)->setToolTip("Chunk duration [ms]");
-    customWaveTable->horizontalHeaderItem(3)->setToolTip("Duration deviation [ms]");
-    customWaveTable->horizontalHeaderItem(4)->setToolTip("Chunk repetitions");
-    customWaveTable->horizontalHeaderItem(5)->setToolTip("Last chunk in group");
-    customWaveTable->horizontalHeaderItem(6)->setToolTip("Energy debugger marker name (optional)");
-    customWaveTable->horizontalHeaderItem(7)->setToolTip("Marker position: s = chunk start, e = chunk end, s,e = both (marker \"Start name, End name\")");
-    customWaveTable->horizontalHeader()->setStretchLastSection(true);
-    customWaveTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    customWaveTable->verticalHeader()->setDefaultSectionSize(22);
-    customWaveTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    customWaveTable->setMinimumHeight(100);
-    customWaveTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    customWaveTable = createWaveTable(true);
     customWaveLayout->addWidget(customWaveTable, 1);
 
     customWaveWidget->setVisible(false);
@@ -177,9 +172,77 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     connect(customWaveTable, &QTableWidget::itemChanged, this, &EnergyControlWnd::onCustomWaveTableChanged);
     connect(&WaveformLibrary::instance(), &WaveformLibrary::sigLibraryChanged, this, &EnergyControlWnd::onWaveLibraryChanged);
 
+    // --- Battery parameter extraction mode widget ---
+    batParamRelaxCombo = NULL;
+    batParamWidget = new QWidget(this);
+    QVBoxLayout *batParamLayout = new QVBoxLayout(batParamWidget);
+    batParamLayout->setContentsMargins(0, 0, 0, 0);
+
+    batParamLayout->addLayout(createEntryRow("Battery Capacity", "mAh", loadEntryEdits));
+    batParamLayout->addLayout(createEntryRow("Extraction Accuracy", "%", loadEntryEdits));
+    batParamLayout->addLayout(createEntryRow("Maximum Current", "mA", loadEntryEdits));
+    batParamLayout->addLayout(createEntryRow("Pause Duration", "ms", loadEntryEdits));
+    batParamLayout->addLayout(createEntryRow("Marker Guard", "ms", loadEntryEdits));
+
+    QHBoxLayout *batParamRelaxRow = new QHBoxLayout();
+    QLabel *batParamRelaxLabel = new QLabel("Relaxation", this);
+    batParamRelaxLabel->setFixedSize(ENTRY_LABEL_WIDTH, ENTRY_ROW_HEIGHT);
+    batParamRelaxCombo = new QComboBox(this);
+    batParamRelaxCombo->addItem("Fixed pause");
+    batParamRelaxCombo->addItem("Until dV/dt");
+    batParamRelaxCombo->setFixedHeight(ENTRY_ROW_HEIGHT);
+    batParamRelaxCombo->setToolTip("Fixed pause: every pause lasts exactly the pause duration.\nUntil dV/dt: the pause ends as soon as the voltage settles, pause duration is then the maximum");
+    batParamRelaxRow->addWidget(batParamRelaxLabel);
+    batParamRelaxRow->addWidget(batParamRelaxCombo);
+    batParamRelaxRow->addStretch();
+    batParamLayout->addLayout(batParamRelaxRow);
+
+    batParamLayout->addLayout(createEntryRow("Relax Threshold", "mV", loadEntryEdits));
+    batParamLayout->addLayout(createEntryRow("Relax Window", "s", loadEntryEdits));
+    loadEntryEdits["Battery Capacity"]->setText("500");
+    loadEntryEdits["Extraction Accuracy"]->setText("1");
+    loadEntryEdits["Maximum Current"]->setText("1000");
+    loadEntryEdits["Pause Duration"]->setText("1000");
+    loadEntryEdits["Marker Guard"]->setText("1");
+    loadEntryEdits["Relax Threshold"]->setText("5");
+    loadEntryEdits["Relax Window"]->setText("60");
+    loadEntryEdits["Battery Capacity"]->setToolTip("Nominal battery capacity");
+    loadEntryEdits["Extraction Accuracy"]->setToolTip("Charge extracted by a single pulse, in percent of the battery capacity");
+    loadEntryEdits["Maximum Current"]->setToolTip("Pulse amplitude, pause is always 0 mA");
+    loadEntryEdits["Pause Duration"]->setToolTip("Relaxation time between two pulses");
+    loadEntryEdits["Marker Guard"]->setToolTip("Distance between a current step and the marker that follows it.\nKeeps every marker inside a settled level instead of on the step itself.\nMust cover the load response time, a few sample periods at least");
+    loadEntryEdits["Relax Threshold"]->setToolTip("Voltage span allowed inside the relaxation window, the pause ends when the battery stays within it");
+    loadEntryEdits["Relax Window"]->setToolTip("Time window the voltage has to stay inside the threshold before the pause is ended");
+
+    batParamInfoLabel = new QLabel(this);
+    batParamInfoLabel->setStyleSheet("color: gray;");
+    QHBoxLayout *batParamSaveRow = new QHBoxLayout();
+    QPushButton *batParamSaveWaveButton = createSmallButton("Save wave", batParamSaveRow);
+    batParamSaveWaveButton->setToolTip("Save generated wave to library for later use");
+    loadButtons.insert("SaveBatParamWave", batParamSaveWaveButton);
+    batParamSaveRow->addWidget(batParamInfoLabel, 1);
+    batParamLayout->addLayout(batParamSaveRow);
+    connect(batParamSaveWaveButton, &QPushButton::clicked, this, &EnergyControlWnd::onLoadWaveSave);
+
+    batParamTable = createWaveTable(false);
+    batParamLayout->addWidget(batParamTable, 1);
+
+    batParamWidget->setVisible(false);
+    loadTopLayout->addWidget(batParamWidget);
+
+    connect(loadEntryEdits["Battery Capacity"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
+    connect(loadEntryEdits["Extraction Accuracy"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
+    connect(loadEntryEdits["Maximum Current"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
+    connect(loadEntryEdits["Pause Duration"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
+    connect(loadEntryEdits["Marker Guard"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
+    connect(loadEntryEdits["Relax Threshold"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
+    connect(loadEntryEdits["Relax Window"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
+    connect(batParamRelaxCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(onBatParamChanged()));
+
     refreshCustomWaveLibraryCombo();
     updateStdWaveInfo();
     updateCustomWaveInfo();
+    updateBatParamInfo();
 
     /*IThis should always be visible*/
     loadTopLayout->addLayout(createButtonRow("Set", "Set", loadButtons));
@@ -1184,6 +1247,19 @@ void EnergyControlWnd::chdischCycleCompleted()
     }
 
 }
+void EnergyControlWnd::loadStopRequest()
+{
+    /*Static mode drives the load current directly, every other mode runs a wave
+      and has to be stopped through the wave state*/
+    if(loadModeGet() == LoadModeStatic)
+    {
+        emit sigLoadCurrentStatusChanged(false);
+        return;
+    }
+
+    emit sigLoadWaveStatusChanged(false);
+}
+
 void EnergyControlWnd::underVoltageStatusSet(bool enabled)
 {
     QString color = enabled ? "rgba(255, 0, 0, 255)" : "rgba(128, 128, 128, 180)";
@@ -1197,7 +1273,7 @@ void EnergyControlWnd::underVoltageStatusSet(bool enabled)
             QMessageBox *msgBox = new QMessageBox(this);
             msgBox->setIcon(QMessageBox::Warning);
             msgBox->setWindowTitle("Warning");
-            emit sigLoadCurrentStatusChanged(false);
+            loadStopRequest();
             msgBox->setText("Load disabled due to under voltage protection");
             msgBox->setStandardButtons(QMessageBox::Ok);
             msgBox->show();
@@ -1244,7 +1320,7 @@ void EnergyControlWnd::overVoltageStatusSet(bool enabled)
         msgBox->setWindowTitle("Warning");
         if(loadStartStopStatus)
         {
-            emit sigLoadCurrentStatusChanged(false);
+            loadStopRequest();
             msgBox->setText("Load disabled due to over voltage protection");
         }
         if(chargingStartStopStatus)
@@ -1271,7 +1347,7 @@ void EnergyControlWnd::overCurrentStatusSet(bool enabled)
         msgBox->setWindowTitle("Warning");
         if(loadStartStopStatus)
         {
-            emit sigLoadCurrentStatusChanged(false);
+            loadStopRequest();
             msgBox->setText("Load disabled due to over current protection");
         }
         if(chargingStartStopStatus)
@@ -1290,7 +1366,7 @@ void EnergyControlWnd::loadStatusSet(bool enabled)
     statusControlLabels["LoadDisable"]->setText("Load " + QString(enabled ? "Enabled" : "Disabled"));
     if(!loadStatus && loadStartStopStatus)
     {
-        emit sigLoadCurrentStatusChanged(false);
+        loadStopRequest();
     }
 
     // Red background when disabled
@@ -1356,6 +1432,8 @@ bool EnergyControlWnd::loadCurrentStatusSet(bool status)
             loadComboBoxEdits["Mode"]->setEnabled(false);
             standardWaveWidget->setEnabled(false);
             customWaveWidget->setEnabled(false);
+            batParamWidget->setEnabled(false);
+            batParamViewButton->setEnabled(loadModeGet() == LoadModeBatParamExtraction);
 
             statusControlButtons["LoadDisable"]->setEnabled(false);
             statusControlButtons["PPathDisable"]->setEnabled(false);
@@ -1379,6 +1457,8 @@ bool EnergyControlWnd::loadCurrentStatusSet(bool status)
             loadComboBoxEdits["Mode"]->setEnabled(true);
             standardWaveWidget->setEnabled(true);
             customWaveWidget->setEnabled(true);
+            batParamWidget->setEnabled(true);
+            batParamViewButton->setEnabled(false);
 
             statusControlButtons["LoadDisable"]->setEnabled(true);
             statusControlButtons["PPathDisable"]->setEnabled(true);
@@ -1801,6 +1881,8 @@ void EnergyControlWnd::onLoadModeChanged(const QString &mode)
     loadCurrentWidget->setVisible(mode == "Static");
     standardWaveWidget->setVisible(mode == "Standard Wave");
     customWaveWidget->setVisible(mode == "Custom Wave");
+    batParamWidget->setVisible(mode == "Bat Param Extraction");
+    batParamViewButton->setVisible(mode == "Bat Param Extraction");
 }
 
 LoadMode EnergyControlWnd::loadModeGet()
@@ -1808,6 +1890,7 @@ LoadMode EnergyControlWnd::loadModeGet()
     QString mode = loadComboBoxEdits["Mode"]->currentText();
     if(mode == "Standard Wave") return LoadModeStandardWave;
     if(mode == "Custom Wave") return LoadModeCustomWave;
+    if(mode == "Bat Param Extraction") return LoadModeBatParamExtraction;
     return LoadModeStatic;
 }
 
@@ -1913,28 +1996,71 @@ QString EnergyControlWnd::getCustomWaveTableText(int row, int column)
     return item->text();
 }
 
-void EnergyControlWnd::addCustomWaveTableRow(waveform_chunk_t chunk, int row)
+QTableWidget* EnergyControlWnd::createWaveTable(bool editable)
+{
+    QStringList header;
+    QTableWidget *table;
+
+    header << "Value [mA]" << "Dev [mA]" << "Dur [ms]" << "Dev [ms]" << "Rep" << "Last" << "Marker" << "Pos";
+    table = new QTableWidget(0, 8, this);
+    table->setHorizontalHeaderLabels(header);
+    table->horizontalHeaderItem(1)->setToolTip("Value deviation [mA]");
+    table->horizontalHeaderItem(2)->setToolTip("Chunk duration [ms]");
+    table->horizontalHeaderItem(3)->setToolTip("Duration deviation [ms]");
+    table->horizontalHeaderItem(4)->setToolTip("Chunk repetitions");
+    table->horizontalHeaderItem(5)->setToolTip("Last chunk in group");
+    table->horizontalHeaderItem(6)->setToolTip("Energy debugger marker name (optional)");
+    table->horizontalHeaderItem(7)->setToolTip("Marker position: s = chunk start, e = chunk end, s,e = both (marker \"Start name, End name\")");
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    table->verticalHeader()->setDefaultSectionSize(22);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setMinimumHeight(100);
+    table->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    if(!editable)
+    {
+        table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    }
+
+    return table;
+}
+
+void EnergyControlWnd::addWaveTableRow(QTableWidget *table, waveform_chunk_t chunk, int row)
 {
     QTableWidgetItem *lastInGroupItem;
 
     if(row < 0)
     {
-        row = customWaveTable->rowCount();
+        row = table->rowCount();
     }
-    customWaveTable->insertRow(row);
-    customWaveTable->setItem(row, 0, createCustomWaveTableItem(QString::number(chunk.value)));
-    customWaveTable->setItem(row, 1, createCustomWaveTableItem(QString::number(chunk.valueDev)));
-    customWaveTable->setItem(row, 2, createCustomWaveTableItem(QString::number(chunk.duration)));
-    customWaveTable->setItem(row, 3, createCustomWaveTableItem(QString::number(chunk.durationDev)));
-    customWaveTable->setItem(row, 4, createCustomWaveTableItem(QString::number(chunk.repetitions)));
+    table->insertRow(row);
+    table->setItem(row, 0, createCustomWaveTableItem(QString::number(chunk.value)));
+    table->setItem(row, 1, createCustomWaveTableItem(QString::number(chunk.valueDev)));
+    table->setItem(row, 2, createCustomWaveTableItem(QString::number(chunk.duration)));
+    table->setItem(row, 3, createCustomWaveTableItem(QString::number(chunk.durationDev)));
+    table->setItem(row, 4, createCustomWaveTableItem(QString::number(chunk.repetitions)));
 
     lastInGroupItem = new QTableWidgetItem();
     lastInGroupItem->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
     lastInGroupItem->setCheckState(chunk.lastInGroup ? Qt::Checked : Qt::Unchecked);
     lastInGroupItem->setTextAlignment(Qt::AlignCenter);
-    customWaveTable->setItem(row, 5, lastInGroupItem);
-    customWaveTable->setItem(row, 6, createCustomWaveTableItem(chunk.marker));
-    customWaveTable->setItem(row, 7, createCustomWaveTableItem(Waveform::chunkHasMarker(chunk) ? chunk.markerPos : ""));
+    table->setItem(row, 5, lastInGroupItem);
+    table->setItem(row, 6, createCustomWaveTableItem(chunk.marker));
+    table->setItem(row, 7, createCustomWaveTableItem(Waveform::chunkHasMarker(chunk) ? chunk.markerPos : ""));
+}
+
+void EnergyControlWnd::fillWaveTable(QTableWidget *table, Waveform wave)
+{
+    table->setRowCount(0);
+    for(int i = 0; i < wave.chunks.size(); i++)
+    {
+        addWaveTableRow(table, wave.chunks[i], -1);
+    }
+}
+
+void EnergyControlWnd::addCustomWaveTableRow(waveform_chunk_t chunk, int row)
+{
+    addWaveTableRow(customWaveTable, chunk, row);
 }
 
 void EnergyControlWnd::fillCustomWaveTable(Waveform wave)
@@ -1997,6 +2123,181 @@ void EnergyControlWnd::updateCustomWaveInfo()
     customWaveInfoLabel->setText(QString::number(wave.chunks.size()) + " chunks, " +
                                  QString::number(wave.getTotalDuration()) + " ms per pass (max " +
                                  QString::number(WAVEFORM_CHUNK_MAX_NO) + " chunks)");
+}
+
+/* -------------------- Battery parameter extraction --------------------- */
+bool EnergyControlWnd::batParamCompute(unsigned int *pulseDuration, int *repetitions, QString *error)
+{
+    bool capacityOk;
+    bool accuracyOk;
+    bool currentOk;
+    double capacity = loadEntryEdits["Battery Capacity"]->text().toDouble(&capacityOk);
+    double accuracy = loadEntryEdits["Extraction Accuracy"]->text().toDouble(&accuracyOk);
+    double current = loadEntryEdits["Maximum Current"]->text().toDouble(&currentOk);
+    unsigned int pause = loadEntryEdits["Pause Duration"]->text().toUInt();
+    unsigned int guard = loadEntryEdits["Marker Guard"]->text().toUInt();
+    double duration;
+
+    if(!capacityOk || capacity <= 0)
+    {
+        if(error != NULL) *error = "Battery capacity must be greater than 0 mAh";
+        return false;
+    }
+    if(!accuracyOk || accuracy <= 0 || accuracy > 100)
+    {
+        if(error != NULL) *error = "Extraction accuracy must be between 0 and 100 %";
+        return false;
+    }
+    if(!currentOk || current <= 0)
+    {
+        if(error != NULL) *error = "Maximum current must be greater than 0 mA";
+        return false;
+    }
+
+    /*Charge extracted by a single pulse [mAh] divided by pulse current [mA] gives pulse duration in hours*/
+    duration = (capacity * accuracy / 100.0) / current * 3600000.0;
+
+    if(duration < 1.0)
+    {
+        if(error != NULL) *error = "Calculated pulse is shorter than 1 ms, decrease maximum current or increase accuracy";
+        return false;
+    }
+    if(duration > (double)UINT_MAX)
+    {
+        if(error != NULL) *error = "Calculated pulse is too long, increase maximum current";
+        return false;
+    }
+
+    if(guard < 1)
+    {
+        if(error != NULL) *error = "Marker guard must be at least 1 ms";
+        return false;
+    }
+    if(duration <= (double)guard)
+    {
+        if(error != NULL) *error = "Calculated pulse is shorter than the marker guard, decrease maximum current or increase accuracy";
+        return false;
+    }
+    if(pause <= guard)
+    {
+        if(error != NULL) *error = "Pause duration must be longer than the marker guard";
+        return false;
+    }
+
+    if(pulseDuration != NULL) *pulseDuration = (unsigned int)qRound(duration);
+    if(repetitions != NULL) *repetitions = qRound(100.0 / accuracy);
+
+    return true;
+}
+
+Waveform EnergyControlWnd::buildBatParamWave()
+{
+    Waveform wave;
+    waveform_chunk_t pulseHead = Waveform::chunkDefault();
+    waveform_chunk_t pulse = Waveform::chunkDefault();
+    waveform_chunk_t pauseHead = Waveform::chunkDefault();
+    waveform_chunk_t pause = Waveform::chunkDefault();
+    unsigned int pulseDuration;
+    unsigned int pauseDuration;
+    unsigned int guard;
+    int repetitions;
+
+    if(!batParamCompute(&pulseDuration, &repetitions, NULL)) return wave;
+
+    pauseDuration = loadEntryEdits["Pause Duration"]->text().toUInt();
+    guard = loadEntryEdits["Marker Guard"]->text().toUInt();
+
+    wave.name = "BatParam " + loadEntryEdits["Battery Capacity"]->text() + "mAh " +
+                loadEntryEdits["Extraction Accuracy"]->text() + "%";
+    wave.type = WAVEFORM_TYPE_CUSTOM;
+    wave.origin = WAVEFORM_ORIGIN_USER;
+
+    /*With the adaptive relaxation the device runs one pulse and one pause per pass,
+      the application ends the pause as soon as the voltage settles and starts the
+      next pass, so the repetitions are counted on the application side*/
+    wave.repetitionCounter = batParamRelaxationEnabled() ? 1 : repetitions;
+
+    /*Every level starts with an unmarked guard chunk, so all four markers land
+      inside a settled level instead of on the current step itself. The load
+      needs a few samples to reach the new level, and a marker placed on the
+      step would still read the previous level*/
+    pulseHead.value = loadEntryEdits["Maximum Current"]->text().toUInt();
+    pulseHead.duration = guard;
+    pulseHead.repetitions = 1;
+    pulseHead.lastInGroup = false;
+
+    pulse.value = pulseHead.value;
+    pulse.duration = pulseDuration - guard;
+    pulse.repetitions = 1;
+    pulse.lastInGroup = false;
+    pulse.marker = "Pulse Start, Pulse End";
+    pulse.markerPos = "s,e";
+
+    pauseHead.value = 0;
+    pauseHead.duration = guard;
+    pauseHead.repetitions = 1;
+    pauseHead.lastInGroup = false;
+
+    pause.value = 0;
+    pause.duration = pauseDuration - guard;
+    pause.repetitions = 1;
+    pause.lastInGroup = true;
+    pause.marker = "Pause Start, Pause End";
+    pause.markerPos = "s,e";
+
+    wave.chunks.append(pulseHead);
+    wave.chunks.append(pulse);
+    wave.chunks.append(pauseHead);
+    wave.chunks.append(pause);
+
+    return wave;
+}
+
+void EnergyControlWnd::updateBatParamInfo()
+{
+    QString error;
+    Waveform wave;
+    unsigned int pulseDuration;
+    int repetitions;
+
+    if(!batParamCompute(&pulseDuration, &repetitions, &error))
+    {
+        batParamInfoLabel->setText(error);
+        batParamTable->setRowCount(0);
+        return;
+    }
+
+    wave = buildBatParamWave();
+    fillWaveTable(batParamTable, wave);
+
+    QString info = QString::number(pulseDuration) + " ms pulse, " +
+                   QString::number(wave.getTotalDuration()) + " ms per pass, " +
+                   QString::number(repetitions) + " passes, " +
+                   QString::number((double)repetitions * wave.getTotalDuration() / 60000.0, 'f', 1) + " min total";
+
+    if(batParamRelaxationEnabled())
+    {
+        info += " (maximum, pause ends on dV/dt below " + loadEntryEdits["Relax Threshold"]->text() +
+                " mV in " + loadEntryEdits["Relax Window"]->text() + " s)";
+    }
+
+    batParamInfoLabel->setText(info);
+}
+
+bool EnergyControlWnd::batParamRelaxationEnabled()
+{
+    if(batParamRelaxCombo == NULL) return false;
+    return batParamRelaxCombo->currentIndex() == 1;
+}
+
+void EnergyControlWnd::onBatParamChanged()
+{
+    bool adaptive = batParamRelaxationEnabled();
+
+    loadEntryEdits["Relax Threshold"]->setEnabled(adaptive);
+    loadEntryEdits["Relax Window"]->setEnabled(adaptive);
+
+    updateBatParamInfo();
 }
 
 void EnergyControlWnd::onCustomWaveTableChanged()
@@ -2132,6 +2433,17 @@ void EnergyControlWnd::onLoadWaveSave()
             return;
         }
         break;
+    case LoadModeBatParamExtraction:
+        {
+            QString error;
+            if(!batParamCompute(NULL, NULL, &error))
+            {
+                QMessageBox::warning(this, "Save wave", error);
+                return;
+            }
+        }
+        wave = buildBatParamWave();
+        break;
     case LoadModeStatic:
     default:
         return;
@@ -2213,6 +2525,29 @@ void EnergyControlWnd::onLoadSet()
             return;
         }
         loadActiveWave = wave;
+        emit sigLoadWaveChanged(wave);
+        break;
+    case LoadModeBatParamExtraction:
+        {
+            QString error;
+            if(!batParamCompute(NULL, NULL, &error))
+            {
+                QMessageBox::warning(this, "Warning", error);
+                return;
+            }
+        }
+        wave = buildBatParamWave();
+        if(!waveMarkersConfirm(wave)) return;
+        loadActiveWave = wave;
+        emit sigBatParamCapacityChanged(loadEntryEdits["Battery Capacity"]->text().toDouble());
+        {
+            int repetitions = 1;
+            batParamCompute(NULL, &repetitions, NULL);
+            emit sigBatParamRelaxationChanged(batParamRelaxationEnabled(),
+                                              loadEntryEdits["Relax Threshold"]->text().toDouble(),
+                                              loadEntryEdits["Relax Window"]->text().toDouble(),
+                                              repetitions);
+        }
         emit sigLoadWaveChanged(wave);
         break;
     case LoadModeCustomWave:

@@ -196,6 +196,9 @@ signals:
     void            sigLoadCurrentStatusChanged(bool newState);
     void            sigLoadWaveChanged(Waveform wave);
     void            sigLoadWaveStatusChanged(bool newState);
+    void            sigBatParamViewRequested();
+    void            sigBatParamCapacityChanged(double capacity);
+    void            sigBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, int passes);
     void            sigLoadWaveClear();
     void            sigChargingCurrentChanged(unsigned int current);
     void            sigChargingTermCurrentChanged(unsigned int current);

@@ -37,6 +37,7 @@ SOURCES += \
     Processing/Parameters/deviceparamdefs.cpp \
     Processing/Parameters/deviceparameters.cpp \
     Processing/Parameters/parameterstore.cpp \
+    Processing/batteryparamsextraction.cpp \
     Processing/calibrationdata.cpp \
     Processing/charginganalysis.cpp \
     Processing/dataprocessing.cpp \
@@ -45,6 +46,15 @@ SOURCES += \
     Processing/waveform.cpp \
     Utility/log.cpp \
     Windows/About/aboutwnd.cpp \
+    Windows/BatteryParams/batterycyclewnd.cpp \
+    Windows/BatteryParams/batteryfitintervalwnd.cpp \
+    Windows/BatteryParams/batteryfitqualitywnd.cpp \
+    Windows/BatteryParams/batteryparamsbarwnd.cpp \
+    Windows/BatteryParams/batteryparamsplotsettings.cpp \
+    Windows/BatteryParams/batteryocvanalysiswnd.cpp \
+    Windows/BatteryParams/batteryparamssettingsdlg.cpp \
+    Windows/BatteryParams/batteryparamstrendwnd.cpp \
+    Windows/BatteryParams/batteryparamswnd.cpp \
     Windows/AddDevice/adddevicewnd.cpp \
     Windows/ApplicationConf/applicationconfwnd.cpp \
     Windows/Console/consolewnd.cpp \
@@ -77,6 +87,7 @@ HEADERS += \
     Processing/Parameters/deviceparameters.h \
     Processing/Parameters/parameterdefs.h \
     Processing/Parameters/parameterstore.h \
+    Processing/batteryparamsextraction.h \
     Processing/calibrationdata.h \
     Processing/charginganalysis.h \
     Processing/dataprocessing.h \
@@ -86,6 +97,15 @@ HEADERS += \
     Processing/waveform.h \
     Utility/log.h \
     Windows/About/aboutwnd.h \
+    Windows/BatteryParams/batterycyclewnd.h \
+    Windows/BatteryParams/batteryfitintervalwnd.h \
+    Windows/BatteryParams/batteryfitqualitywnd.h \
+    Windows/BatteryParams/batteryparamsbarwnd.h \
+    Windows/BatteryParams/batteryparamsplotsettings.h \
+    Windows/BatteryParams/batteryocvanalysiswnd.h \
+    Windows/BatteryParams/batteryparamssettingsdlg.h \
+    Windows/BatteryParams/batteryparamstrendwnd.h \
+    Windows/BatteryParams/batteryparamswnd.h \
     Windows/AddDevice/adddevicewnd.h \
     Windows/ApplicationConf/applicationconfwnd.h \
     Windows/Console/consolewnd.h \

@@ -59,6 +59,9 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     connect(energyControlWnd, SIGNAL(sigLoadCurrentChanged(unsigned int)), this, SLOT(onLoadCurrentChanged(unsigned int)));
     connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveChanged, this, &DeviceWnd::onLoadWaveChanged);
     connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveStatusChanged, this, &DeviceWnd::onLoadWaveStatusChanged);
+    connect(energyControlWnd, &EnergyControlWnd::sigBatParamViewRequested, this, &DeviceWnd::sigBatParamViewRequested);
+    connect(energyControlWnd, &EnergyControlWnd::sigBatParamCapacityChanged, this, &DeviceWnd::sigBatParamCapacityChanged);
+    connect(energyControlWnd, &EnergyControlWnd::sigBatParamRelaxationChanged, this, &DeviceWnd::sigBatParamRelaxationChanged);
     connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveClear, this, &DeviceWnd::sigLoadWaveClear);
     connect(energyControlWnd, SIGNAL(sigChargingCurrentStatusChanged(bool)), this, SLOT(onChargingCurrentStatusChanged(bool)));
     connect(energyControlWnd, SIGNAL(sigChargingCurrentChanged(unsigned int)), this, SLOT(onChargingCurrentChanged(unsigned int)));

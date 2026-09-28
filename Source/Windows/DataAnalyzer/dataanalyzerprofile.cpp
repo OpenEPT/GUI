@@ -7,7 +7,9 @@
 #include <QDateTime>
 #include <QFile>
 #include <QTextStream>
+#include <QApplication>
 #include <QDir>
+#include <QProgressDialog>
 
 #define PLOT_MINIMUM_SIZE_HEIGHT 100
 #define PLOT_MINIMUM_SIZE_WIDTH 500
@@ -36,6 +38,9 @@ DataAnalyzerProfile::DataAnalyzerProfile(QString aWsDirPath, QString aProfileNam
     QAction *genStatisticsAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/analysis.png")), "Gen statistics");
     genStatisticsAction->setToolTip("Generate consumption statistics for segments between \"<name> Start\" and \"<name> Stop\" markers");
     connect(genStatisticsAction, SIGNAL(triggered(bool)), this, SLOT(onGenerateStatistics()));
+    QAction *batteryAnalyzerAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/loadProfiler.png")), "Battery analyzer");
+    batteryAnalyzerAction->setToolTip("Extract battery parameters from \"Pulse Start / Pulse End / Pause Start / Pause End\" marker cycles");
+    connect(batteryAnalyzerAction, SIGNAL(triggered(bool)), this, SLOT(onBatteryAnalyzer()));
     detachAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/expand.png")), "Attach");
     detachAction->setToolTip("Show this profile back as a tab of the Data Analyzer");
     detachAction->setVisible(false);
@@ -43,6 +48,7 @@ DataAnalyzerProfile::DataAnalyzerProfile(QString aWsDirPath, QString aProfileNam
     mainLayout->addWidget(plotsToolBar);
 
     statisticsWnd = new DataAnalyzerStatisticsWnd();
+    batteryParamsWnd = NULL;
     statisticsThread = new QThread(this);
     statisticsWorker = new DataAnalyzerStatisticsWorker();
     statisticsWorker->moveToThread(statisticsThread);
@@ -305,6 +311,137 @@ void DataAnalyzerProfile::onGenerateStatistics()
     statisticsProgressDialog->show();
 
     emit sigComputeStatistics(loadedVoltage, loadedVoltageKeys, loadedCurrent, loadedCurrentKeys, loadedMarkers);
+}
+
+void DataAnalyzerProfile::onBatteryAnalyzer()
+{
+    BatteryParamsExtraction extraction;
+    QStringList requiredMarkers;
+    int cycleNo = 0;
+
+    if(!graphLoad)
+    {
+        QMessageBox::warning(this, "Battery analyzer", "No consumption profile loaded");
+        return;
+    }
+
+    requiredMarkers << BATTERYPARAMS_DEFAULT_PULSE_START_MARKER
+                    << BATTERYPARAMS_DEFAULT_PULSE_END_MARKER
+                    << BATTERYPARAMS_DEFAULT_PAUSE_START_MARKER
+                    << BATTERYPARAMS_DEFAULT_PAUSE_END_MARKER;
+
+    for(int i = 0; i < requiredMarkers.size(); i++)
+    {
+        bool found = false;
+
+        for(int j = 0; j < loadedMarkers.size(); j++)
+        {
+            if(loadedMarkers[j].first.trimmed() != requiredMarkers[i]) continue;
+            found = true;
+            break;
+        }
+
+        if(found) continue;
+
+        QMessageBox::warning(this, "Battery analyzer",
+                             "Loaded profile has no \"" + requiredMarkers[i] + "\" marker.\n"
+                             "Battery parameters can be extracted only from a profile recorded with "
+                             "the \"Bat Param Extraction\" load mode.");
+        return;
+    }
+
+    /*Capacity is stored with the profile, so the offline analysis can show the
+      used state of charge the same way the live one does*/
+    {
+        QVector<QPair<QString, QString>> summaryInfo = parseSummaryFile(wsDirPath + "/" + profileName + "/OpenEPT.txt");
+        double capacity = getValueForKey(summaryInfo, "Battery capacity [mAh]").toDouble();
+        batteryparams_settings_t settings = extraction.getSettings();
+
+        if(capacity > 0)
+        {
+            settings.capacity = capacity;
+            extraction.setSettings(settings);
+        }
+    }
+
+    if(batteryParamsWnd == NULL)
+    {
+        batteryParamsWnd = new BatteryParamsWnd();
+        batteryParamsWnd->setAttribute(Qt::WA_QuitOnClose, false);
+    }
+
+    batteryParamsWnd->setProfileName(profileName);
+    batteryParamsWnd->setSettings(extraction.getSettings());
+    batteryParamsWnd->onClear();
+
+    /*Cycles are detected first and fitted afterwards, so the fitting can be
+      spread over all cores. The dialog is stepped manually because everything
+      runs from this thread*/
+    extraction.setAnalysisDeferred(true);
+
+    int detectedCycleNo = 0;
+
+    for(int i = 0; i < loadedMarkers.size(); i++)
+    {
+        if(loadedMarkers[i].first.trimmed() != BATTERYPARAMS_DEFAULT_PULSE_START_MARKER) continue;
+        detectedCycleNo++;
+    }
+
+    QProgressDialog progressDialog(QString("%1 cycles detected\nReading samples...").arg(detectedCycleNo),
+                                   QString(), 0, loadedMarkers.size() + 1, this);
+
+    progressDialog.setWindowModality(Qt::WindowModal);
+    progressDialog.setMinimumDuration(0);
+    progressDialog.setAutoClose(false);
+    progressDialog.setAutoReset(false);
+    progressDialog.setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+    progressDialog.setWindowTitle("Battery analyzer");
+    progressDialog.setMinimumWidth(320);
+    progressDialog.setValue(0);
+    QApplication::processEvents();
+
+    extraction.onNewSamplesReceived(loadedVoltage, loadedCurrent, loadedVoltageKeys, loadedCurrentKeys);
+
+    progressDialog.setValue(1);
+    QApplication::processEvents();
+
+    for(int i = 0; i < loadedMarkers.size(); i++)
+    {
+        QString marker = loadedMarkers[i].first.trimmed();
+
+        if(marker == BATTERYPARAMS_DEFAULT_PAUSE_END_MARKER)
+        {
+            progressDialog.setLabelText(QString("%1 cycles detected\nSplitting cycle %2 of %1...")
+                                        .arg(detectedCycleNo)
+                                        .arg(extraction.getCycles().size() + 1));
+            QApplication::processEvents();
+        }
+
+        extraction.onNewMarkerReceived(0, loadedMarkers[i].second, marker);
+
+        progressDialog.setValue(i + 2);
+        QApplication::processEvents();
+    }
+
+    cycleNo = extraction.getCycles().size();
+
+    if(cycleNo == 0)
+    {
+        progressDialog.close();
+        QMessageBox::warning(this, "Battery analyzer", "No complete pulse/pause cycle found in the loaded profile");
+        return;
+    }
+
+    progressDialog.setRange(0, cycleNo);
+    progressDialog.setValue(0);
+
+    batteryParamsWnd->addCycles(extraction.getCycles(), &progressDialog);
+
+    progressDialog.close();
+
+    batteryParamsWnd->show();
+    batteryParamsWnd->raise();
+    batteryParamsWnd->activateWindow();
 }
 
 void DataAnalyzerProfile::onStatisticsProgress(int percentage, QString text)

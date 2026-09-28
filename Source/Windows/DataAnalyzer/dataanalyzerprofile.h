@@ -2,6 +2,8 @@
 #define DATAANALYZERPROFILE_H
 
 #include <QWidget>
+
+#include "Windows/BatteryParams/batteryparamswnd.h"
 #include <QString>
 #include <QVector>
 #include <QPair>
@@ -37,6 +39,7 @@ signals:
 
 public slots:
     void                                onGenerateStatistics();
+    void                                onBatteryAnalyzer();
     void                                onStatisticsProgress(int percentage, QString text);
     void                                onStatisticsFinished(QVector<dataanalyzer_segment_stat_t> stats, QVector<dataanalyzer_point_marker_t> points, dataanalyzer_segment_stat_t total, QStringList warnings);
     void                                onStatisticsSegmentSelected(QString name, int startIndex, int endIndex);
@@ -68,6 +71,7 @@ private:
     QThread                             *statisticsThread;
     DataAnalyzerStatisticsWorker        *statisticsWorker;
     DataAnalyzerStatisticsWnd           *statisticsWnd;
+    BatteryParamsWnd                    *batteryParamsWnd;
 
     QThread                             *thread;
     DataAnalyzerWorker                  *dataProcesingClass;

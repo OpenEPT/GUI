@@ -24,6 +24,8 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
 
     plot->addGraph(); // blue line
     plot->graph(0)->setPen(QPen(QColor(40, 110, 255)));
+    overlayGraph = NULL;
+    keyMarkerGraph = NULL;
     plot->setInteraction(QCP::iSelectPlottables, true);
     plot->setInteraction(QCP::iRangeDrag, true);
     plot->setInteraction(QCP::iRangeZoom, true);
@@ -301,6 +303,123 @@ void Plot::scatterReplotDataWithName()
         epDataName.removeAt(i);
     }
 }
+void Plot::overlaySetData(QVector<double> data, QVector<double> keys, QColor color)
+{
+    if(overlayGraph == NULL)
+    {
+        overlayGraph = plot->addGraph();
+        overlayGraph->setPen(QPen(color, 2, Qt::DashLine));
+    }
+    else
+    {
+        overlayGraph->setPen(QPen(color, 2, Qt::DashLine));
+    }
+
+    overlayGraph->setData(keys, data, true);
+    plot->replot();
+}
+
+void Plot::overlayClear()
+{
+    if(overlayGraph == NULL) return;
+
+    overlayGraph->data()->clear();
+    plot->replot();
+}
+
+void Plot::markerAddAtKey(double key, double value, QString name, QColor color)
+{
+    QCPItemText *textLabel;
+
+    if(keyMarkerGraph == NULL)
+    {
+        keyMarkerGraph = plot->addGraph();
+        keyMarkerGraph->setLineStyle(QCPGraph::lsNone);
+        keyMarkerGraph->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssCircle, color, 10));
+    }
+
+    keyMarkerGraph->addData(key, value);
+
+    textLabel = new QCPItemText(plot);
+    textLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignTop);
+    textLabel->position->setType(QCPItemPosition::ptPlotCoords);
+    textLabel->position->setCoords(key, value);
+    textLabel->setText(name);
+    textLabel->setFont(*scatterFont);
+    textLabel->setColor(color.darker(150));
+    textLabel->setClipToAxisRect(false);
+    keyMarkerText.push_back(textLabel);
+
+    plot->replot();
+}
+
+void Plot::applyStyle(QString fontFamily, int labelFontSize, int tickFontSize,
+                      int lineWidth, bool gridVisible, bool minorGridVisible)
+{
+    QFont labelFont(fontFamily, labelFontSize);
+    QFont tickFont(fontFamily, tickFontSize);
+    QCPAxis *axes[2];
+
+    axes[0] = plot->xAxis;
+    axes[1] = plot->yAxis;
+
+    for(int i = 0; i < 2; i++)
+    {
+        axes[i]->setLabelFont(labelFont);
+        axes[i]->setTickLabelFont(tickFont);
+        axes[i]->grid()->setVisible(gridVisible);
+        axes[i]->grid()->setSubGridVisible(minorGridVisible);
+        axes[i]->setSubTicks(minorGridVisible);
+    }
+
+    for(int i = 0; i < plot->graphCount(); i++)
+    {
+        QPen pen = plot->graph(i)->pen();
+
+        if(plot->graph(i)->lineStyle() == QCPGraph::lsNone) continue;
+
+        pen.setWidth(lineWidth);
+        plot->graph(i)->setPen(pen);
+    }
+
+    plot->replot();
+}
+
+bool Plot::saveImageToSvg(QString path)
+{
+    QSvgGenerator generator;
+    QCPPainter painter;
+
+    generator.setFileName(path);
+    generator.setSize(plot->size());
+    generator.setViewBox(QRect(0, 0, plot->width(), plot->height()));
+    generator.setTitle(getTitle());
+
+    if(!painter.begin(&generator)) return false;
+
+    painter.setMode(QCPPainter::pmVectorized);
+    painter.setMode(QCPPainter::pmNoCaching);
+    plot->toPainter(&painter, plot->width(), plot->height());
+    painter.end();
+
+    return true;
+}
+
+void Plot::markersAtKeyClear()
+{
+    if(keyMarkerGraph != NULL)
+    {
+        keyMarkerGraph->data()->clear();
+    }
+
+    for(int i = 0; i < keyMarkerText.size(); i++)
+    {
+        plot->removeItem(keyMarkerText[i]);
+    }
+    keyMarkerText.clear();
+    plot->replot();
+}
+
 void        Plot::setData(QVector<double> data, QVector<double> keys)
 {
     xData = keys;
