@@ -41,6 +41,10 @@ BatteryCycleWnd::BatteryCycleWnd(QWidget *parent) :
     pulseEndEdit->setToolTip("Pulse End position. Resistance is calculated between this point and Pause Start");
     pauseStartEdit->setToolTip("Pause Start position. Resistance is calculated between Pulse End and this point");
 
+    fitButton = new QPushButton("Fit cycle points", this);
+    fitButton->setToolTip("Move Pulse End and Pause Start to the settled samples on both sides of the current step");
+    fitButton->setFixedSize(BATTERYCYCLE_BUTTON_WIDTH + 60, BATTERYCYCLE_ROW_HEIGHT);
+
     restoreButton = new QPushButton("Restore", this);
     restoreButton->setToolTip("Return all markers to the positions reported by the device");
     saveButton = new QPushButton("Save", this);
@@ -48,6 +52,7 @@ BatteryCycleWnd::BatteryCycleWnd(QWidget *parent) :
     restoreButton->setFixedSize(BATTERYCYCLE_BUTTON_WIDTH, BATTERYCYCLE_ROW_HEIGHT);
     saveButton->setFixedSize(BATTERYCYCLE_BUTTON_WIDTH, BATTERYCYCLE_ROW_HEIGHT);
 
+    buttonLayout->addWidget(fitButton);
     buttonLayout->addStretch();
     buttonLayout->addWidget(restoreButton);
     buttonLayout->addWidget(saveButton);
@@ -67,6 +72,7 @@ BatteryCycleWnd::BatteryCycleWnd(QWidget *parent) :
     currentPlot->scatterAddGraph();
     mainLayout->addWidget(currentPlot, 1);
 
+    connect(fitButton, &QPushButton::clicked, this, &BatteryCycleWnd::onFitPoints);
     connect(restoreButton, &QPushButton::clicked, this, &BatteryCycleWnd::onRestore);
     connect(saveButton, &QPushButton::clicked, this, &BatteryCycleWnd::onSave);
 
@@ -120,7 +126,12 @@ QHBoxLayout* BatteryCycleWnd::createMarkerRow(QString name, QLineEdit **edit)
     stepBack->setProperty("markerEdit", QVariant::fromValue((QObject*)(*edit)));
     stepForward->setProperty("markerEdit", QVariant::fromValue((QObject*)(*edit)));
 
-    rowLayout->addWidget(new QLabel(name + " [ms]", this));
+    QLabel *nameLabel = new QLabel(name + " [ms]", this);
+
+    markerLabels.append(nameLabel);
+    markerNames.append(name);
+
+    rowLayout->addWidget(nameLabel);
     rowLayout->addWidget(stepBack);
     rowLayout->addWidget(*edit);
     rowLayout->addWidget(stepForward);
@@ -138,7 +149,7 @@ void BatteryCycleWnd::markerStep(QLineEdit *edit, int step)
 
     if(edit == NULL) return;
 
-    position = keyPositionGet(cycle.plotKeys, edit->text().toDouble());
+    position = keyPositionGet(cycle.plotKeys, edit->text().toDouble() * timeScale());
 
     if(position < 0) return;
 
@@ -146,7 +157,7 @@ void BatteryCycleWnd::markerStep(QLineEdit *edit, int step)
     if(position < 0) position = 0;
     if(position >= cycle.plotKeys.size()) position = cycle.plotKeys.size() - 1;
 
-    edit->setText(QString::number(cycle.plotKeys[position], 'f', 3));
+    edit->setText(QString::number(cycle.plotKeys[position] / timeScale(), 'f', timeDecimals()));
 
     applyMarkers();
 }
@@ -166,6 +177,46 @@ void BatteryCycleWnd::onMarkersEdited()
     applyMarkers();
 }
 
+double BatteryCycleWnd::timeScale()
+{
+    return BATTERYPARAMSPLOT_TimeScale(plotSettings.timeUnit);
+}
+
+QString BatteryCycleWnd::timeSuffix()
+{
+    return BATTERYPARAMSPLOT_TimeSuffix(plotSettings.timeUnit);
+}
+
+int BatteryCycleWnd::timeDecimals()
+{
+    return BATTERYPARAMSPLOT_TimeDecimals(plotSettings.timeUnit);
+}
+
+void BatteryCycleWnd::updateMarkerLabels()
+{
+    for(int i = 0; i < markerLabels.size() && i < markerNames.size(); i++)
+    {
+        markerLabels[i]->setText(markerNames[i] + " [" + timeSuffix() + "]");
+    }
+}
+
+void BatteryCycleWnd::refreshMarkerEdits()
+{
+    pulseStartEdit->setText(QString::number(cycle.pulseStartKey / timeScale(), 'f', timeDecimals()));
+    pulseEndEdit->setText(QString::number(cycle.pulseEndKey / timeScale(), 'f', timeDecimals()));
+    pauseStartEdit->setText(QString::number(cycle.pauseStartKey / timeScale(), 'f', timeDecimals()));
+    pauseEndEdit->setText(QString::number(cycle.pauseEndKey / timeScale(), 'f', timeDecimals()));
+}
+
+void BatteryCycleWnd::onFitPoints()
+{
+    if(!BatteryParamsExtraction::cyclePointsFit(&cycle)) return;
+
+    refreshMarkerEdits();
+    updateInfo();
+    updatePlots();
+}
+
 void BatteryCycleWnd::onRestore()
 {
     setCycle(originalCycle);
@@ -178,10 +229,10 @@ void BatteryCycleWnd::onSave()
 
 void BatteryCycleWnd::applyMarkers()
 {
-    int pulseStartPosition = keyPositionGet(cycle.plotKeys, pulseStartEdit->text().toDouble());
-    int pulseEndPosition = keyPositionGet(cycle.plotKeys, pulseEndEdit->text().toDouble());
-    int pauseStartPosition = keyPositionGet(cycle.plotKeys, pauseStartEdit->text().toDouble());
-    int pauseEndPosition = keyPositionGet(cycle.plotKeys, pauseEndEdit->text().toDouble());
+    int pulseStartPosition = keyPositionGet(cycle.plotKeys, pulseStartEdit->text().toDouble() * timeScale());
+    int pulseEndPosition = keyPositionGet(cycle.plotKeys, pulseEndEdit->text().toDouble() * timeScale());
+    int pauseStartPosition = keyPositionGet(cycle.plotKeys, pauseStartEdit->text().toDouble() * timeScale());
+    int pauseEndPosition = keyPositionGet(cycle.plotKeys, pauseEndEdit->text().toDouble() * timeScale());
 
     if(pulseStartPosition < 0 || pulseEndPosition < 0) return;
     if(pauseStartPosition < 0 || pauseEndPosition < 0) return;
@@ -203,12 +254,7 @@ void BatteryCycleWnd::applyMarkers()
     cycle.resistanceValid = fabs(cycle.deltaCurrent) > 0.000001;
     cycle.resistance = cycle.resistanceValid ? cycle.deltaVoltage / (cycle.deltaCurrent / 1000.0) : 0;
 
-    pulseStartEdit->setText(QString::number(cycle.pulseStartKey, 'f', 3));
-    pulseEndEdit->setText(QString::number(cycle.pulseEndKey, 'f', 3));
-    pulseStartEdit->setText(QString::number(cycle.pulseStartKey, 'f', 3));
-    pulseEndEdit->setText(QString::number(cycle.pulseEndKey, 'f', 3));
-    pauseStartEdit->setText(QString::number(cycle.pauseStartKey, 'f', 3));
-    pauseEndEdit->setText(QString::number(cycle.pauseEndKey, 'f', 3));
+    refreshMarkerEdits();
 
     updateInfo();
     updatePlots();
@@ -225,7 +271,7 @@ void BatteryCycleWnd::updateInfo()
                        "   |   " + QString::number(cycle.charge, 'f', 3) + " mAh this cycle" +
                        "   |   " + QString::number(cycle.chargeTotal, 'f', 3) + " mAh total" +
                        (cycle.socValid ? "   |   " + QString::number(cycle.socUsed, 'f', 2) + " % SoC used" : "") +
-                       "   |   duration " + QString::number(cycle.pauseEndKey - cycle.pulseStartKey, 'f', 1) + " ms" +
+                       "   |   duration " + QString::number((cycle.pauseEndKey - cycle.pulseStartKey) / timeScale(), 'f', 1) + " " + timeSuffix() +
                        "   |   dV " + QString::number(cycle.deltaVoltage * 1000.0, 'f', 2) + " mV" +
                        "   |   dI " + QString::number(cycle.deltaCurrent, 'f', 2) + " mA" +
                        "   |   R0 " + (cycle.resistanceValid ? QString::number(cycle.resistance * 1000.0, 'f', 2) + " mOhm" : "-") +
@@ -240,13 +286,13 @@ void BatteryCycleWnd::updateInfo()
 
     if(!cycle.modelValid)
     {
-        modelLabel->setText("Relaxed at " + QString::number(cycle.relaxationKey, 'f', 1) + " ms, RC model could not be fitted");
+        modelLabel->setText("Relaxed at " + QString::number(cycle.relaxationKey / timeScale(), 'f', 1) + " " + timeSuffix() + ", RC model could not be fitted");
         modelLabel->setStyleSheet("color: rgb(170, 130, 0);");
         return;
     }
 
     modelLabel->setStyleSheet("color: rgb(0, 120, 0);");
-    modelLabel->setText("Relaxed at " + QString::number(cycle.relaxationKey, 'f', 1) + " ms   |   " +
+    modelLabel->setText("Relaxed at " + QString::number(cycle.relaxationKey / timeScale(), 'f', 1) + " " + timeSuffix() + "   |   " +
                         QString(cycle.model == BATTERYPARAMS_MODEL_SECOND_ORDER ? "2nd order" : "1st order") +
                         "   |   R1 " + QString::number(cycle.r1 * 1000.0, 'f', 2) + " mOhm" +
                         "   C1 " + QString::number(cycle.c1, 'f', 1) + " F" +
@@ -262,14 +308,29 @@ void BatteryCycleWnd::updateInfo()
     restoreButton->setEnabled(moved);
 }
 
+void BatteryCycleWnd::applyPlotStyle()
+{
+    voltagePlot->applyStyle(plotSettings.fontFamily, plotSettings.labelFontSize, plotSettings.tickFontSize,
+                            plotSettings.lineWidth, plotSettings.gridVisible, plotSettings.minorGridVisible);
+    currentPlot->applyStyle(plotSettings.fontFamily, plotSettings.labelFontSize, plotSettings.tickFontSize,
+                            plotSettings.lineWidth, plotSettings.gridVisible, plotSettings.minorGridVisible);
+}
+
 void BatteryCycleWnd::setPlotSettings(batteryparams_plot_settings_t settings)
 {
+    bool unitChanged = (settings.timeUnit != plotSettings.timeUnit);
+
     plotSettings = settings;
 
-    voltagePlot->applyStyle(settings.fontFamily, settings.labelFontSize, settings.tickFontSize,
-                            settings.lineWidth, settings.gridVisible, settings.minorGridVisible);
-    currentPlot->applyStyle(settings.fontFamily, settings.labelFontSize, settings.tickFontSize,
-                            settings.lineWidth, settings.gridVisible, settings.minorGridVisible);
+    applyPlotStyle();
+
+    if(unitChanged)
+    {
+        updateMarkerLabels();
+        refreshMarkerEdits();
+        updateInfo();
+        updatePlots();
+    }
 }
 
 void BatteryCycleWnd::updatePlots()
@@ -280,8 +341,18 @@ void BatteryCycleWnd::updatePlots()
     currentPlot->markersAtKeyClear();
     voltagePlot->overlayClear();
 
-    voltagePlot->setData(cycle.plotVoltage, cycle.plotKeys);
-    currentPlot->setData(cycle.plotCurrent, cycle.plotKeys);
+    QVector<double> scaledKeys;
+
+    for(int i = 0; i < cycle.plotKeys.size(); i++)
+    {
+        scaledKeys.append(cycle.plotKeys[i] / timeScale());
+    }
+
+    voltagePlot->setXLabel("[" + timeSuffix() + "]");
+    currentPlot->setXLabel("[" + timeSuffix() + "]");
+
+    voltagePlot->setData(cycle.plotVoltage, scaledKeys);
+    currentPlot->setData(cycle.plotCurrent, scaledKeys);
 
     addMarker(voltagePlot, cycle.plotVoltage, cycle.pulseStartKey, "Pulse Start");
     addMarker(voltagePlot, cycle.plotVoltage, cycle.pulseEndKey, "Pulse End");
@@ -295,22 +366,29 @@ void BatteryCycleWnd::updatePlots()
 
     if(cycle.relaxationReached)
     {
-        voltagePlot->markerAddAtKey(cycle.relaxationKey, cycle.relaxationVoltage, "Relaxed", QColor(230, 180, 0));
-        currentPlot->markerAddAtKey(cycle.relaxationKey, 0, "Relaxed", QColor(230, 180, 0));
+        voltagePlot->markerAddAtKey(cycle.relaxationKey / timeScale(), cycle.relaxationVoltage, "Relaxed", QColor(230, 180, 0));
+        currentPlot->markerAddAtKey(cycle.relaxationKey / timeScale(), 0, "Relaxed", QColor(230, 180, 0));
     }
 
     if(cycle.modelValid && !cycle.fitKeys.isEmpty())
     {
-        voltagePlot->overlaySetData(cycle.fitVoltage, cycle.fitKeys);
+        QVector<double> scaledFitKeys;
+
+        for(int i = 0; i < cycle.fitKeys.size(); i++)
+        {
+            scaledFitKeys.append(cycle.fitKeys[i] / timeScale());
+        }
+
+        voltagePlot->overlaySetData(cycle.fitVoltage, scaledFitKeys);
     }
 
     if(!cycle.plotKeys.isEmpty())
     {
-        voltagePlot->zoomToKeyRange(cycle.plotKeys.first(), cycle.plotKeys.last());
-        currentPlot->zoomToKeyRange(cycle.plotKeys.first(), cycle.plotKeys.last());
+        voltagePlot->zoomToKeyRange(scaledKeys.first(), scaledKeys.last());
+        currentPlot->zoomToKeyRange(scaledKeys.first(), scaledKeys.last());
     }
 
-    setPlotSettings(plotSettings);
+    applyPlotStyle();
 }
 
 void BatteryCycleWnd::setCycle(batteryparams_cycle_t aCycle)
@@ -320,10 +398,7 @@ void BatteryCycleWnd::setCycle(batteryparams_cycle_t aCycle)
 
     setWindowTitle("Battery cycle " + QString::number(cycle.index));
 
-    pulseStartEdit->setText(QString::number(cycle.pulseStartKey, 'f', 3));
-    pulseEndEdit->setText(QString::number(cycle.pulseEndKey, 'f', 3));
-    pauseStartEdit->setText(QString::number(cycle.pauseStartKey, 'f', 3));
-    pauseEndEdit->setText(QString::number(cycle.pauseEndKey, 'f', 3));
+    refreshMarkerEdits();
 
     updateInfo();
     updatePlots();

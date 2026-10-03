@@ -62,7 +62,8 @@ public slots:
     void    onDeviceWndLoadWaveSetStatus(bool status);
     void    onDeviceWndBatParamViewRequested();
     void    onDeviceWndBatParamCapacityChanged(double capacity);
-    void    onDeviceWndBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, int passes);
+    void    onDeviceWndBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, double filterMs);
+    void    onBatParamCycleFinished(batteryparams_cycle_t cycle);
     void    onBatParamSettingsChanged(batteryparams_settings_t settings);
     void    onDeviceWndLoadWaveClear();
     void    onDeviceLoadWaveStopped();
@@ -154,18 +155,24 @@ private:
     void                            batParamRelaxationReset();
     void                            batParamRelaxationMarkerProcess(QString name, double key);
     void                            batParamRelaxationSamplesProcess(QVector<double> voltage, QVector<double> voltageKeys);
+    void                            batParamAverageProcess(QVector<double> voltage, QVector<double> voltageKeys, QVector<double> *averaged);
     void                            batParamRelaxationFinish(double key);
     void                            batParamRelaxationNextPass();
 
     bool                            batParamRelaxEnabled;
     double                          batParamRelaxThreshold;
     double                          batParamRelaxWindow;
-    int                             batParamRelaxPasses;
+    double                          batParamRelaxFilter;
+    double                          batParamAverageSum;
+    int                             batParamAverageFirst;
+    QVector<double>                 batParamAverageKeys;
+    QVector<double>                 batParamAverageVoltage;
     int                             batParamRelaxPassesDone;
     bool                            batParamRelaxPauseActive;
     bool                            batParamRelaxRunning;
     bool                            batParamRelaxRestarting;
     double                          samplingPeriodMs;
+    double                          batParamRelaxCheckKey;
     QVector<double>                 batParamRelaxKeys;
     QVector<double>                 batParamRelaxVoltage;
     bool                            createSubDir(const QString &subDirName, QString &fullPath);

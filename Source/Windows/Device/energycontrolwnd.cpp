@@ -199,6 +199,7 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
 
     batParamLayout->addLayout(createEntryRow("Relax Threshold", "mV", loadEntryEdits));
     batParamLayout->addLayout(createEntryRow("Relax Window", "s", loadEntryEdits));
+    batParamLayout->addLayout(createEntryRow("Relax Filter", "ms", loadEntryEdits));
     loadEntryEdits["Battery Capacity"]->setText("500");
     loadEntryEdits["Extraction Accuracy"]->setText("1");
     loadEntryEdits["Maximum Current"]->setText("1000");
@@ -206,6 +207,7 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     loadEntryEdits["Marker Guard"]->setText("1");
     loadEntryEdits["Relax Threshold"]->setText("5");
     loadEntryEdits["Relax Window"]->setText("60");
+    loadEntryEdits["Relax Filter"]->setText("1000");
     loadEntryEdits["Battery Capacity"]->setToolTip("Nominal battery capacity");
     loadEntryEdits["Extraction Accuracy"]->setToolTip("Charge extracted by a single pulse, in percent of the battery capacity");
     loadEntryEdits["Maximum Current"]->setToolTip("Pulse amplitude, pause is always 0 mA");
@@ -213,6 +215,7 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     loadEntryEdits["Marker Guard"]->setToolTip("Distance between a current step and the marker that follows it.\nKeeps every marker inside a settled level instead of on the step itself.\nMust cover the load response time, a few sample periods at least");
     loadEntryEdits["Relax Threshold"]->setToolTip("Voltage span allowed inside the relaxation window, the pause ends when the battery stays within it");
     loadEntryEdits["Relax Window"]->setToolTip("Time window the voltage has to stay inside the threshold before the pause is ended");
+    loadEntryEdits["Relax Filter"]->setToolTip("Voltage is averaged over this window, in milliseconds, before it is compared with the threshold.\nThe averaged voltage is drawn over the live voltage plot.\n0 turns the filter off");
 
     batParamInfoLabel = new QLabel(this);
     batParamInfoLabel->setStyleSheet("color: gray;");
@@ -237,6 +240,7 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     connect(loadEntryEdits["Marker Guard"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
     connect(loadEntryEdits["Relax Threshold"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
     connect(loadEntryEdits["Relax Window"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
+    connect(loadEntryEdits["Relax Filter"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
     connect(batParamRelaxCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(onBatParamChanged()));
 
     refreshCustomWaveLibraryCombo();
@@ -2011,8 +2015,14 @@ QTableWidget* EnergyControlWnd::createWaveTable(bool editable)
     table->horizontalHeaderItem(5)->setToolTip("Last chunk in group");
     table->horizontalHeaderItem(6)->setToolTip("Energy debugger marker name (optional)");
     table->horizontalHeaderItem(7)->setToolTip("Marker position: s = chunk start, e = chunk end, s,e = both (marker \"Start name, End name\")");
-    table->horizontalHeader()->setStretchLastSection(true);
+    /*Sections are stretched to the viewport, so the horizontal scroll bar is never
+      needed. It has to stay off: with both scroll bars on demand the scroll area
+      oscillates between showing and hiding them and the window locks up*/
+    table->horizontalHeader()->setStretchLastSection(false);
+    table->horizontalHeader()->setMinimumSectionSize(40);
     table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    table->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     table->verticalHeader()->setDefaultSectionSize(22);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setMinimumHeight(100);
@@ -2200,9 +2210,8 @@ Waveform EnergyControlWnd::buildBatParamWave()
     unsigned int pulseDuration;
     unsigned int pauseDuration;
     unsigned int guard;
-    int repetitions;
 
-    if(!batParamCompute(&pulseDuration, &repetitions, NULL)) return wave;
+    if(!batParamCompute(&pulseDuration, NULL, NULL)) return wave;
 
     pauseDuration = loadEntryEdits["Pause Duration"]->text().toUInt();
     guard = loadEntryEdits["Marker Guard"]->text().toUInt();
@@ -2215,7 +2224,10 @@ Waveform EnergyControlWnd::buildBatParamWave()
     /*With the adaptive relaxation the device runs one pulse and one pause per pass,
       the application ends the pause as soon as the voltage settles and starts the
       next pass, so the repetitions are counted on the application side*/
-    wave.repetitionCounter = batParamRelaxationEnabled() ? 1 : repetitions;
+    /*Procedure runs until the battery reaches the under voltage protection, the
+      number of passes cannot be known in advance because the real capacity differs
+      from the one written on the cell*/
+    wave.repetitionCounter = batParamRelaxationEnabled() ? 1 : -1;
 
     /*Every level starts with an unmarked guard chunk, so all four markers land
       inside a settled level instead of on the current step itself. The load
@@ -2258,9 +2270,8 @@ void EnergyControlWnd::updateBatParamInfo()
     QString error;
     Waveform wave;
     unsigned int pulseDuration;
-    int repetitions;
 
-    if(!batParamCompute(&pulseDuration, &repetitions, &error))
+    if(!batParamCompute(&pulseDuration, NULL, &error))
     {
         batParamInfoLabel->setText(error);
         batParamTable->setRowCount(0);
@@ -2271,15 +2282,15 @@ void EnergyControlWnd::updateBatParamInfo()
     fillWaveTable(batParamTable, wave);
 
     QString info = QString::number(pulseDuration) + " ms pulse, " +
-                   QString::number(wave.getTotalDuration()) + " ms per pass, " +
-                   QString::number(repetitions) + " passes, " +
-                   QString::number((double)repetitions * wave.getTotalDuration() / 60000.0, 'f', 1) + " min total";
+                   QString::number(wave.getTotalDuration()) + " ms per pass";
 
     if(batParamRelaxationEnabled())
     {
-        info += " (maximum, pause ends on dV/dt below " + loadEntryEdits["Relax Threshold"]->text() +
-                " mV in " + loadEntryEdits["Relax Window"]->text() + " s)";
+        info += " at most, pause ends on " + loadEntryEdits["Relax Threshold"]->text() +
+                " mV in " + loadEntryEdits["Relax Window"]->text() + " s";
     }
+
+    info += ", runs until under voltage protection";
 
     batParamInfoLabel->setText(info);
 }
@@ -2296,6 +2307,7 @@ void EnergyControlWnd::onBatParamChanged()
 
     loadEntryEdits["Relax Threshold"]->setEnabled(adaptive);
     loadEntryEdits["Relax Window"]->setEnabled(adaptive);
+    loadEntryEdits["Relax Filter"]->setEnabled(adaptive);
 
     updateBatParamInfo();
 }
@@ -2540,14 +2552,10 @@ void EnergyControlWnd::onLoadSet()
         if(!waveMarkersConfirm(wave)) return;
         loadActiveWave = wave;
         emit sigBatParamCapacityChanged(loadEntryEdits["Battery Capacity"]->text().toDouble());
-        {
-            int repetitions = 1;
-            batParamCompute(NULL, &repetitions, NULL);
-            emit sigBatParamRelaxationChanged(batParamRelaxationEnabled(),
-                                              loadEntryEdits["Relax Threshold"]->text().toDouble(),
-                                              loadEntryEdits["Relax Window"]->text().toDouble(),
-                                              repetitions);
-        }
+        emit sigBatParamRelaxationChanged(batParamRelaxationEnabled(),
+                                          loadEntryEdits["Relax Threshold"]->text().toDouble(),
+                                          loadEntryEdits["Relax Window"]->text().toDouble(),
+                                          loadEntryEdits["Relax Filter"]->text().toDouble());
         emit sigLoadWaveChanged(wave);
         break;
     case LoadModeCustomWave:

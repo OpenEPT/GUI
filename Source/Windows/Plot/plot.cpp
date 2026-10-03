@@ -127,6 +127,8 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     enableTracking      = aEnableTracking;
     replotActive        = true;
     scatterGraphAdded   = false;
+    averageGraphAdded   = false;
+    averageGraphIndex   = -1;
     axisLocked          = false;
     xRangeSyncInProgress = false;
 
@@ -154,6 +156,46 @@ void        Plot::scatterAddGraph()
     plot->graph(1)->setLineStyle(QCPGraph::lsNone);  // No line
     plot->graph(1)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssCircle, Qt::red, 10));  // Red circle marker, size 10
 
+}
+
+void Plot::averageAddGraph()
+{
+    if(averageGraphAdded) return;
+
+    averageGraphAdded = true;
+    plot->addGraph();
+    averageGraphIndex = plot->graphCount() - 1;
+    plot->graph(averageGraphIndex)->setPen(QPen(QColor(230, 180, 0), 1.5));
+    plot->graph(averageGraphIndex)->setName("Averaged");
+}
+
+void Plot::appendAverageData(QVector<double> data, QVector<double> keys)
+{
+    if(!averageGraphAdded) return;
+    if(keys.isEmpty() || keys.size() != data.size()) return;
+
+    averageXData.append(keys);
+    averageYData.append(data);
+
+    /*Averaged trace follows the same window as the plotted samples*/
+    while(!plotXData.isEmpty() && !averageXData.isEmpty() && (averageXData.first() < plotXData.first()))
+    {
+        averageXData.removeFirst();
+        averageYData.removeFirst();
+    }
+
+    if(replotActive)
+    {
+        plot->graph(averageGraphIndex)->setData(averageXData, averageYData, true);
+        plot->replot();
+    }
+}
+
+void Plot::clearAverageData()
+{
+    averageXData.clear();
+    averageYData.clear();
+    if(averageGraphAdded && (averageGraphIndex >= 0)) plot->graph(averageGraphIndex)->data()->clear();
 }
 
 void Plot::scatterAddData(QVector<double> data, QVector<double> keys)
@@ -499,6 +541,7 @@ void        Plot::clear()
     }
     xData.clear();
     yData.clear();
+    clearAverageData();
     plot->replot();
     epDataKey.clear();
     epDataName.clear();

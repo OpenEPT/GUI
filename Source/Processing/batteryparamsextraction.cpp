@@ -39,6 +39,7 @@ batteryparams_settings_t BatteryParamsExtraction::settingsDefault()
 
     defaults.relaxationThreshold = BATTERYPARAMS_RELAX_THRESHOLD_DEFAULT;
     defaults.relaxationWindow = BATTERYPARAMS_RELAX_WINDOW_DEFAULT;
+    defaults.relaxationFilter = BATTERYPARAMS_RELAX_FILTER_DEFAULT;
     defaults.model = BATTERYPARAMS_MODEL_SECOND_ORDER;
     defaults.fitEnd = BATTERYPARAMS_FIT_END_PAUSE;
     defaults.tauGridPoints = BATTERYPARAMS_TAU_GRID_POINTS;
@@ -46,6 +47,7 @@ batteryparams_settings_t BatteryParamsExtraction::settingsDefault()
     defaults.tauSeparation = BATTERYPARAMS_TAU_SEPARATION;
     defaults.capacity = 0;
     defaults.initialSoc = BATTERYPARAMS_INITIAL_SOC_DEFAULT;
+    defaults.plotDecimation = BATTERYPARAMS_CYCLE_PLOT_DECIMATION_DEFAULT;
 
     return defaults;
 }
@@ -79,32 +81,33 @@ batteryparams_settings_t BatteryParamsExtraction::getSettings()
 static int prvBATTERYPARAMS_RelaxationPositionGet(const QVector<double> &keys, const QVector<double> &voltage,
                                                   int start, int end, double threshold, double window)
 {
-    QVector<double> suffixMaximum(end - start + 1);
-    QVector<double> suffixMinimum(end - start + 1);
+    QVector<int> maximumPositions;
+    QVector<int> minimumPositions;
+    int first = start;
 
     if(end < start) return -1;
 
-    for(int i = end; i >= start; i--)
-    {
-        int position = i - start;
-
-        if(i == end)
-        {
-            suffixMaximum[position] = voltage[i];
-            suffixMinimum[position] = voltage[i];
-            continue;
-        }
-
-        suffixMaximum[position] = qMax(voltage[i], suffixMaximum[position + 1]);
-        suffixMinimum[position] = qMin(voltage[i], suffixMinimum[position + 1]);
-    }
-
+    /*Cell counts as relaxed at the first sample whose preceding window stayed inside
+      the threshold. Running maximum and minimum of that window are held in two
+      monotonic queues, so the whole pause is scanned once*/
     for(int i = start; i <= end; i++)
     {
-        if((keys[end] - keys[i]) < window) break;
-        if((suffixMaximum[i - start] - suffixMinimum[i - start]) > threshold) continue;
+        while(!maximumPositions.isEmpty() && (voltage[maximumPositions.last()] <= voltage[i])) maximumPositions.removeLast();
+        maximumPositions.append(i);
 
-        return i;
+        while(!minimumPositions.isEmpty() && (voltage[minimumPositions.last()] >= voltage[i])) minimumPositions.removeLast();
+        minimumPositions.append(i);
+
+        while((keys[i] - keys[first]) > window)
+        {
+            if(maximumPositions.first() == first) maximumPositions.removeFirst();
+            if(minimumPositions.first() == first) minimumPositions.removeFirst();
+            first++;
+        }
+
+        if((keys[i] - keys[start]) < window) continue;
+
+        if((voltage[maximumPositions.first()] - voltage[minimumPositions.first()]) <= threshold) return i;
     }
 
     return -1;
@@ -233,14 +236,50 @@ bool BatteryParamsExtraction::analyzeCycle(batteryparams_cycle_t *cycle, battery
 
     if((pauseStart < 0) || (pauseEnd <= pauseStart)) return false;
 
-    relaxPosition = prvBATTERYPARAMS_RelaxationPositionGet(cycle->plotKeys, cycle->plotVoltage,
-                                                           pauseStart, pauseEnd, threshold, window);
+    /*Relaxation is searched over an evenly spaced series of averaged samples. The
+      plotted waveform keeps the extremes of every bucket instead, and a time based
+      filter over those uneven pairs does not give the same result as the filter the
+      application runs on the live samples*/
+    const QVector<double> &searchKeys = cycle->relaxKeys.isEmpty() ? cycle->plotKeys : cycle->relaxKeys;
+    const QVector<double> &searchVoltage = cycle->relaxKeys.isEmpty() ? cycle->plotVoltage : cycle->relaxVoltage;
+    QVector<double> smoothedVoltage;
+    int searchStart = -1;
+    int searchEnd = -1;
+
+    for(int i = 0; i < searchKeys.size(); i++)
+    {
+        if((searchStart < 0) && (searchKeys[i] >= cycle->pauseStartKey)) searchStart = i;
+        if(searchKeys[i] <= cycle->pauseEndKey) searchEnd = i;
+    }
+
+    if((searchStart < 0) || (searchEnd <= searchStart)) return false;
+
+    if(searchKeys.size() != searchVoltage.size()) return false;
+
+    seriesSmooth(searchKeys, searchVoltage, settings.relaxationFilter, &smoothedVoltage);
+
+    if(smoothedVoltage.size() != searchKeys.size()) return false;
+
+    relaxPosition = prvBATTERYPARAMS_RelaxationPositionGet(searchKeys, smoothedVoltage,
+                                                           searchStart, searchEnd, threshold, window);
 
     if(relaxPosition < 0) return false;
 
     cycle->relaxationReached = true;
-    cycle->relaxationKey = cycle->plotKeys[relaxPosition];
-    cycle->relaxationVoltage = cycle->plotVoltage[relaxPosition];
+    cycle->relaxationKey = searchKeys[relaxPosition];
+    cycle->relaxationVoltage = searchVoltage[relaxPosition];
+
+    /*Fit works on the plotted waveform, so the relaxation point is taken back to it*/
+    relaxPosition = pauseEnd;
+
+    for(int i = pauseStart; i <= pauseEnd; i++)
+    {
+        if(cycle->plotKeys[i] >= cycle->relaxationKey)
+        {
+            relaxPosition = i;
+            break;
+        }
+    }
 
     /*Cell is at rest once it relaxed, so the voltage measured there is its open
       circuit voltage*/
@@ -476,6 +515,8 @@ void BatteryParamsExtraction::cycleReset()
     activeCycle.plotKeys.clear();
     activeCycle.plotVoltage.clear();
     activeCycle.plotCurrent.clear();
+    activeCycle.relaxKeys.clear();
+    activeCycle.relaxVoltage.clear();
 }
 
 void BatteryParamsExtraction::storeCycleSamples()
@@ -508,12 +549,41 @@ void BatteryParamsExtraction::storeCycleSamples()
         activeCycle.socValid = true;
     }
 
-    stride = samplesNo / BATTERYPARAMS_CYCLE_PLOT_POINTS_MAX;
-    if(stride < 1) stride = 1;
+    /*Relaxation search needs evenly spaced averages that are not affected by how
+      much the stored waveform is decimated. Buckets are kept well below the
+      relaxation filter, otherwise averaging averages shifts the point*/
+    int relaxStride = 1;
 
-    /*A full cycle can hold millions of samples, so the plotted waveform is
-      decimated. Samples around the current step are kept untouched because the
-      step is what the resistance is calculated from*/
+    if((settings.relaxationFilter > 0) && (samplingPeriod > 0))
+    {
+        relaxStride = (int)((settings.relaxationFilter / 20.0) / samplingPeriod);
+    }
+
+    if(relaxStride < 1) relaxStride = 1;
+
+    for(int i = startPosition; i <= endPosition; i += relaxStride)
+    {
+        double keySum = 0;
+        double voltageSum = 0;
+        int no = 0;
+
+        for(int k = i; (k <= endPosition) && (k < (i + relaxStride)); k++)
+        {
+            keySum += keySamples[k];
+            voltageSum += voltageSamples[k];
+            no++;
+        }
+
+        if(no == 0) continue;
+
+        activeCycle.relaxKeys.append(keySum / (double)no);
+        activeCycle.relaxVoltage.append(voltageSum / (double)no);
+    }
+
+    /*Stored waveform keeps every n-th sample, with the samples around the current
+      step untouched because the step is what the resistance is calculated from*/
+    stride = (settings.plotDecimation > 0) ? settings.plotDecimation : 1;
+
     for(int i = startPosition; i <= endPosition; i++)
     {
         bool inStepWindow = (keySamples[i] >= stepWindowStart) && (keySamples[i] <= stepWindowEnd);
@@ -523,6 +593,149 @@ void BatteryParamsExtraction::storeCycleSamples()
         activeCycle.plotKeys.append(keySamples[i]);
         activeCycle.plotVoltage.append(voltageSamples[i]);
         activeCycle.plotCurrent.append(currentSamples[i]);
+    }
+}
+
+int BatteryParamsExtraction::relaxationPositionGet(const QVector<double> &keys, const QVector<double> &voltage,
+                                                   int start, int end, double threshold, double window)
+{
+    return prvBATTERYPARAMS_RelaxationPositionGet(keys, voltage, start, end, threshold, window);
+}
+
+/*Markers reported by the device can land on the current step itself instead of on
+  the settled levels around it, and the resistance is then calculated across the
+  step. Pulse End is moved to the last sample that still carries the pulse current
+  and Pause Start to the first sample that already carries the pause current*/
+bool BatteryParamsExtraction::cyclePointsFit(batteryparams_cycle_t *cycle)
+{
+    int startPosition = -1;
+    int endPosition = -1;
+    int stepPosition = -1;
+    double stepDrop = 0;
+    double pulseLevel = 0;
+    double pauseLevel = 0;
+    double amplitude;
+    double tolerance;
+    int pulseEndPosition;
+    int pauseStartPosition;
+    int no;
+
+    if(cycle == NULL) return false;
+    if(cycle->plotKeys.size() != cycle->plotCurrent.size()) return false;
+
+    for(int i = 0; i < cycle->plotKeys.size(); i++)
+    {
+        if((startPosition < 0) && (cycle->plotKeys[i] >= cycle->pulseStartKey)) startPosition = i;
+        if(cycle->plotKeys[i] <= cycle->pauseEndKey) endPosition = i;
+    }
+
+    if((startPosition < 0) || (endPosition <= startPosition)) return false;
+
+    for(int i = startPosition; i < endPosition; i++)
+    {
+        double drop = cycle->plotCurrent[i] - cycle->plotCurrent[i + 1];
+
+        if((stepPosition < 0) || (drop > stepDrop))
+        {
+            stepPosition = i;
+            stepDrop = drop;
+        }
+    }
+
+    if(stepPosition <= startPosition) return false;
+
+    no = 0;
+    for(int i = startPosition; i <= stepPosition; i++)
+    {
+        pulseLevel += cycle->plotCurrent[i];
+        no++;
+    }
+    if(no == 0) return false;
+    pulseLevel /= (double)no;
+
+    no = 0;
+    for(int i = stepPosition + 1; i <= endPosition; i++)
+    {
+        pauseLevel += cycle->plotCurrent[i];
+        no++;
+    }
+    if(no == 0) return false;
+    pauseLevel /= (double)no;
+
+    amplitude = pulseLevel - pauseLevel;
+
+    if(amplitude <= 0) return false;
+
+    tolerance = amplitude * 0.1;
+
+    pulseEndPosition = stepPosition;
+    while((pulseEndPosition > startPosition) && (cycle->plotCurrent[pulseEndPosition] < (pulseLevel - tolerance)))
+    {
+        pulseEndPosition--;
+    }
+
+    pauseStartPosition = stepPosition + 1;
+    while((pauseStartPosition < endPosition) && (cycle->plotCurrent[pauseStartPosition] > (pauseLevel + tolerance)))
+    {
+        pauseStartPosition++;
+    }
+
+    if((cycle->plotKeys[pulseEndPosition] == cycle->pulseEndKey) &&
+       (cycle->plotKeys[pauseStartPosition] == cycle->pauseStartKey))
+    {
+        return false;
+    }
+
+    cycle->pulseEndKey = cycle->plotKeys[pulseEndPosition];
+    cycle->pulseEndVoltage = cycle->plotVoltage[pulseEndPosition];
+    cycle->pulseEndCurrent = cycle->plotCurrent[pulseEndPosition];
+
+    cycle->pauseStartKey = cycle->plotKeys[pauseStartPosition];
+    cycle->pauseStartVoltage = cycle->plotVoltage[pauseStartPosition];
+    cycle->pauseStartCurrent = cycle->plotCurrent[pauseStartPosition];
+
+    cycle->deltaVoltage = cycle->pauseStartVoltage - cycle->pulseEndVoltage;
+    cycle->deltaCurrent = cycle->pulseEndCurrent - cycle->pauseStartCurrent;
+    cycle->resistanceValid = fabs(cycle->deltaCurrent) > 0.000001;
+    cycle->resistance = cycle->resistanceValid ? cycle->deltaVoltage / (cycle->deltaCurrent / 1000.0) : 0;
+
+    return true;
+}
+
+void BatteryParamsExtraction::seriesSmooth(const QVector<double> &keys, const QVector<double> &values,
+                                           double window, QVector<double> *smoothed)
+{
+    double sum = 0;
+    int first = 0;
+
+    if(smoothed == NULL) return;
+
+    smoothed->clear();
+
+    if(keys.size() != values.size()) return;
+
+    smoothed->reserve(values.size());
+
+    /*Voltage noise is compared against a threshold of a few mV, so a single sample
+      decides nothing. Every sample is replaced with the average of the samples that
+      fall inside the filter window ending at it*/
+    if(window <= 0)
+    {
+        *smoothed = values;
+        return;
+    }
+
+    for(int i = 0; i < values.size(); i++)
+    {
+        sum += values[i];
+
+        while((first < i) && ((keys[i] - keys[first]) > window))
+        {
+            sum -= values[first];
+            first++;
+        }
+
+        smoothed->append(sum / (double)(i - first + 1));
     }
 }
 

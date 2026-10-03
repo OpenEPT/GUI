@@ -27,6 +27,8 @@ void CalibrationWnd::showWnd()
     ui->volOffLine->setText(QString::number(calData->voltageOff));
     ui->volCorrLine->setText(QString::number(calData->voltageCorr));
     ui->volCOffLine->setText(QString::number(calData->voltageCurrOffset));
+    ui->dacOffLine->setText(QString::number(calData->dacOffset));
+    ui->dacCorLine->setText(QString::number(calData->dacCorrection));
     show();
 }
 
@@ -44,6 +46,8 @@ void CalibrationWnd::onSubmitPressed(bool pressed)
     calData->voltageOff        = ui->volOffLine->text().toDouble();
     calData->voltageCorr       = ui->volCorrLine->text().toDouble();
     calData->voltageCurrOffset = ui->volCOffLine->text().toDouble();
+    calData->dacOffset         = ui->dacOffLine->text().toDouble();
+    calData->dacCorrection     = ui->dacCorLine->text().toDouble();
 
     emit sigCalibrationDataUpdated();
 }

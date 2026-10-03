@@ -35,6 +35,14 @@ BatteryParamsSettingsDlg::BatteryParamsSettingsDlg(QWidget *parent) :
                                           "Battery counts as relaxed once the voltage stays inside this band for the whole window");
     relaxationWindowEdit = createEntry(relaxationLayout, 1, "Relaxation window", "s",
                                        "Time the voltage has to stay inside the band");
+    relaxationFilterEdit = createEntry(relaxationLayout, 2, "Relaxation filter", "ms",
+                                       "Voltage is averaged over this window, in milliseconds, before it is compared with the threshold.\n"
+                                       "Without it the threshold is compared against the raw noise.\n"
+                                       "0 turns the filter off");
+    plotDecimationEdit = createEntry(relaxationLayout, 3, "Stored sample step", "",
+                                     "How many samples of a cycle are skipped when the waveform is stored for the plots.\n"
+                                     "1 keeps every sample, 10 keeps every tenth one.\n"
+                                     "Relaxation search is not affected, it always works on averaged full resolution data");
 
     QLabel *modelLabel = new QLabel("Model", extractionGroup);
     modelCombo = new QComboBox(extractionGroup);
@@ -106,10 +114,19 @@ BatteryParamsSettingsDlg::BatteryParamsSettingsDlg(QWidget *parent) :
     plotGridCheckBox = new QCheckBox("Show grid", plotTab);
     plotMinorGridCheckBox = new QCheckBox("Show minor grid", plotTab);
     plotLegendCheckBox = new QCheckBox("Show legend", plotTab);
-    plotLayout->addWidget(plotGridCheckBox, 8, 0, 1, 3);
-    plotLayout->addWidget(plotMinorGridCheckBox, 9, 0, 1, 3);
-    plotLayout->addWidget(plotLegendCheckBox, 10, 0, 1, 3);
-    plotLayout->setRowStretch(11, 1);
+    plotTimeUnitCombo = new QComboBox(plotTab);
+    plotTimeUnitCombo->addItem("Milliseconds");
+    plotTimeUnitCombo->addItem("Seconds");
+    plotTimeUnitCombo->addItem("Minutes");
+    plotTimeUnitCombo->setFixedHeight(BATTERYPARAMSSETTINGS_ROW_HEIGHT);
+    plotTimeUnitCombo->setToolTip("Unit the cycle points and the time axis are shown in");
+    plotLayout->addWidget(new QLabel("Time unit", plotTab), 8, 0);
+    plotLayout->addWidget(plotTimeUnitCombo, 8, 1, 1, 2);
+
+    plotLayout->addWidget(plotGridCheckBox, 9, 0, 1, 3);
+    plotLayout->addWidget(plotMinorGridCheckBox, 10, 0, 1, 3);
+    plotLayout->addWidget(plotLegendCheckBox, 11, 0, 1, 3);
+    plotLayout->setRowStretch(12, 1);
 
     tabWidget->addTab(plotTab, "Plots");
 
@@ -146,6 +163,8 @@ void BatteryParamsSettingsDlg::setSettings(batteryparams_settings_t settings)
     initialSocEdit->setText(QString::number(settings.initialSoc));
     relaxationThresholdEdit->setText(QString::number(settings.relaxationThreshold));
     relaxationWindowEdit->setText(QString::number(settings.relaxationWindow));
+    relaxationFilterEdit->setText(QString::number(settings.relaxationFilter));
+    plotDecimationEdit->setText(QString::number(settings.plotDecimation));
     modelCombo->setCurrentIndex(settings.model == BATTERYPARAMS_MODEL_FIRST_ORDER ? 0 : 1);
     fitEndCombo->setCurrentIndex(settings.fitEnd == BATTERYPARAMS_FIT_END_RELAXATION ? 0 : 1);
     tauGridPointsEdit->setText(QString::number(settings.tauGridPoints));
@@ -166,6 +185,7 @@ void BatteryParamsSettingsDlg::setPlotSettings(batteryparams_plot_settings_t set
     plotGridCheckBox->setChecked(settings.gridVisible);
     plotMinorGridCheckBox->setChecked(settings.minorGridVisible);
     plotLegendCheckBox->setChecked(settings.legendVisible);
+    plotTimeUnitCombo->setCurrentIndex((int)settings.timeUnit);
 }
 
 batteryparams_plot_settings_t BatteryParamsSettingsDlg::getPlotSettings()
@@ -183,6 +203,7 @@ batteryparams_plot_settings_t BatteryParamsSettingsDlg::getPlotSettings()
     settings.legendFontFamily = plotLegendFontCombo->currentFont().family();
     settings.legendPosition = (plotLegendPositionCombo->currentIndex() == 0) ?
                               BATTERYPARAMSPLOT_LEGEND_LEFT : BATTERYPARAMSPLOT_LEGEND_RIGHT;
+    settings.timeUnit = (batteryparams_time_unit_t)plotTimeUnitCombo->currentIndex();
     settings.gridVisible = plotGridCheckBox->isChecked();
     settings.minorGridVisible = plotMinorGridCheckBox->isChecked();
     settings.legendVisible = plotLegendCheckBox->isChecked();
@@ -198,6 +219,8 @@ batteryparams_settings_t BatteryParamsSettingsDlg::getSettings()
     if(initialSocEdit->text().toDouble() > 0) settings.initialSoc = initialSocEdit->text().toDouble();
     if(relaxationThresholdEdit->text().toDouble() > 0) settings.relaxationThreshold = relaxationThresholdEdit->text().toDouble();
     if(relaxationWindowEdit->text().toDouble() > 0) settings.relaxationWindow = relaxationWindowEdit->text().toDouble();
+    if(relaxationFilterEdit->text().toDouble() >= 0) settings.relaxationFilter = relaxationFilterEdit->text().toDouble();
+    if(plotDecimationEdit->text().toInt() > 0) settings.plotDecimation = plotDecimationEdit->text().toInt();
     if(tauGridPointsEdit->text().toInt() > 1) settings.tauGridPoints = tauGridPointsEdit->text().toInt();
     if(tauRefinementEdit->text().toInt() > 0) settings.tauRefinementNo = tauRefinementEdit->text().toInt();
     if(tauSeparationEdit->text().toDouble() > 1) settings.tauSeparation = tauSeparationEdit->text().toDouble();

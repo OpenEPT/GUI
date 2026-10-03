@@ -147,6 +147,8 @@ public:
     void            setConfigurationChargerBDProgressStatus(int percentage, QString status);
 
     bool            plotVoltageValues(QVector<double> values, QVector<double> keys);
+    bool            plotVoltageAverageValues(QVector<double> values, QVector<double> keys);
+    void            enableVoltageAveragePlot(bool enable);
     bool            plotCurrentValues(QVector<double> values, QVector<double> keys);
     bool            plotConsumptionValues(QVector<double> values, QVector<double> keys);
     bool            plotConsumptionEBP(QVector<double> values, QVector<double> keys);
@@ -198,7 +200,7 @@ signals:
     void            sigLoadWaveStatusChanged(bool newState);
     void            sigBatParamViewRequested();
     void            sigBatParamCapacityChanged(double capacity);
-    void            sigBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, int passes);
+    void            sigBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, double filterMs);
     void            sigLoadWaveClear();
     void            sigChargingCurrentChanged(unsigned int current);
     void            sigChargingTermCurrentChanged(unsigned int current);

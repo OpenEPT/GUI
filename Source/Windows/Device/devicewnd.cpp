@@ -1144,6 +1144,18 @@ bool DeviceWnd::plotVoltageValues(QVector<double> values, QVector<double> keys)
     return true;
 }
 
+bool DeviceWnd::plotVoltageAverageValues(QVector<double> values, QVector<double> keys)
+{
+    voltageChart->appendAverageData(values, keys);
+    return true;
+}
+
+void DeviceWnd::enableVoltageAveragePlot(bool enable)
+{
+    if(enable) voltageChart->averageAddGraph();
+    else voltageChart->clearAverageData();
+}
+
 bool DeviceWnd::plotCurrentValues(QVector<double> values, QVector<double> keys)
 {
     currentChart->appendData(values, keys);

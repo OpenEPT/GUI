@@ -23,6 +23,8 @@ public:
     double currentCorrection;
     double currentGain;
     double currentShunt;
+    double dacOffset;
+    double dacCorrection;
 };
 
 #endif // CALIBRATIONDATA_H

@@ -30,6 +30,8 @@ private:
     QLineEdit                  *initialSocEdit;
     QLineEdit                  *relaxationThresholdEdit;
     QLineEdit                  *relaxationWindowEdit;
+    QLineEdit                  *relaxationFilterEdit;
+    QLineEdit                  *plotDecimationEdit;
     QComboBox                  *modelCombo;
     QComboBox                  *fitEndCombo;
     QLineEdit                  *tauGridPointsEdit;
@@ -44,6 +46,7 @@ private:
     QLineEdit                  *plotMarkerSizeEdit;
     QFontComboBox              *plotLegendFontCombo;
     QComboBox                  *plotLegendPositionCombo;
+    QComboBox                  *plotTimeUnitCombo;
     QCheckBox                  *plotGridCheckBox;
     QCheckBox                  *plotMinorGridCheckBox;
     QCheckBox                  *plotLegendCheckBox;

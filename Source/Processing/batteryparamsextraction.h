@@ -10,9 +10,10 @@
 #define BATTERYPARAMS_DEFAULT_PAUSE_START_MARKER    "Pause Start"
 #define BATTERYPARAMS_DEFAULT_PAUSE_END_MARKER      "Pause End"
 
-#define BATTERYPARAMS_CYCLE_PLOT_POINTS_MAX         4000
+#define BATTERYPARAMS_CYCLE_PLOT_DECIMATION_DEFAULT 10
 #define BATTERYPARAMS_RELAX_THRESHOLD_DEFAULT       5.0
 #define BATTERYPARAMS_RELAX_WINDOW_DEFAULT          60.0
+#define BATTERYPARAMS_RELAX_FILTER_DEFAULT          1000.0
 #define BATTERYPARAMS_RELAX_FAST_WINDOW_DIVIDER     60.0
 #define BATTERYPARAMS_SETTLING_TAU_NO               5.0
 #define BATTERYPARAMS_TAU_GRID_POINTS               60
@@ -38,6 +39,7 @@ typedef struct
 {
     double                  relaxationThreshold;
     double                  relaxationWindow;
+    double                  relaxationFilter;  /*ms*/
     batteryparams_model_t   model;
     batteryparams_fit_end_t fitEnd;
     int                     tauGridPoints;
@@ -45,6 +47,7 @@ typedef struct
     double                  tauSeparation;
     double                  capacity;
     double                  initialSoc;
+    int                     plotDecimation;
 }batteryparams_settings_t;
 
 typedef struct
@@ -92,6 +95,9 @@ typedef struct
     QVector<double> fitKeys;
     QVector<double> fitVoltage;
 
+    QVector<double> relaxKeys;
+    QVector<double> relaxVoltage;
+
     QVector<double> plotKeys;
     QVector<double> plotVoltage;
     QVector<double> plotCurrent;
@@ -113,6 +119,11 @@ public:
 
     static batteryparams_settings_t settingsDefault();
     static bool             analyzeCycle(batteryparams_cycle_t *cycle, batteryparams_settings_t settings);
+    static int              relaxationPositionGet(const QVector<double> &keys, const QVector<double> &voltage,
+                                                  int start, int end, double threshold, double window);
+    static bool             cyclePointsFit(batteryparams_cycle_t *cycle);
+    static void             seriesSmooth(const QVector<double> &keys, const QVector<double> &values,
+                                         double window, QVector<double> *smoothed);
     QVector<batteryparams_cycle_t> getCycles();
 
 signals:

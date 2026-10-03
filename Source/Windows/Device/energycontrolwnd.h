@@ -148,7 +148,7 @@ signals:
     void sigLoadWaveClear();
     void sigBatParamViewRequested();
     void sigBatParamCapacityChanged(double capacity);
-    void sigBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, int passes);
+    void sigBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, double filterMs);
 
     void sigChargingCurrentChanged(unsigned int newCurrent);
     void sigChargingTermVoltageChanged(float newVoltage);

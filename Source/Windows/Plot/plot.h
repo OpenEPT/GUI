@@ -16,6 +16,9 @@ public:
     void        scatterAddData(QVector<double> data, QVector<double> keys);
     void        scatterAddAllDataWithName(QVector<QPair<QString, int>> data);
     void        scatterClearMarkers();
+    void        averageAddGraph();
+    void        appendAverageData(QVector<double> data, QVector<double> keys);
+    void        clearAverageData();
     void        scatterAddDataWithName(double value, double keys, QString name);
     void        scatterReplotDataWithName();
     void        setData(QVector<double> data, QVector<double> keys);
@@ -76,6 +79,10 @@ private:
     QVector<double> yData;
     QVector<double> plotXData;
     QVector<double> plotYData;
+    QVector<double> averageXData;
+    QVector<double> averageYData;
+    bool        averageGraphAdded;
+    int         averageGraphIndex;
     QVector<double> epDataKey;
     QVector<QString> epDataName;
     QVector<QCPItemText *> textData;

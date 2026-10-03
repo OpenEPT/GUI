@@ -6,6 +6,8 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QWidget>
+#include <QVector>
+#include <QStringList>
 
 #include "Processing/batteryparamsextraction.h"
 #include "Windows/BatteryParams/batteryparamsplotsettings.h"
@@ -28,6 +30,7 @@ private slots:
     void                onMarkerStepBack();
     void                onMarkerStepForward();
     void                onMarkersEdited();
+    void                onFitPoints();
     void                onRestore();
     void                onSave();
 
@@ -43,6 +46,9 @@ private:
     QLineEdit          *pauseEndEdit;
     QPushButton        *saveButton;
     QPushButton        *restoreButton;
+    QPushButton        *fitButton;
+    QVector<QLabel*>    markerLabels;
+    QStringList         markerNames;
 
     batteryparams_plot_settings_t plotSettings;
     batteryparams_cycle_t cycle;
@@ -53,6 +59,12 @@ private:
     QHBoxLayout*        createMarkerRow(QString name, QLineEdit **edit);
     void                markerStep(QLineEdit *edit, int step);
     void                applyMarkers();
+    void                applyPlotStyle();
+    void                refreshMarkerEdits();
+    void                updateMarkerLabels();
+    double              timeScale();
+    QString             timeSuffix();
+    int                 timeDecimals();
     void                updateInfo();
     void                updatePlots();
 };

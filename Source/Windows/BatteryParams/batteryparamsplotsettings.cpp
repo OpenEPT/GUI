@@ -19,8 +19,39 @@ batteryparams_plot_settings_t BATTERYPARAMSPLOT_SettingsDefault()
     defaults.minorGridVisible = false;
     defaults.legendVisible = true;
     defaults.legendPosition = BATTERYPARAMSPLOT_LEGEND_RIGHT;
+    defaults.timeUnit = BATTERYPARAMSPLOT_TIME_MS;
 
     return defaults;
+}
+
+double BATTERYPARAMSPLOT_TimeScale(batteryparams_time_unit_t unit)
+{
+    switch(unit)
+    {
+    case BATTERYPARAMSPLOT_TIME_S:   return 1000.0;
+    case BATTERYPARAMSPLOT_TIME_MIN: return 60000.0;
+    default:                         return 1.0;
+    }
+}
+
+QString BATTERYPARAMSPLOT_TimeSuffix(batteryparams_time_unit_t unit)
+{
+    switch(unit)
+    {
+    case BATTERYPARAMSPLOT_TIME_S:   return "s";
+    case BATTERYPARAMSPLOT_TIME_MIN: return "min";
+    default:                         return "ms";
+    }
+}
+
+int BATTERYPARAMSPLOT_TimeDecimals(batteryparams_time_unit_t unit)
+{
+    switch(unit)
+    {
+    case BATTERYPARAMSPLOT_TIME_S:   return 4;
+    case BATTERYPARAMSPLOT_TIME_MIN: return 6;
+    default:                         return 3;
+    }
 }
 
 /*Applied after the graphs are built, so every analysis window shares the same look*/

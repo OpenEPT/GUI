@@ -48,6 +48,9 @@ private slots:
     void                onFitQuality();
     void                onRelaxationTime();
     void                onFitInterval();
+    void                onFitCyclePoints();
+    void                onFitPointsSave();
+    void                onFitPointsRestore();
     void                onSweepRequested(batteryfitinterval_sweep_t mode, double fixedValue,
                                          double from, double to, int steps, bool compare);
     void                onCycleSelected(int row, int column);
@@ -63,6 +66,9 @@ private:
     QPushButton        *fitQualityButton;
     QPushButton        *relaxationTimeButton;
     QPushButton        *fitIntervalButton;
+    QPushButton        *fitPointsButton;
+    QPushButton        *fitPointsSaveButton;
+    QPushButton        *fitPointsRestoreButton;
     QLabel             *settingsLabel;
 
     BatteryParamsSettingsDlg *settingsDlg;
@@ -82,6 +88,10 @@ private:
     QPushButton        *clearButton;
     QPushButton        *exportButton;
     BatteryCycleWnd    *cycleWnd;
+    QVector<int>        fittedPositions;
+    QVector<batteryparams_cycle_t> fittedOriginals;
+
+    void                updateFitPointsButtons();
     bool                connectedToCycleWnd;
     bool                connectedToFitIntervalWnd;
 
