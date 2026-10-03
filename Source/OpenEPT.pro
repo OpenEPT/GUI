@@ -62,6 +62,7 @@ SOURCES += \
     Windows/DataAnalyzer/dataanalyzerprofile.cpp \
     Windows/DataAnalyzer/dataanalyzerstatistics.cpp \
     Windows/Device/calibrationwnd.cpp \
+    Windows/Device/autocalibrationwnd.cpp \
     Windows/Device/configurationwnd.cpp \
     Windows/Device/datastatistics.cpp \
     Windows/Device/devicewnd.cpp \
@@ -114,6 +115,7 @@ HEADERS += \
     Windows/DataAnalyzer/dataanalyzerworker.h \
     Windows/DataAnalyzer/dataanalyzerstatistics.h \
     Windows/Device/calibrationwnd.h \
+    Windows/Device/autocalibrationwnd.h \
     Windows/Device/configurationwnd.h \
     Windows/Device/datastatistics.h \
     Windows/Device/devicewnd.h \

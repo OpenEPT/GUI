@@ -2,10 +2,11 @@
 #define CALIBRATIONWND_H
 
 #include <QWidget>
+#include <QLineEdit>
+#include <QPushButton>
 #include "Processing/calibrationdata.h"
 
-
-
+class QGridLayout;
 
 namespace Ui {
 class CalibrationWnd;
@@ -26,6 +27,7 @@ public:
 signals:
     void sigCalibrationDataUpdated();
     void sigCalibrationStoreRequest();
+    void sigStartAutoCalibration();
 
 private slots:
     void onSubmitPressed(bool pressed);
@@ -34,6 +36,23 @@ private slots:
 private:
     Ui::CalibrationWnd *ui;
     CalibrationData* calData;
+
+    QLineEdit *adcVolRefLine;
+    QLineEdit *volOffLine;
+    QLineEdit *volCorrLine;
+    QLineEdit *volCOffLine;
+    QLineEdit *currCorrLine;
+    QLineEdit *currGainLine;
+    QLineEdit *currShuntLine;
+    QLineEdit *dacOffLine;
+    QLineEdit *dacCorLine;
+
+    QPushButton *submitPusb;
+    QPushButton *storePusb;
+    QPushButton *autoPusb;
+
+    QLineEdit* createField(const QString &label, const QString &unit, QGridLayout *grid, int row);
+    void       buildUi();
 };
 
 #endif // CALIBRATIONWND_H

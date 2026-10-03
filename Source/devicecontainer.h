@@ -139,6 +139,10 @@ public slots:
 private slots:
     void    onDeviceWndCalibrationUpdated();
     void    onDeviceWndCalibrationStoreRequest();
+    void    onDeviceWndAutoCalApply();
+    void    onDeviceWndAutoCalSetLoadCurrent(int mA);
+    void    onDeviceWndAutoCalSetLoadEnabled(bool enabled);
+    void    onDeviceWndAutoCalResetProtection();
 
 
 
@@ -172,6 +176,9 @@ private:
     bool                            batParamRelaxRunning;
     bool                            batParamRelaxRestarting;
     double                          samplingPeriodMs;
+    bool                            uVoltageActive;
+    bool                            oVoltageActive;
+    bool                            oCurrentActive;
     double                          batParamRelaxCheckKey;
     QVector<double>                 batParamRelaxKeys;
     QVector<double>                 batParamRelaxVoltage;

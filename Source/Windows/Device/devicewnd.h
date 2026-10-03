@@ -13,6 +13,7 @@
 #include "Windows/Device/advcofigurationdata.h"
 #include "Windows/Device/datastatistics.h"
 #include "Windows/Device/calibrationwnd.h"
+#include "Windows/Device/autocalibrationwnd.h"
 #include "Windows/Device/energycontrolwnd.h"
 #include "Windows/Device/configurationwnd.h"
 #include "Processing/Parameters/deviceparameters.h"
@@ -92,6 +93,10 @@ public:
     void            setParameters(DeviceParameters* params);
     void            setDeviceNetworkState(device_state_t aDeviceState);
     void            setDeviceAcqState(device_acq_mode_t aAcqState);
+    void            forwardCalibrationStatistics(double voltageAvg, double currentAvg);
+    void            setAutoCalibrationLoadDisabled(bool disabled);
+    void            autoCalibrationLoadEnableResult(bool ok);
+    void            autoCalibrationLog(QString message);
     void            printConsoleMsg(QString msg, bool exeStatus);
     void            setDeviceInterfaceSelectionState(device_interface_selection_state_t selectionState=DEVICE_INTERFACE_SELECTION_STATE_UNDEFINED);
     bool            setSamplingPeriod(QString stime);
@@ -221,6 +226,10 @@ signals:
 
     void            sigCalibrationUpdated();
     void            sigCalibrationStoreRequest();
+    void            sigAutoCalApplyCalibration();
+    void            sigAutoCalSetLoadCurrent(int mA);
+    void            sigAutoCalSetLoadEnabled(bool enabled);
+    void            sigAutoCalResetProtection();
     void            sigDeviceConfigSet(QMap<QString, QString> changedFields);
     void            sigDeviceConfigGet();
     void            sigDeviceConfigStore();
@@ -292,6 +301,8 @@ public slots:
     void            onPlotScatterNameAndKey(QString name, double key);
 
 private slots:
+    void            onStartAutoCalibration();
+
     void            onCalibrationUpdated();
     void            onCalibrationStoreRequest();
     void            onPlotDockMaximizeToggled(PlotDockWidget* dock, bool maximized);
@@ -308,6 +319,7 @@ private:
     ConsoleWnd                  *consoleWnd;
     DataStatistics              *dataAnalyzer;
     CalibrationWnd              *calibrationWnd;
+    AutoCalibrationWnd          *autoCalibrationWnd;
     EnergyControlWnd            *energyControlWnd;
     Plot                        *voltageChart;
     Plot                        *currentChart;

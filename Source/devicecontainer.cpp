@@ -21,6 +21,9 @@ DeviceContainer::DeviceContainer(QObject *parent,
     connect(batteryParamsExtraction, &BatteryParamsExtraction::sigCycleFinished,
             this, &DeviceContainer::onBatParamCycleFinished);
     samplingPeriodMs = 0;
+    uVoltageActive = false;
+    oVoltageActive = false;
+    oCurrentActive = false;
     batParamRelaxEnabled = false;
     batParamRelaxThreshold = 0;
     batParamRelaxWindow = 0;
@@ -70,6 +73,10 @@ DeviceContainer::DeviceContainer(QObject *parent,
     connect(deviceWnd,  SIGNAL(sigConsumptionProfileNameChanged(QString)),          this, SLOT(onDeviceWndConsumptionProfileNameChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigCalibrationUpdated()),                            this, SLOT(onDeviceWndCalibrationUpdated()));
     connect(deviceWnd,  SIGNAL(sigCalibrationStoreRequest()),                       this, SLOT(onDeviceWndCalibrationStoreRequest()));
+    connect(deviceWnd,  SIGNAL(sigAutoCalApplyCalibration()),                       this, SLOT(onDeviceWndAutoCalApply()));
+    connect(deviceWnd,  SIGNAL(sigAutoCalSetLoadCurrent(int)),                      this, SLOT(onDeviceWndAutoCalSetLoadCurrent(int)));
+    connect(deviceWnd,  SIGNAL(sigAutoCalSetLoadEnabled(bool)),                     this, SLOT(onDeviceWndAutoCalSetLoadEnabled(bool)));
+    connect(deviceWnd,  SIGNAL(sigAutoCalResetProtection()),                        this, SLOT(onDeviceWndAutoCalResetProtection()));
 
     connect(deviceWnd,  SIGNAL(sigLoadStatusChanged(bool)),                         this, SLOT(onDeviceWndLoadStatusChanged(bool)));
     connect(deviceWnd,  SIGNAL(sigPPathStatusChanged(bool)),                        this, SLOT(onDeviceWndPPathStatusChanged(bool)));
@@ -1449,6 +1456,65 @@ void DeviceContainer::onDeviceWndCalibrationUpdated()
               "Unable to apply calibration parameters on device");
 }
 
+void DeviceContainer::onDeviceWndAutoCalApply()
+{
+    /*Recompute the increments so the live measurement reflects the parameter the
+      wizard just changed*/
+    device->calibrationUpdated();
+}
+
+void DeviceContainer::onDeviceWndAutoCalSetLoadCurrent(int mA)
+{
+    device->setLoadCurrent(mA);
+}
+
+void DeviceContainer::onDeviceWndAutoCalSetLoadEnabled(bool enabled)
+{
+    bool ok;
+
+    if(enabled)
+    {
+        /*A protection can latch while the source is being connected, so it is reset
+          before the load is enabled instead of refusing the calibration*/
+        if(uVoltageActive || oVoltageActive || oCurrentActive)
+        {
+            device->latchTrigger();
+            uVoltageActive = false;
+            oVoltageActive = false;
+            oCurrentActive = false;
+            deviceWnd->autoCalibrationLog("Protection was active, latch reset");
+        }
+    }
+
+    /*Load output is driven directly here, not through the energy control window, so
+      the calibration does not depend on the energy control working mode. The load
+      stage is off by default, so it is enabled together with the DAC*/
+    if(enabled)
+    {
+        bool loadOk = device->setLoadStatus(true);
+        bool dacOk = device->setDACStatus(true);
+
+        ok = loadOk && dacOk;
+        if(ok) deviceWnd->autoCalibrationLog("Load and DAC enabled");
+        deviceWnd->autoCalibrationLoadEnableResult(ok);
+    }
+    else
+    {
+        device->setDACStatus(false);
+        device->setLoadStatus(false);
+        ok = true;
+    }
+}
+
+void DeviceContainer::onDeviceWndAutoCalResetProtection()
+{
+    device->latchTrigger();
+    uVoltageActive = false;
+    oVoltageActive = false;
+    oCurrentActive = false;
+    deviceWnd->autoCalibrationLog("Protection latch reset requested");
+}
+
 void DeviceContainer::onDeviceWndCalibrationStoreRequest()
 {
     bool ok = device->setCalParam();
@@ -1515,6 +1581,8 @@ void DeviceContainer::onDeviceLoadCurrentObtained(int current)
 
 void DeviceContainer::onDeviceUVoltageObtained(bool state)
 {
+    uVoltageActive = state;
+    if(state) deviceWnd->autoCalibrationLog("Under voltage protection tripped");
     bool ok = deviceWnd->setUVoltageIndication(state);
 
     logResult(ok,
@@ -1546,6 +1614,8 @@ void DeviceContainer::onDeviceChargerConnectionStatusOntained(bool state)
 
 void DeviceContainer::onDeviceOVoltageObtained(bool state)
 {
+    oVoltageActive = state;
+    if(state) deviceWnd->autoCalibrationLog("Over voltage protection tripped");
     bool ok = deviceWnd->setOVoltageIndication(state);
 
     logResult(ok,
@@ -1555,6 +1625,8 @@ void DeviceContainer::onDeviceOVoltageObtained(bool state)
 
 void DeviceContainer::onDeviceOCurrentObtained(bool state)
 {
+    oCurrentActive = state;
+    if(state) deviceWnd->autoCalibrationLog("Over current protection tripped");
     bool ok = deviceWnd->setOCurrentIndication(state);
 
     logResult(ok,
