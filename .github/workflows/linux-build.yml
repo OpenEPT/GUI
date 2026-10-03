@@ -34,17 +34,25 @@ jobs:
       - name: Determine version
         id: version
         run: |
+          BASE="$(head -n 1 VERSION | tr -d '[:space:]')"
+          [ -n "$BASE" ] || { echo "VERSION file is empty"; exit 1; }
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+            TAG="${GITHUB_REF#refs/tags/v}"
+            if [ "$TAG" != "$BASE" ]; then
+              echo "Tag v$TAG does not match VERSION file ($BASE)."
+              echo "Update VERSION and commit it before tagging."
+              exit 1
+            fi
+            echo "version=${BASE}" >> "$GITHUB_OUTPUT"
           else
-            echo "version=0.0.0+git.$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+            echo "version=${BASE}+git.$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build OpenEPT
         run: |
           mkdir -p build
           cd build
-          qmake ../Source/OpenEPT.pro CONFIG+=release
+          qmake ../Source/OpenEPT.pro CONFIG+=release APP_VERSION="${{ steps.version.outputs.version }}"
           make -j"$(nproc)"
 
       - name: Create AppImage and Debian package

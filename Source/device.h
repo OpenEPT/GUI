@@ -107,6 +107,7 @@ public:
     bool        setResolution(device_adc_resolution_t resolution);
     bool        getResolution(device_adc_resolution_t* resolution = NULL);    
     bool        setSamplesNo(unsigned int aSamplesNo);
+    void        syncSamplesNoFromParameters();
     bool        setClockDiv(device_adc_clock_div_t clockDiv);
     bool        getClockDiv(device_adc_clock_div_t* clockDiv = NULL);
     bool        setChSampleTime(device_adc_ch_sampling_time_t sampleTime);

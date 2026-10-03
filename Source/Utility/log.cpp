@@ -1,11 +1,13 @@
 #include "log.h"
 #include <QTime>
+#include <QScrollBar>
 
 Log::Log(QObject *parent)
     : QObject{parent}
 {
     plainTextWidget = NULL;
     filter = LOG_FILTER_ALL;
+    followOutput = true;
 }
 
 void Log::assignLogWidget(QPlainTextEdit *aWidget)
@@ -33,9 +35,30 @@ void Log::appendEntry(log_entry_t entry)
 {
     if(plainTextWidget == NULL) return;
     if(!categoryVisible(entry.category, filter)) return;
-    plainTextWidget->moveCursor(QTextCursor::End);
+
+    QScrollBar *scrollBar = plainTextWidget->verticalScrollBar();
+    int scrollPosition = scrollBar->value();
+
     plainTextWidget->appendHtml(entry.html);
+
+    if(followOutput)
+    {
+        plainTextWidget->moveCursor(QTextCursor::End);
+        scrollBar->setValue(scrollBar->maximum());
+    }
+    else
+    {
+        scrollBar->setValue(scrollPosition);
+    }
+}
+
+void Log::setFollowOutput(bool follow)
+{
+    followOutput = follow;
+    if(plainTextWidget == NULL) return;
+    if(!followOutput) return;
     plainTextWidget->moveCursor(QTextCursor::End);
+    plainTextWidget->verticalScrollBar()->setValue(plainTextWidget->verticalScrollBar()->maximum());
 }
 
 void Log::setFilter(int aFilter)

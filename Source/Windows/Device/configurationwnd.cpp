@@ -18,6 +18,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QComboBox>
+#include <QCheckBox>
 
 #define CONFIG_LABEL_WIDTH     150
 #define CONFIG_FIELD_WIDTH     170
@@ -467,7 +468,16 @@ QWidget *ConfigurationWnd::createParamWidget(const Params::Param &param)
 
     QWidget *field = nullptr;
 
-    if(param.meta.editor == Params::Editor::ComboBox)
+    if(param.meta.editor == Params::Editor::CheckBox)
+    {
+        QCheckBox *checkBox = new QCheckBox(this);
+
+        checkBox->setMinimumHeight(CONFIG_ROW_HEIGHT);
+        checkBox->setToolTip(param.meta.description);
+
+        field = checkBox;
+    }
+    else if(param.meta.editor == Params::Editor::ComboBox)
     {
         QComboBox *comboBox = new QComboBox(this);
 
@@ -516,10 +526,24 @@ QString ConfigurationWnd::getFieldValue(QWidget *field) const
         return comboBox->currentText();
     }
 
+    if(QCheckBox *checkBox = qobject_cast<QCheckBox*>(field))
+    {
+        return checkBox->isChecked() ? QString("true") : QString("false");
+    }
+
     return QString();
 }
 void ConfigurationWnd::setFieldWidgetValue(QWidget *field, const QString &value)
 {
+    if(QCheckBox *checkBox = qobject_cast<QCheckBox*>(field))
+    {
+        const QString normalized = value.trimmed().toLower();
+        QSignalBlocker blocker(checkBox);
+        checkBox->setChecked((normalized == "true") || (normalized == "1") ||
+                             (normalized == "yes") || (normalized == "enabled"));
+        return;
+    }
+
     if(QLineEdit *lineEdit = qobject_cast<QLineEdit*>(field))
     {
         lineEdit->setText(value);
@@ -540,6 +564,12 @@ void ConfigurationWnd::setFieldWidgetValue(QWidget *field, const QString &value)
 }
 void ConfigurationWnd::setFieldWidgetEditable(QWidget *field, bool editable)
 {
+    if(QCheckBox *checkBox = qobject_cast<QCheckBox*>(field))
+    {
+        checkBox->setEnabled(editable);
+        return;
+    }
+
     if(QLineEdit *lineEdit = qobject_cast<QLineEdit*>(field))
     {
         lineEdit->setReadOnly(!editable);
@@ -651,6 +681,10 @@ void ConfigurationWnd::registerField(const Params::Param &param, QWidget *field)
     else if(QComboBox *comboBox = qobject_cast<QComboBox*>(field))
     {
         connect(comboBox, &QComboBox::currentTextChanged, this, &ConfigurationWnd::onFieldChanged);
+    }
+    else if(QCheckBox *checkBox = qobject_cast<QCheckBox*>(field))
+    {
+        connect(checkBox, &QCheckBox::toggled, this, &ConfigurationWnd::onFieldChanged);
     }
 }
 
@@ -1377,6 +1411,20 @@ void ConfigurationWnd::onSetConfigClicked()
     if(changedChargerFields.isEmpty() == false)
     {
         emit sigDeviceConfigSet(changedChargerFields);
+    }
+
+    QMap<QString, QString> changedAcquisitionFields =
+        getChangedFields(static_cast<Params::GroupId>(DeviceParamDefs::Group::AcquisitionConfig));
+
+    if((changedAcquisitionFields.isEmpty() == false) && (m_params != nullptr))
+    {
+        for(auto it = changedAcquisitionFields.constBegin(); it != changedAcquisitionFields.constEnd(); ++it)
+        {
+            if(m_params->setParamValue(it.key(), it.value()) == true)
+            {
+                setFieldValue(it.key(), it.value(), true);
+            }
+        }
     }
 
     emit sigConfigSet(changedFields);

@@ -59,6 +59,9 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     connect(energyControlWnd, SIGNAL(sigLoadCurrentChanged(unsigned int)), this, SLOT(onLoadCurrentChanged(unsigned int)));
     connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveChanged, this, &DeviceWnd::onLoadWaveChanged);
     connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveStatusChanged, this, &DeviceWnd::onLoadWaveStatusChanged);
+    connect(energyControlWnd, &EnergyControlWnd::sigBatParamViewRequested, this, &DeviceWnd::sigBatParamViewRequested);
+    connect(energyControlWnd, &EnergyControlWnd::sigBatParamCapacityChanged, this, &DeviceWnd::sigBatParamCapacityChanged);
+    connect(energyControlWnd, &EnergyControlWnd::sigBatParamRelaxationChanged, this, &DeviceWnd::sigBatParamRelaxationChanged);
     connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveClear, this, &DeviceWnd::sigLoadWaveClear);
     connect(energyControlWnd, SIGNAL(sigChargingCurrentStatusChanged(bool)), this, SLOT(onChargingCurrentStatusChanged(bool)));
     connect(energyControlWnd, SIGNAL(sigChargingCurrentChanged(unsigned int)), this, SLOT(onChargingCurrentChanged(unsigned int)));
@@ -111,6 +114,7 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     consoleWnd  = new ConsoleWnd();
 
     calibrationWnd = new CalibrationWnd();
+    autoCalibrationWnd = new AutoCalibrationWnd();
 
     createPlotsArea();
 
@@ -136,6 +140,12 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
 
     connect(calibrationWnd, SIGNAL(sigCalibrationDataUpdated()), this, SLOT(onCalibrationUpdated()));
     connect(calibrationWnd, SIGNAL(sigCalibrationStoreRequest()), this, SLOT(onCalibrationStoreRequest()));
+    connect(calibrationWnd, &CalibrationWnd::sigStartAutoCalibration, this, &DeviceWnd::onStartAutoCalibration);
+    connect(autoCalibrationWnd, &AutoCalibrationWnd::sigApplyCalibration, this, &DeviceWnd::sigAutoCalApplyCalibration);
+    connect(autoCalibrationWnd, &AutoCalibrationWnd::sigSetLoadCurrent, this, &DeviceWnd::sigAutoCalSetLoadCurrent);
+    connect(autoCalibrationWnd, &AutoCalibrationWnd::sigSetLoadEnabled, this, &DeviceWnd::sigAutoCalSetLoadEnabled);
+    connect(autoCalibrationWnd, &AutoCalibrationWnd::sigResetProtection, this, &DeviceWnd::sigAutoCalResetProtection);
+    connect(autoCalibrationWnd, &AutoCalibrationWnd::sigCalibrationFinished, this, [this](bool){ calibrationWnd->showWnd(); });
 
     connect(ui->dischargeControlPusb1, SIGNAL(clicked(bool)), this, SLOT(onCalibrationButtonPressed(bool)));
     connect(ui->dischargeControlPusb2, SIGNAL(clicked(bool)), this, SLOT(onEnenergyControlButtonPressed(bool)));
@@ -315,6 +325,7 @@ void DeviceWnd::closeSubWindows()
     if(consoleWnd) consoleWnd->close();
     if(energyControlWnd) energyControlWnd->close();
     if(calibrationWnd) calibrationWnd->close();
+    if(autoCalibrationWnd) autoCalibrationWnd->close();
     if(dataAnalyzer) dataAnalyzer->close();
 }
 
@@ -327,6 +338,34 @@ void DeviceWnd::onCalibrationButtonPressed(bool pressed)
 {
     calibrationWnd->showWnd();
     showSubWindow(calibrationWnd);
+}
+
+void DeviceWnd::onStartAutoCalibration()
+{
+    /*startCalibration asks for the reference and shows the window itself, so it is
+      not forced open when the user cancels the reference prompt*/
+    autoCalibrationWnd->setAcquisitionActive(acqState == DEVICE_ACQ_ACTIVE);
+    autoCalibrationWnd->startCalibration();
+}
+
+void DeviceWnd::forwardCalibrationStatistics(double voltageAvg, double currentAvg)
+{
+    autoCalibrationWnd->onNewStatistics(voltageAvg, currentAvg);
+}
+
+void DeviceWnd::setAutoCalibrationLoadDisabled(bool disabled)
+{
+    autoCalibrationWnd->setLoadDisabled(disabled);
+}
+
+void DeviceWnd::autoCalibrationLoadEnableResult(bool ok)
+{
+    autoCalibrationWnd->onLoadEnableResult(ok);
+}
+
+void DeviceWnd::autoCalibrationLog(QString message)
+{
+    autoCalibrationWnd->appendLog(message);
 }
 
 void DeviceWnd::onEnenergyControlButtonPressed(bool pressed)
@@ -880,6 +919,7 @@ void DeviceWnd::setChargerConnectionStatus(bool status)
 
 void DeviceWnd::setLoadCurrentStatus(bool state)
 {
+    autoCalibrationWnd->setLoadDisabled(!state);
     energyControlWnd->loadCurrentStatusSet(state);
 }
 
@@ -1141,6 +1181,18 @@ bool DeviceWnd::plotVoltageValues(QVector<double> values, QVector<double> keys)
     return true;
 }
 
+bool DeviceWnd::plotVoltageAverageValues(QVector<double> values, QVector<double> keys)
+{
+    voltageChart->appendAverageData(values, keys);
+    return true;
+}
+
+void DeviceWnd::enableVoltageAveragePlot(bool enable)
+{
+    if(enable) voltageChart->averageAddGraph();
+    else voltageChart->clearAverageData();
+}
+
 bool DeviceWnd::plotCurrentValues(QVector<double> values, QVector<double> keys)
 {
     currentChart->appendData(values, keys);
@@ -1172,6 +1224,7 @@ bool DeviceWnd::plotConsumptionEBPWithName(double value, double key, QString nam
 
 bool DeviceWnd::showStatistic(device_stat_info statInfo)
 {
+    autoCalibrationWnd->onNewStatistics(statInfo.voltageAvg, statInfo.currentAvg);
     dataAnalyzer->setVoltageStatisticInfo(statInfo.voltageAvg, statInfo.voltageMax, statInfo.voltageMin);
     dataAnalyzer->setCurrentStatisticInfo(statInfo.currentAvg, statInfo.currentMax, statInfo.currentMin);
     dataAnalyzer->setConsumptionStatisticInfo(statInfo.consumptionAvg, statInfo.consumptionMax, statInfo.consumptionMin);
@@ -1188,4 +1241,5 @@ bool DeviceWnd::setWorkingSpaceDir(QString aWsPath)
 void DeviceWnd::setCalibrationData(CalibrationData *data)
 {
     calibrationWnd->setCalibrationData(data);
+    autoCalibrationWnd->setCalibrationData(data);
 }

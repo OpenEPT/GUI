@@ -9,6 +9,7 @@
 #include <QString>
 #include <QTreeWidget>
 #include <QPushButton>
+#include <QAction>
 #include <QLineEdit>
 #include <QComboBox>
 #include <QLabel>
@@ -55,6 +56,7 @@ public:
 
 signals:
     void                    sigStatisticsFinished(QVector<dataanalyzer_segment_stat_t> stats, QVector<dataanalyzer_point_marker_t> points, dataanalyzer_segment_stat_t total, QStringList warnings);
+    void                    sigStatisticsProgress(int percentage, QString text);
 
 public slots:
     void                    onComputeStatistics(QVector<double> voltage, QVector<double> voltageKeys, QVector<double> current, QVector<double> currentKeys, QVector<QPair<QString, int>> markers);
@@ -120,6 +122,7 @@ public:
 
 signals:
     void                    sigSegmentSelected(QString name, int startIndex, int endIndex);
+    void                    sigMarkerVisibilityChanged(QVector<dataanalyzer_segment_stat_t> segments, QVector<bool> expanded);
 
 private slots:
     void                    onExportCsv();
@@ -131,9 +134,15 @@ private slots:
     void                    onItemDoubleClicked(QTreeWidgetItem *item, int column);
     void                    onUnassignedDoubleClicked(QTreeWidgetItem *item, int column);
     void                    onHeaderContextMenu(QPoint pos);
+    void                    onBaudRateChanged();
 
 private:
     void                    fillTable();
+    void                    emitMarkerVisibility();
+    double                  markerTransportTime(QString markerName);
+    double                  segmentTransportTime(QString segmentName);
+    void                    updateTransportTimes();
+    void                    setMarkersExpanded(int index, bool expanded);
     void                    fillUnassigned();
     void                    selectPoint(int index);
     QTreeWidgetItem*        createPointItem(int pointIndex);
@@ -152,13 +161,15 @@ private:
     QLabel                  *unassignedLabel;
     QTreeWidget             *unassignedTable;
     QVector<QTreeWidgetItem*> items;
-    QPushButton             *exportButton;
-    QPushButton             *resetButton;
-    QPushButton             *expandButton;
-    QPushButton             *collapseButton;
+    QAction                 *exportAction;
+    QAction                 *resetAction;
+    QAction                 *expandAction;
+    QAction                 *collapseAction;
     QLineEdit               *batteryCapacityEdit;
     QLineEdit               *targetTimeEdit;
     QComboBox               *cycleReferenceCombo;
+    QComboBox               *baudRateCombo;
+    QLabel                  *transportInfoLabel;
     QLabel                  *requiredCapacityLabel;
     DataAnalyzerShareBar    *shareBar;
     QLabel                  *cycleDurationLabel;
@@ -173,6 +184,7 @@ private:
     QVector<dataanalyzer_segment_stat_t> statistics;
     QVector<dataanalyzer_segment_stat_t> edited;
     QVector<dataanalyzer_point_marker_t> points;
+    QVector<bool>           markersExpanded;
     dataanalyzer_segment_stat_t total;
     bool                    tableUpdating;
 };

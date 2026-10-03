@@ -53,6 +53,7 @@ public:
 
 public slots:
     void        setFilter(int filter);
+    void        setFollowOutput(bool follow);
     void        clear();
 
 private:
@@ -61,6 +62,7 @@ private:
     QPlainTextEdit*         plainTextWidget;
     QVector<log_entry_t>    entries;
     log_filter_t            filter;
+    bool                    followOutput;
 };
 
 #endif // LOG_H

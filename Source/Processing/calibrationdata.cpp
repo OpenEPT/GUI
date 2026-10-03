@@ -3,7 +3,8 @@
 CalibrationData::CalibrationData(QObject *parent)
     : QObject{parent}
 {
-
+    dacOffset = 0;
+    dacCorrection = 1;
 }
 CalibrationData &CalibrationData::operator=(const CalibrationData &other)
 {
@@ -15,6 +16,8 @@ CalibrationData &CalibrationData::operator=(const CalibrationData &other)
         currentCorrection = other.currentCorrection;
         currentGain = other.currentGain;
         currentShunt = other.currentShunt;
+        dacOffset = other.dacOffset;
+        dacCorrection = other.dacCorrection;
     }
     return *this;
 }
@@ -28,4 +31,6 @@ CalibrationData::CalibrationData(const CalibrationData &other)
     currentCorrection = other.currentCorrection;
     currentGain = other.currentGain;
     currentShunt = other.currentShunt;
+    dacOffset = other.dacOffset;
+    dacCorrection = other.dacCorrection;
 }

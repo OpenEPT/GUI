@@ -18,13 +18,17 @@ public:
     QPlainTextEdit*     getTextWidget();
     log_filter_t        getFilter();
     void                setFilter(log_filter_t aFilter);
+    bool                getFollowOutput();
+    void                setFollowOutput(bool aFollow);
 
 signals:
     void                sigFilterChanged(int filter);
     void                sigClearRequested();
+    void                sigFollowOutputChanged(bool follow);
 
 private slots:
     void                onFilterActionTriggered(QAction* action);
+    void                onFollowButtonToggled(bool checked);
     void                onFloatClicked();
     void                onTopLevelChanged(bool floating);
 
@@ -33,6 +37,7 @@ private:
     QToolButton         *filterButton;
     QMenu               *filterMenu;
     QActionGroup        *filterGroup;
+    QToolButton         *followButton;
     QToolButton         *clearButton;
     QToolButton         *floatButton;
     log_filter_t        filter;

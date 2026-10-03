@@ -67,6 +67,7 @@
     <property name="title">
      <string>About</string>
     </property>
+    <addaction name="actionAbout"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuDevices"/>
@@ -89,6 +90,11 @@
    <addaction name="separator"/>
    <addaction name="actionApplicationSettings"/>
   </widget>
+  <action name="actionAbout">
+   <property name="text">
+    <string>About OpenEPT</string>
+   </property>
+  </action>
   <action name="actionAddMultipleDevices">
    <property name="icon">
     <iconset resource="resource.qrc">

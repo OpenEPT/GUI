@@ -6,6 +6,9 @@
 #include <QHeaderView>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QTreeWidgetItemIterator>
+#include <QToolBar>
+#include <QStyle>
 #include <QFile>
 #include <QTextStream>
 #include <QDateTime>
@@ -44,10 +47,19 @@ void DataAnalyzerStatisticsWorker::onComputeStatistics(QVector<double> voltage, 
     QStringList warnings;
     QVector<QPair<QString, int>> openSegments;
     int sampleCount = qMin(qMin(voltage.size(), current.size()), qMin(voltageKeys.size(), currentKeys.size()));
+    int progressStep = qMax(1, markers.size() / 50);
+
+    emit sigStatisticsProgress(0, "Pairing markers into segments...");
 
     for(int i = 0; i < markers.size(); i++)
     {
         QString segmentName;
+
+        if((i % progressStep) == 0)
+        {
+            emit sigStatisticsProgress(markers.size() > 0 ? (60 * i) / markers.size() : 60, "Pairing markers into segments...");
+        }
+
         QString markerName = markers[i].first.trimmed();
         int index = markers[i].second;
         dataanalyzer_point_marker_t point;
@@ -102,9 +114,21 @@ void DataAnalyzerStatisticsWorker::onComputeStatistics(QVector<double> voltage, 
             stat.endIndex = index;
             openSegments.removeAt(openIndex);
 
-            if(stat.startIndex < 0 || stat.endIndex >= sampleCount || stat.endIndex <= stat.startIndex)
+            if(stat.startIndex < 0 || stat.startIndex >= sampleCount)
             {
                 warnings << "Segment \"" + stat.name + "\" is outside of loaded data range";
+                continue;
+            }
+
+            if(stat.endIndex >= sampleCount)
+            {
+                warnings << "Segment \"" + stat.name + "\" stops after the loaded data, truncated at the last sample";
+                stat.endIndex = sampleCount - 1;
+            }
+
+            if(stat.endIndex < stat.startIndex)
+            {
+                warnings << "Segment \"" + stat.name + "\" stops before it starts";
                 continue;
             }
 
@@ -145,6 +169,8 @@ void DataAnalyzerStatisticsWorker::onComputeStatistics(QVector<double> voltage, 
         stats[k + 1] = tmp;
     }
 
+    emit sigStatisticsProgress(70, "Resolving nested segments...");
+
     for(int i = 0; i < stats.size(); i++)
     {
         stats[i].parentIndex = -1;
@@ -163,6 +189,8 @@ void DataAnalyzerStatisticsWorker::onComputeStatistics(QVector<double> voltage, 
         }
     }
 
+    emit sigStatisticsProgress(85, "Assigning single markers...");
+
     for(int i = 0; i < points.size(); i++)
     {
         points[i].parentIndex = -1;
@@ -178,6 +206,8 @@ void DataAnalyzerStatisticsWorker::onComputeStatistics(QVector<double> voltage, 
             }
         }
     }
+
+    emit sigStatisticsProgress(95, "Computing profile totals...");
 
     dataanalyzer_segment_stat_t total;
     total.parentIndex = -1;
@@ -199,6 +229,7 @@ void DataAnalyzerStatisticsWorker::onComputeStatistics(QVector<double> voltage, 
         total.endTime = 0;
     }
 
+    emit sigStatisticsProgress(100, "Statistics generated");
     emit sigStatisticsFinished(stats, points, total, warnings);
 }
 
@@ -211,6 +242,22 @@ bool DataAnalyzerStatisticsWorker::computeSegment(QVector<double>& voltage, QVec
     int samples = 0;
 
     if(stat == NULL) return false;
+
+    if(stat->endIndex == stat->startIndex)
+    {
+        stat->maxCurrent = current[stat->startIndex];
+        stat->minCurrent = current[stat->startIndex];
+        stat->maxVoltage = voltage[stat->startIndex];
+        stat->minVoltage = voltage[stat->startIndex];
+        stat->duration = 0;
+        stat->startTime = keys[stat->startIndex];
+        stat->endTime = keys[stat->endIndex];
+        stat->consumption = 0;
+        stat->energy = 0;
+        stat->avgCurrent = current[stat->startIndex];
+        stat->avgVoltage = voltage[stat->startIndex];
+        return true;
+    }
 
     stat->maxCurrent = current[stat->startIndex];
     stat->minCurrent = current[stat->startIndex];
@@ -405,21 +452,26 @@ bool DataAnalyzerStatisticsItem::operator<(const QTreeWidgetItem &other) const
 }
 
 #define STAT_COL_NAME           0
-#define STAT_COL_FIRST          1
-#define STAT_COL_LAST           2
-#define STAT_COL_CONSUMPTION    3
-#define STAT_COL_ENERGY         4
-#define STAT_COL_DURATION       5
-#define STAT_COL_SHARE          6
-#define STAT_COL_PARENT_SHARE   7
-#define STAT_COL_BATTERY        8
-#define STAT_COL_MAX_CURRENT    9
-#define STAT_COL_MIN_CURRENT    10
-#define STAT_COL_AVG_CURRENT    11
-#define STAT_COL_MAX_VOLTAGE    12
-#define STAT_COL_MIN_VOLTAGE    13
-#define STAT_COL_AVG_VOLTAGE    14
-#define STAT_COL_COUNT          15
+#define STAT_COL_MARKERS        1
+#define STAT_COL_FIRST          2
+#define STAT_COL_LAST           3
+#define STAT_COL_CONSUMPTION    4
+#define STAT_COL_ENERGY         5
+#define STAT_COL_DURATION       6
+#define STAT_COL_TRANSPORT      7
+#define STAT_COL_SHARE          8
+#define STAT_COL_PARENT_SHARE   9
+#define STAT_COL_BATTERY        10
+#define STAT_COL_MAX_CURRENT    11
+#define STAT_COL_MIN_CURRENT    12
+#define STAT_COL_AVG_CURRENT    13
+#define STAT_COL_MAX_VOLTAGE    14
+#define STAT_COL_MIN_VOLTAGE    15
+#define STAT_COL_AVG_VOLTAGE    16
+#define STAT_COL_COUNT          17
+
+#define STAT_MARKER_FRAME_OVERHEAD  3
+#define STAT_UART_BITS_PER_BYTE     10
 
 #define STAT_ROLE_SEGMENT       (Qt::UserRole + 1)
 #define STAT_ROLE_POINT         (Qt::UserRole + 2)
@@ -437,16 +489,18 @@ DataAnalyzerStatisticsWnd::DataAnalyzerStatisticsWnd(QWidget *parent)
 
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
 
-    header << "Segment" << "First action [s]" << "Last action [s]" << "Consumption [mAh]" << "Energy [mJ]" << "Duration [s]" << "Share of cycle [%]" << "Share of parent [%]" << "Battery [mAh]"
+    header << "Segment" << "Markers" << "First action [s]" << "Last action [s]" << "Consumption [mAh]" << "Energy [mJ]" << "Duration [s]" << "Transport [ms]" << "Share of cycle [%]" << "Share of parent [%]" << "Battery [mAh]"
            << "Max Current [mA]" << "Min Current [mA]" << "Avg Current [mA]" << "Max Voltage [V]" << "Min Voltage [V]" << "Avg Voltage [V]";
     table = new QTreeWidget(this);
     table->setColumnCount(header.size());
     table->setHeaderLabels(header);
     table->headerItem()->setToolTip(STAT_COL_NAME, "Segments nested in time are shown as sub-items, single markers are listed inside the segment where they occurred; double click to zoom plots");
+    table->headerItem()->setToolTip(STAT_COL_MARKERS, "Checked: markers of the segment and of all its sub segments are drawn on the plots; unchecked: they are hidden and each sub segment can be turned back on separately");
     table->headerItem()->setToolTip(STAT_COL_FIRST, "Time of segment start (or marker time) from the beginning of the recording");
     table->headerItem()->setToolTip(STAT_COL_LAST, "Time of segment stop from the beginning of the recording");
     table->headerItem()->setToolTip(STAT_COL_CONSUMPTION, "Editable: charge consumed by segment in one cycle (includes sub-segments)");
     table->headerItem()->setToolTip(STAT_COL_DURATION, "Editable: segment duration; consumption is scaled with average current");
+    table->headerItem()->setToolTip(STAT_COL_TRANSPORT, "Time needed to send the marker over the UART link at the selected baud rate (frame is \"1:<marker>\\r\", 10 bits per byte); for a segment it is the Start plus the Stop marker");
     table->headerItem()->setToolTip(STAT_COL_SHARE, "Segment consumption / whole cycle consumption");
     table->headerItem()->setToolTip(STAT_COL_PARENT_SHARE, "Segment consumption / parent segment consumption");
     table->headerItem()->setToolTip(STAT_COL_BATTERY, "Part of battery capacity spent on this segment over the whole operating time");
@@ -459,13 +513,31 @@ DataAnalyzerStatisticsWnd::DataAnalyzerStatisticsWnd(QWidget *parent)
     table->setSortingEnabled(true);
     table->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
     table->setAllColumnsShowFocus(true);
+    QToolBar *tableToolBar = new QToolBar(this);
+    QWidget *tableToolBarSpacer = new QWidget(this);
+
+    tableToolBar->setIconSize(QSize(20, 20));
+    tableToolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    tableToolBarSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
+    expandAction = tableToolBar->addAction(style()->standardIcon(QStyle::SP_ArrowDown), "Expand all");
+    expandAction->setToolTip("Expand all segments and their sub segments");
+    collapseAction = tableToolBar->addAction(style()->standardIcon(QStyle::SP_ArrowUp), "Collapse all");
+    collapseAction->setToolTip("Collapse all segments");
+    tableToolBar->addWidget(tableToolBarSpacer);
+    resetAction = tableToolBar->addAction(QIcon(QPixmap(":/images/NewSet/reload.png")), "Reset edits");
+    resetAction->setToolTip("Restore measured values, discarding manual consumption and duration edits");
+    exportAction = tableToolBar->addAction(QIcon(QPixmap(":/images/NewSet/export.png")), "Export CSV");
+    exportAction->setToolTip("Export the statistics table to a CSV file");
+
+    mainLayout->addWidget(tableToolBar);
     mainLayout->addWidget(table, 3);
 
     unassignedLabel = new QLabel("Unassigned markers (outside of any segment)", this);
     unassignedLabel->setStyleSheet("font-weight: bold;");
     unassignedTable = new QTreeWidget(this);
-    unassignedTable->setColumnCount(3);
-    unassignedTable->setHeaderLabels(QStringList() << "Marker" << "Time [s]" << "Sample index");
+    unassignedTable->setColumnCount(4);
+    unassignedTable->setHeaderLabels(QStringList() << "Marker" << "Time [s]" << "Sample index" << "Transport [ms]");
     unassignedTable->setRootIsDecorated(false);
     unassignedTable->setAlternatingRowColors(true);
     unassignedTable->setSortingEnabled(true);
@@ -521,6 +593,18 @@ DataAnalyzerStatisticsWnd::DataAnalyzerStatisticsWnd(QWidget *parent)
     batteryRow->addSpacing(20);
     batteryRow->addWidget(cyclesLabel);
     batteryRow->addStretch();
+    QLabel *baudRateLabel = new QLabel("Marker link baud rate:", this);
+    baudRateCombo = new QComboBox(this);
+    baudRateCombo->setFixedWidth(120);
+    baudRateCombo->addItems(QStringList() << "9600" << "19200" << "38400" << "57600" << "115200" << "230400" << "460800" << "921600");
+    baudRateCombo->setCurrentText("115200");
+    baudRateCombo->setToolTip("Baud rate of the UART link used to send energy point markers to the probe");
+    transportInfoLabel = new QLabel(this);
+    transportInfoLabel->setStyleSheet("font-weight: bold;");
+    batteryRow->addWidget(transportInfoLabel);
+    batteryRow->addSpacing(20);
+    batteryRow->addWidget(baudRateLabel);
+    batteryRow->addWidget(baudRateCombo);
     mainLayout->addLayout(batteryRow);
 
     QHBoxLayout *targetRow = new QHBoxLayout();
@@ -538,22 +622,11 @@ DataAnalyzerStatisticsWnd::DataAnalyzerStatisticsWnd(QWidget *parent)
     targetRow->addStretch();
     mainLayout->addLayout(targetRow);
 
-    QHBoxLayout *buttonRow = new QHBoxLayout();
-    expandButton = new QPushButton("Expand all", this);
-    collapseButton = new QPushButton("Collapse all", this);
-    buttonRow->addWidget(expandButton);
-    buttonRow->addWidget(collapseButton);
-    buttonRow->addStretch();
-    resetButton = new QPushButton("Reset edits", this);
-    exportButton = new QPushButton("Export CSV", this);
-    buttonRow->addWidget(resetButton);
-    buttonRow->addWidget(exportButton);
-    mainLayout->addLayout(buttonRow);
-
-    connect(expandButton, SIGNAL(clicked()), table, SLOT(expandAll()));
-    connect(collapseButton, SIGNAL(clicked()), table, SLOT(collapseAll()));
-    connect(exportButton, SIGNAL(clicked()), this, SLOT(onExportCsv()));
-    connect(resetButton, SIGNAL(clicked()), this, SLOT(onResetEdits()));
+    connect(baudRateCombo, SIGNAL(currentTextChanged(QString)), this, SLOT(onBaudRateChanged()));
+    connect(expandAction, SIGNAL(triggered(bool)), table, SLOT(expandAll()));
+    connect(collapseAction, SIGNAL(triggered(bool)), table, SLOT(collapseAll()));
+    connect(exportAction, SIGNAL(triggered(bool)), this, SLOT(onExportCsv()));
+    connect(resetAction, SIGNAL(triggered(bool)), this, SLOT(onResetEdits()));
     connect(batteryCapacityEdit, SIGNAL(textChanged(QString)), this, SLOT(onBatteryCapacityChanged()));
     connect(targetTimeEdit, SIGNAL(textChanged(QString)), this, SLOT(onTargetTimeChanged()));
     connect(cycleReferenceCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(onCycleReferenceChanged()));
@@ -701,6 +774,7 @@ void DataAnalyzerStatisticsWnd::setStatistics(QString aProfileName, QVector<data
     edited = stats;
     points = aPoints;
     total = aTotal;
+    markersExpanded.fill(true, stats.size());
     setWindowTitle("Consumption statistics - " + profileName);
 
     cycleReferenceCombo->blockSignals(true);
@@ -716,13 +790,110 @@ void DataAnalyzerStatisticsWnd::setStatistics(QString aProfileName, QVector<data
 
     fillTable();
     fillUnassigned();
+    updateTransportTimes();
     updateBatteryEstimate();
+    emitMarkerVisibility();
     for(int i = 0; i < STAT_COL_COUNT; i++) table->resizeColumnToContents(i);
-    for(int i = 0; i < 3; i++) unassignedTable->resizeColumnToContents(i);
+    for(int i = 0; i < 4; i++) unassignedTable->resizeColumnToContents(i);
 
     if(!warnings.isEmpty())
     {
         QMessageBox::information(this, "Consumption statistics", warnings.join("\n"));
+    }
+}
+
+double DataAnalyzerStatisticsWnd::markerTransportTime(QString markerName)
+{
+    double baudRate = baudRateCombo->currentText().toDouble();
+
+    if(baudRate <= 0) return 0;
+
+    return (markerName.length() + STAT_MARKER_FRAME_OVERHEAD) * STAT_UART_BITS_PER_BYTE * 1000.0 / baudRate;
+}
+
+double DataAnalyzerStatisticsWnd::segmentTransportTime(QString segmentName)
+{
+    return markerTransportTime(segmentName + " Start") + markerTransportTime(segmentName + " Stop");
+}
+
+void DataAnalyzerStatisticsWnd::updateTransportTimes()
+{
+    double totalTransport = 0;
+    int markerNo = 0;
+
+    tableUpdating = true;
+
+    for(int i = 0; i < edited.size(); i++)
+    {
+        double transport = segmentTransportTime(edited[i].name);
+
+        if(i < items.size() && items[i] != NULL)
+        {
+            setCell(items[i], STAT_COL_TRANSPORT, transport, QString::number(transport, 'f', 3), false);
+        }
+
+        totalTransport += transport;
+        markerNo += 2;
+    }
+
+    for(int i = 0; i < points.size(); i++)
+    {
+        totalTransport += markerTransportTime(points[i].name);
+        markerNo += 1;
+    }
+
+    QTreeWidgetItemIterator iterator(table);
+    while(*iterator)
+    {
+        QTreeWidgetItem *item = *iterator;
+        int pointIndex = item->data(0, STAT_ROLE_POINT).toInt();
+
+        if(pointIndex >= 0 && pointIndex < points.size())
+        {
+            double transport = markerTransportTime(points[pointIndex].name);
+            setCell(item, STAT_COL_TRANSPORT, transport, QString::number(transport, 'f', 3), false);
+        }
+
+        ++iterator;
+    }
+
+    tableUpdating = false;
+
+    if(markerNo == 0)
+    {
+        transportInfoLabel->setText("Marker transport: no markers");
+        return;
+    }
+
+    transportInfoLabel->setText("Marker transport: avg " + QString::number(totalTransport / markerNo, 'f', 3) +
+                                " ms, total " + formatDuration(totalTransport) + " (" + QString::number(markerNo) + " markers)");
+}
+
+void DataAnalyzerStatisticsWnd::onBaudRateChanged()
+{
+    updateTransportTimes();
+    fillUnassigned();
+}
+
+void DataAnalyzerStatisticsWnd::emitMarkerVisibility()
+{
+    emit sigMarkerVisibilityChanged(statistics, markersExpanded);
+}
+
+void DataAnalyzerStatisticsWnd::setMarkersExpanded(int index, bool expanded)
+{
+    if(index < 0 || index >= markersExpanded.size()) return;
+
+    markersExpanded[index] = expanded;
+
+    if(index < items.size() && items[index] != NULL)
+    {
+        items[index]->setCheckState(STAT_COL_MARKERS, expanded ? Qt::Checked : Qt::Unchecked);
+    }
+
+    for(int i = 0; i < statistics.size(); i++)
+    {
+        if(statistics[i].parentIndex == index) setMarkersExpanded(i, expanded);
     }
 }
 
@@ -745,6 +916,7 @@ void DataAnalyzerStatisticsWnd::refreshItemValues(int i)
     setCell(item, STAT_COL_CONSUMPTION, edited[i].consumption, QString::number(edited[i].consumption, 'f', 6), true);
     setCell(item, STAT_COL_ENERGY, edited[i].energy, QString::number(edited[i].energy, 'f', 3), false);
     setCell(item, STAT_COL_DURATION, edited[i].duration / 1000.0, QString::number(edited[i].duration / 1000.0, 'f', 3), true);
+    setCell(item, STAT_COL_TRANSPORT, segmentTransportTime(edited[i].name), QString::number(segmentTransportTime(edited[i].name), 'f', 3), false);
     setCell(item, STAT_COL_MAX_CURRENT, edited[i].maxCurrent, QString::number(edited[i].maxCurrent, 'f', 3), false);
     setCell(item, STAT_COL_MIN_CURRENT, edited[i].minCurrent, QString::number(edited[i].minCurrent, 'f', 3), false);
     setCell(item, STAT_COL_AVG_CURRENT, edited[i].avgCurrent, QString::number(edited[i].avgCurrent, 'f', 3), false);
@@ -777,6 +949,7 @@ QTreeWidgetItem* DataAnalyzerStatisticsWnd::createPointItem(int pointIndex)
     setCell(item, STAT_COL_NAME, 0, points[pointIndex].name, false);
     setCell(item, STAT_COL_FIRST, points[pointIndex].time / 1000.0, QString::number(points[pointIndex].time / 1000.0, 'f', 3), false);
     setCell(item, STAT_COL_LAST, points[pointIndex].time / 1000.0, "", false);
+    setCell(item, STAT_COL_TRANSPORT, markerTransportTime(points[pointIndex].name), QString::number(markerTransportTime(points[pointIndex].name), 'f', 3), false);
     return item;
 }
 
@@ -798,6 +971,9 @@ void DataAnalyzerStatisticsWnd::fillUnassigned()
         item->setText(2, QString::number(points[i].index));
         item->setData(2, Qt::UserRole, (double)points[i].index);
         item->setTextAlignment(2, Qt::AlignRight | Qt::AlignVCenter);
+        item->setText(3, QString::number(markerTransportTime(points[i].name), 'f', 3));
+        item->setData(3, Qt::UserRole, markerTransportTime(points[i].name));
+        item->setTextAlignment(3, Qt::AlignRight | Qt::AlignVCenter);
         unassignedTable->addTopLevelItem(item);
         count++;
     }
@@ -824,6 +1000,9 @@ void DataAnalyzerStatisticsWnd::fillTable()
         swatch.fill(segmentColor(i));
         items[i]->setIcon(STAT_COL_NAME, QIcon(swatch));
         setCell(items[i], STAT_COL_NAME, i, edited[i].name, false);
+        items[i]->setFlags(items[i]->flags() | Qt::ItemIsUserCheckable);
+        items[i]->setCheckState(STAT_COL_MARKERS, markersExpanded.value(i, true) ? Qt::Checked : Qt::Unchecked);
+        items[i]->setToolTip(STAT_COL_MARKERS, "Uncheck to hide all markers of \"" + edited[i].name + "\" on the plots, sub segments included; sub segments can be turned back on one by one");
         setCell(items[i], STAT_COL_SHARE, 0, "", false);
         setCell(items[i], STAT_COL_PARENT_SHARE, 0, "", false);
         setCell(items[i], STAT_COL_BATTERY, 0, "", false);
@@ -1110,6 +1289,18 @@ void DataAnalyzerStatisticsWnd::onItemChanged(QTreeWidgetItem *item, int column)
 
     if(tableUpdating) return;
     if(item == NULL) return;
+
+    if(column == STAT_COL_MARKERS)
+    {
+        i = item->data(0, STAT_ROLE_SEGMENT).toInt();
+        if(i < 0 || i >= markersExpanded.size()) return;
+        tableUpdating = true;
+        setMarkersExpanded(i, item->checkState(STAT_COL_MARKERS) == Qt::Checked);
+        tableUpdating = false;
+        emitMarkerVisibility();
+        return;
+    }
+
     if(column != STAT_COL_CONSUMPTION && column != STAT_COL_DURATION) return;
 
     i = item->data(0, STAT_ROLE_SEGMENT).toInt();
@@ -1188,7 +1379,7 @@ void DataAnalyzerStatisticsWnd::onExportCsv()
     double capacity = batteryCapacityEdit->text().trimmed().toDouble();
     double cycleConsumption = editedTotalConsumption();
 
-    out << "Segment,First action [ms],Last action [ms],Consumption [mAh],Energy [mJ],Duration [ms],Share of cycle [%],Battery [mAh],Max Current [mA],Min Current [mA],Avg Current [mA],Max Voltage [V],Min Voltage [V],Avg Voltage [V]\n";
+    out << "Segment,First action [ms],Last action [ms],Consumption [mAh],Energy [mJ],Duration [ms],Transport [ms],Share of cycle [%],Battery [mAh],Max Current [mA],Min Current [mA],Avg Current [mA],Max Voltage [V],Min Voltage [V],Avg Voltage [V]\n";
     for(int i = 0; i < edited.size(); i++)
     {
         double share = (cycleConsumption > 0) ? edited[i].consumption / cycleConsumption * 100.0 : 0;
@@ -1205,6 +1396,7 @@ void DataAnalyzerStatisticsWnd::onExportCsv()
             << QString::number(edited[i].consumption, 'g', 9) << ","
             << QString::number(edited[i].energy, 'g', 9) << ","
             << QString::number(edited[i].duration, 'g', 9) << ","
+            << QString::number(segmentTransportTime(edited[i].name), 'g', 9) << ","
             << QString::number(share, 'g', 9) << ","
             << QString::number(capacity * share / 100.0, 'g', 9) << ","
             << QString::number(edited[i].maxCurrent, 'g', 9) << ","

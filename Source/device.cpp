@@ -40,6 +40,7 @@ bool Device::acquisitionStart()
 {
     QString response;
     int streamID = m_params->getParamVariant("streamId").toInt();
+    syncSamplesNoFromParameters();
     streamLink->flush();
     if(adc == DEVICE_ADC_UNKNOWN) return false;
     QString command = "device stream start -sid=" + QString::number(streamID) + " -adc=" + QString::number(adc-1);
@@ -324,6 +325,22 @@ bool Device::getResolution(device_adc_resolution_t *resolution)
     m_params->setParamValue("adcResolution", selection);
 
     return true;
+}
+
+void Device::syncSamplesNoFromParameters()
+{
+    unsigned int packetSize;
+    bool ok = false;
+
+    if(m_params == NULL) return;
+
+    packetSize = m_params->getParamValue("streamPacketSize").toUInt(&ok);
+    if(!ok || packetSize == 0) return;
+    if(packetSize == samplesNo) return;
+
+    samplesNo = packetSize;
+    dataProcessing->setSamplesNo(packetSize);
+    energyPointProcessing->setSamplesNo(packetSize);
 }
 
 bool Device::setSamplesNo(unsigned int aSamplesNo)
@@ -727,6 +744,8 @@ bool Device::getSamplingPeriod(QString *time)
 bool Device::getCalParam()
 {
     float vref, voff, vcor,coff, ccor;
+    float dacoff = dataProcessing->getCalibrationData()->dacOffset;
+    float daccor = dataProcessing->getCalibrationData()->dacCorrection;
     QString response;
     QString command = "device param cal get";
 
@@ -741,6 +760,8 @@ bool Device::getCalParam()
     paramMap["VCOR"] = &vcor;
     paramMap["COFF"] = &coff;
     paramMap["CCOR"] = &ccor;
+    paramMap["DACOFF"] = &dacoff;
+    paramMap["DACCOR"] = &daccor;
 
     for(const QString &token : tokens)
     {
@@ -767,6 +788,10 @@ bool Device::getCalParam()
     // Provera da li su svi parametri popunjeni (opciono ali preporučeno)
 
     dataProcessing->setCalibrationData(vref, voff, vcor, coff, ccor);
+    dataProcessing->getCalibrationData()->dacOffset = dacoff;
+    dataProcessing->getCalibrationData()->dacCorrection = daccor;
+    m_params->setParamValue("loadDacOffset", QString::number(dacoff));
+    m_params->setParamValue("loadDacCor", QString::number(daccor));
     m_params->setParamValue("adcVRef", QString::number(vref));
     m_params->setParamValue("adcVOff", QString::number(voff));
     m_params->setParamValue("adcVCor", QString::number(vcor));
@@ -784,13 +809,17 @@ bool Device::setCalParam()
     float vcor = dataProcessing->getCalibrationData()->voltageCorr;
     float coff = dataProcessing->getCalibrationData()->voltageCurrOffset;
     float ccor = dataProcessing->getCalibrationData()->currentCorrection;
+    float dacoff = dataProcessing->getCalibrationData()->dacOffset;
+    float daccor = dataProcessing->getCalibrationData()->dacCorrection;
 
-    QString command = QString("device param cal set -vref=%1 -voff=%2 -vcor=%3 -coff=%4 -ccor=%5")
+    QString command = QString("device param cal set -vref=%1 -voff=%2 -vcor=%3 -coff=%4 -ccor=%5 -dacoff=%6 -daccor=%7")
             .arg(vref, 0, 'f', 4)
             .arg(voff, 0, 'f', 4)
             .arg(vcor, 0, 'f', 4)
             .arg(coff, 0, 'f', 4)
-            .arg(ccor, 0, 'f', 4);
+            .arg(ccor, 0, 'f', 4)
+            .arg(dacoff, 0, 'f', 4)
+            .arg(daccor, 0, 'f', 4);
 
     if(!controlLink->executeCommand(command, &response, 1000))
         return false;
@@ -803,6 +832,8 @@ bool Device::setCalParam()
     m_params->setParamValue("adcVCor", QString::number(vcor));
     m_params->setParamValue("adcVCOffset", QString::number(coff));
     m_params->setParamValue("adcCCor", QString::number(ccor));
+    m_params->setParamValue("loadDacOffset", QString::number(dacoff));
+    m_params->setParamValue("loadDacCor", QString::number(daccor));
     return true;
 }
 

@@ -11,7 +11,8 @@ namespace DeviceParamDefs
         ApplicationConfig = 1,
         RuntimeState = 2,
         Calculated = 3,
-        ChargerConfig = 4
+        ChargerConfig = 4,
+        AcquisitionConfig = 5
     };
 
     enum SubGroup
@@ -30,7 +31,8 @@ namespace DeviceParamDefs
         Statistics = 11,
         FileStorage = 12,
         ChargerConf = 13,
-        ChargerBD = 14
+        ChargerBD = 14,
+        AcquisitionControl = 15
     };
 
     QList<Params::GroupMeta> defaultGroupMeta();

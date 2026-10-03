@@ -29,6 +29,12 @@ QList<Params::GroupMeta> defaultGroupMeta()
             "Charger Configuration",
             "Charger COnfiguration if it is connected",
             4
+        },
+        {
+            DeviceParamDefs::AcquisitionConfig,
+            "Acquisition",
+            "Application side acquisition control rules.",
+            5
         }
     };
 }
@@ -125,6 +131,12 @@ QList<Params::SubGroupMeta> defaultSubGroupMeta()
             "Memory",
             "Charger Memory Editing",
             14
+        },
+        {
+            DeviceParamDefs::AcquisitionControl,
+            "Acquisition Control",
+            "Rules that automatically control the acquisition.",
+            15
         },
     };
 }
@@ -617,6 +629,48 @@ QList<Params::Param> defaultParams()
         },
         {
             {
+                "loadDacOffset",
+                "Load DAC Offset",
+                "Offset added to the requested load current before it is converted to a DAC voltage, compensates the DAC offset circuit",
+                "mA",
+                DeviceParamDefs::DeviceConfig,
+                DeviceParamDefs::Calibration,
+                Params::Access::ReadOnly,
+                Params::Storage::SaveOnly,
+                Params::Target::Device,
+                {},
+                {},
+                {},
+                {},
+                true,
+                20
+            },
+            0,
+            false
+        },
+        {
+            {
+                "loadDacCor",
+                "Load DAC Correction",
+                "Requested load current is multiplied with this factor before the DAC offset is added, compensates gain of the load hardware",
+                "",
+                DeviceParamDefs::DeviceConfig,
+                DeviceParamDefs::Calibration,
+                Params::Access::ReadOnly,
+                Params::Storage::SaveOnly,
+                Params::Target::Device,
+                {},
+                {},
+                {},
+                {},
+                true,
+                21
+            },
+            0,
+            false
+        },
+        {
+            {
                 "shuntValue",
                 "Current Sensing Shunt",
                 "Current Sensing Shunt",
@@ -1078,6 +1132,49 @@ QList<Params::Param> defaultParams()
             },
             0,
             false
+        },
+        {
+            {
+                "acqStopOnMarkerEnabled",
+                "Pause Acquisition On Marker",
+                "Pause the acquisition when the energy point marker with the configured name is received.",
+                "",
+                DeviceParamDefs::AcquisitionConfig,
+                DeviceParamDefs::AcquisitionControl,
+                Params::Access::ReadWrite,
+                Params::Storage::LoadSave,
+                Params::Target::Application,
+                false,
+                QVariant(),
+                QVariant(),
+                {},
+                true,
+                42,
+                Params::Editor::CheckBox
+            },
+            false,
+            true
+        },
+        {
+            {
+                "acqStopOnMarkerName",
+                "Pause Marker Name",
+                "Name of the energy point marker that pauses the acquisition.",
+                "",
+                DeviceParamDefs::AcquisitionConfig,
+                DeviceParamDefs::AcquisitionControl,
+                Params::Access::ReadWrite,
+                Params::Storage::LoadSave,
+                Params::Target::Application,
+                "",
+                QVariant(),
+                QVariant(),
+                {},
+                true,
+                43
+            },
+            "",
+            true
         }
     };
 }

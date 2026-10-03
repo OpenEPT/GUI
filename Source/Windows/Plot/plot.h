@@ -15,9 +15,20 @@ public:
     void        scatterAddGraph();
     void        scatterAddData(QVector<double> data, QVector<double> keys);
     void        scatterAddAllDataWithName(QVector<QPair<QString, int>> data);
+    void        scatterClearMarkers();
+    void        averageAddGraph();
+    void        appendAverageData(QVector<double> data, QVector<double> keys);
+    void        clearAverageData();
     void        scatterAddDataWithName(double value, double keys, QString name);
     void        scatterReplotDataWithName();
     void        setData(QVector<double> data, QVector<double> keys);
+    void        overlaySetData(QVector<double> data, QVector<double> keys, QColor color = Qt::red);
+    void        overlayClear();
+    void        markerAddAtKey(double key, double value, QString name, QColor color);
+    void        markersAtKeyClear();
+    void        applyStyle(QString fontFamily, int labelFontSize, int tickFontSize,
+                           int lineWidth, bool gridVisible, bool minorGridVisible);
+    bool        saveImageToSvg(QString path);
     void        appendData(QVector<double> data, QVector<double> keys);
     void        setYRange(double min, double max);
     void        setYLabel(QString label);
@@ -68,9 +79,16 @@ private:
     QVector<double> yData;
     QVector<double> plotXData;
     QVector<double> plotYData;
+    QVector<double> averageXData;
+    QVector<double> averageYData;
+    bool        averageGraphAdded;
+    int         averageGraphIndex;
     QVector<double> epDataKey;
     QVector<QString> epDataName;
     QVector<QCPItemText *> textData;
+    QCPGraph    *overlayGraph;
+    QCPGraph    *keyMarkerGraph;
+    QVector<QCPItemText *> keyMarkerText;
 
     bool        enableTracking;
     bool        replotActive;

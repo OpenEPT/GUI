@@ -56,7 +56,7 @@ command -v dpkg-deb >/dev/null 2>&1 || fail "dpkg-deb is not installed."
 
 if [ ! -f "${LINUXDEPLOYQT}" ]; then
     info "Downloading linuxdeployqt"
-    curl -fsSL -o "${LINUXDEPLOYQT}" "${LINUXDEPLOYQT_URL}"
+    curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors -o "${LINUXDEPLOYQT}" "${LINUXDEPLOYQT_URL}"
 fi
 LINUXDEPLOYQT="$(realpath "${LINUXDEPLOYQT}")"
 chmod +x "${LINUXDEPLOYQT}"

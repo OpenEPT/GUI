@@ -5,6 +5,15 @@ QT       += svg
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport
 
 CONFIG += c++17
+
+isEmpty(APP_VERSION) {
+    APP_VERSION = $$cat($$PWD/../VERSION, lines)
+}
+isEmpty(APP_VERSION) {
+    APP_VERSION = 0.0.0-dev
+}
+VERSION = $$replace(APP_VERSION, "[-+].*", "")
+DEFINES += APP_VERSION=\\\"$$APP_VERSION\\\"
 #DEFINES += QCUSTOMPLOT_USE_OPENGL
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -28,6 +37,7 @@ SOURCES += \
     Processing/Parameters/deviceparamdefs.cpp \
     Processing/Parameters/deviceparameters.cpp \
     Processing/Parameters/parameterstore.cpp \
+    Processing/batteryparamsextraction.cpp \
     Processing/calibrationdata.cpp \
     Processing/charginganalysis.cpp \
     Processing/dataprocessing.cpp \
@@ -35,12 +45,24 @@ SOURCES += \
     Processing/fileprocessing.cpp \
     Processing/waveform.cpp \
     Utility/log.cpp \
+    Windows/About/aboutwnd.cpp \
+    Windows/BatteryParams/batterycyclewnd.cpp \
+    Windows/BatteryParams/batteryfitintervalwnd.cpp \
+    Windows/BatteryParams/batteryfitqualitywnd.cpp \
+    Windows/BatteryParams/batteryparamsbarwnd.cpp \
+    Windows/BatteryParams/batteryparamsplotsettings.cpp \
+    Windows/BatteryParams/batteryocvanalysiswnd.cpp \
+    Windows/BatteryParams/batteryparamssettingsdlg.cpp \
+    Windows/BatteryParams/batteryparamstrendwnd.cpp \
+    Windows/BatteryParams/batteryparamswnd.cpp \
     Windows/AddDevice/adddevicewnd.cpp \
     Windows/ApplicationConf/applicationconfwnd.cpp \
     Windows/Console/consolewnd.cpp \
     Windows/DataAnalyzer/dataanalyzer.cpp \
+    Windows/DataAnalyzer/dataanalyzerprofile.cpp \
     Windows/DataAnalyzer/dataanalyzerstatistics.cpp \
     Windows/Device/calibrationwnd.cpp \
+    Windows/Device/autocalibrationwnd.cpp \
     Windows/Device/configurationwnd.cpp \
     Windows/Device/datastatistics.cpp \
     Windows/Device/devicewnd.cpp \
@@ -66,6 +88,7 @@ HEADERS += \
     Processing/Parameters/deviceparameters.h \
     Processing/Parameters/parameterdefs.h \
     Processing/Parameters/parameterstore.h \
+    Processing/batteryparamsextraction.h \
     Processing/calibrationdata.h \
     Processing/charginganalysis.h \
     Processing/dataprocessing.h \
@@ -74,12 +97,25 @@ HEADERS += \
     Processing/fileprocessing.h \
     Processing/waveform.h \
     Utility/log.h \
+    Windows/About/aboutwnd.h \
+    Windows/BatteryParams/batterycyclewnd.h \
+    Windows/BatteryParams/batteryfitintervalwnd.h \
+    Windows/BatteryParams/batteryfitqualitywnd.h \
+    Windows/BatteryParams/batteryparamsbarwnd.h \
+    Windows/BatteryParams/batteryparamsplotsettings.h \
+    Windows/BatteryParams/batteryocvanalysiswnd.h \
+    Windows/BatteryParams/batteryparamssettingsdlg.h \
+    Windows/BatteryParams/batteryparamstrendwnd.h \
+    Windows/BatteryParams/batteryparamswnd.h \
     Windows/AddDevice/adddevicewnd.h \
     Windows/ApplicationConf/applicationconfwnd.h \
     Windows/Console/consolewnd.h \
     Windows/DataAnalyzer/dataanalyzer.h \
+    Windows/DataAnalyzer/dataanalyzerprofile.h \
+    Windows/DataAnalyzer/dataanalyzerworker.h \
     Windows/DataAnalyzer/dataanalyzerstatistics.h \
     Windows/Device/calibrationwnd.h \
+    Windows/Device/autocalibrationwnd.h \
     Windows/Device/configurationwnd.h \
     Windows/Device/datastatistics.h \
     Windows/Device/devicewnd.h \

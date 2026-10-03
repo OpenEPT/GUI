@@ -37,7 +37,8 @@ namespace Params
     enum class Editor
     {
         LineEdit,
-        ComboBox
+        ComboBox,
+        CheckBox
     };
 
     struct GroupMeta
