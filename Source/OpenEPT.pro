@@ -46,6 +46,7 @@ SOURCES += \
     Processing/waveform.cpp \
     Utility/log.cpp \
     Windows/About/aboutwnd.cpp \
+    Windows/About/updatechecker.cpp \
     Windows/BatteryParams/batterycyclewnd.cpp \
     Windows/BatteryParams/batteryfitintervalwnd.cpp \
     Windows/BatteryParams/batteryfitqualitywnd.cpp \
@@ -98,6 +99,7 @@ HEADERS += \
     Processing/waveform.h \
     Utility/log.h \
     Windows/About/aboutwnd.h \
+    Windows/About/updatechecker.h \
     Windows/BatteryParams/batterycyclewnd.h \
     Windows/BatteryParams/batteryfitintervalwnd.h \
     Windows/BatteryParams/batteryfitqualitywnd.h \

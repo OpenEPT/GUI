@@ -30,6 +30,9 @@ ArchitecturesInstallIn64BitMode=x64compatible
 
 PrivilegesRequired=admin
 
+CloseApplications=yes
+RestartApplications=no
+
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
@@ -45,3 +48,46 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch OpenEPT"; Flags: nowait postinstall skipifsilent
+
+[Code]
+const
+  AppUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{A945B938-45C4-45B4-BE28-04E5159AE220}_is1';
+
+function GetUninstallString(): String;
+var
+  value: String;
+begin
+  value := '';
+  if not RegQueryStringValue(HKLM, AppUninstallKey, 'UninstallString', value) then
+    RegQueryStringValue(HKCU, AppUninstallKey, 'UninstallString', value);
+  Result := value;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  uninstaller: String;
+  resultCode: Integer;
+  waited: Integer;
+begin
+  uninstaller := RemoveQuotes(GetUninstallString());
+
+  if (uninstaller <> '') and FileExists(uninstaller) then
+  begin
+    if not Exec(uninstaller, '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART',
+                '', SW_HIDE, ewWaitUntilTerminated, resultCode) then
+    begin
+      Result := 'Could not uninstall the previous OpenEPT version. '
+              + 'Please remove it manually and run the installer again.';
+      exit;
+    end;
+
+    waited := 0;
+    while FileExists(uninstaller) and (waited < 100) do
+    begin
+      Sleep(200);
+      waited := waited + 1;
+    end;
+  end;
+
+  Result := '';
+end;

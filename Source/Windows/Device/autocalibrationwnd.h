@@ -95,6 +95,8 @@ private:
     double              spanSumMM;
     int                 currentSpanPoints;
     int                 loadPoints;
+    double              currentSpanMaxMa;
+    double              loadMaxMa;
 
     void                goToStep(autocal_step_t newStep);
     void                updateView();

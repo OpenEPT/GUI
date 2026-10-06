@@ -1,4 +1,5 @@
 #include "aboutwnd.h"
+#include "updatechecker.h"
 
 #include <QDialogButtonBox>
 #include <QFont>
@@ -70,8 +71,18 @@ AboutWnd::AboutWnd(QWidget *parent) :
 
     QLabel *copyrightLabel = new QLabel("Copyright © OpenEPT Team", this);
 
+    updateChecker = new UpdateChecker(this);
+
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, this);
     buttonBox->button(QDialogButtonBox::Close)->setFixedSize(90, 30);
+
+    QPushButton *checkUpdatesButton = buttonBox->addButton("Check for Updates", QDialogButtonBox::ActionRole);
+    checkUpdatesButton->setFixedHeight(30);
+
+    connect(checkUpdatesButton, &QPushButton::clicked, this, [this]()
+    {
+        updateChecker->checkForUpdates(false);
+    });
 
     connect(buttonBox, &QDialogButtonBox::rejected, this, &AboutWnd::reject);
 

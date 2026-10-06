@@ -157,6 +157,39 @@ Description: OpenEPT Energy Profiling Tool
 CONTROL
 chmod 644 "${DEBDIR}/DEBIAN/control"
 
+cat > "${DEBDIR}/DEBIAN/postinst" << 'POSTINST'
+#!/bin/sh
+set -e
+
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database -q /usr/share/applications || true
+fi
+
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+fi
+
+exit 0
+POSTINST
+chmod 755 "${DEBDIR}/DEBIAN/postinst"
+
+cat > "${DEBDIR}/DEBIAN/postrm" << 'POSTRM'
+#!/bin/sh
+set -e
+
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database -q /usr/share/applications || true
+    fi
+    if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+        gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+    fi
+fi
+
+exit 0
+POSTRM
+chmod 755 "${DEBDIR}/DEBIAN/postrm"
+
 dpkg-deb --build "${DEBDIR}" "${OUTPUT_DIR}/${DEB_NAME}"
 
 info "Validating generated packages"
