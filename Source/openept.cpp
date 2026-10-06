@@ -3,6 +3,7 @@
 #include <QMenu>
 #include "openept.h"
 #include "Windows/About/aboutwnd.h"
+#include "Windows/About/updatechecker.h"
 #include "Windows/Device/devicewnd.h"
 #include "ui_openept.h"
 #include "Links/controllink.h"
@@ -72,6 +73,9 @@ OpenEPT::OpenEPT(QString aWorkspacePath, QWidget *parent)
 
     aboutWnd = new AboutWnd(this);
     aboutWnd->setWindowModality(Qt::WindowModal);
+
+    updateChecker = new UpdateChecker(this);
+    updateChecker->checkForUpdates(true);
 
     setWindowTitle(QString("Open EPT - MCU Energy profiler (v%1)").arg(APP_VERSION));
 

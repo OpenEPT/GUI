@@ -17,6 +17,8 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class OpenEPT; }
 QT_END_NAMESPACE
 
+class UpdateChecker;
+
 class OpenEPT : public QMainWindow
 {
     Q_OBJECT
@@ -47,6 +49,8 @@ private:
     AddDeviceWnd                *addDeviceWnd;
     /**/
     AboutWnd                    *aboutWnd;
+    /**/
+    UpdateChecker               *updateChecker;
     /**/
     QList<DeviceContainer*>     deviceList;
     /**/

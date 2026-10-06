@@ -2,12 +2,18 @@
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QFormLayout>
 #include <QMessageBox>
 #include <QPixmap>
 #include <QFile>
 #include <math.h>
 #include <QTime>
 #include <QInputDialog>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QRadioButton>
+#include <QSpinBox>
+#include <QDoubleSpinBox>
 
 #define AUTOCAL_VOLTAGE_REFERENCE       2.049
 #define AUTOCAL_FLOAT_VOLTAGE_MIN       5.000
@@ -48,6 +54,10 @@ AutoCalibrationWnd::AutoCalibrationWnd(QWidget *parent) :
     loadPhase = 0;
     loadSettleTicks = 0;
     snapshotValid = false;
+    currentSpanPoints = AUTOCAL_LOAD_POINTS_MIN;
+    loadPoints = AUTOCAL_LOAD_POINTS_MIN;
+    currentSpanMaxMa = AUTOCAL_CURRENT_SPAN_TARGET;
+    loadMaxMa = AUTOCAL_CURRENT_SPAN_TARGET;
 
     titleLabel = new QLabel(this);
     titleLabel->setStyleSheet("font-weight: bold; font-size: 14px;");
@@ -217,56 +227,84 @@ void AutoCalibrationWnd::startCalibration()
         return;
     }
 
-    QMessageBox box(this);
-    box.setWindowTitle("Automatic calibration");
-    box.setText("Which voltage reference is used for the voltage channel?");
-    QPushButton *internalBtn = box.addButton("Internal 2.049 V", QMessageBox::AcceptRole);
-    QPushButton *externalBtn = box.addButton("External value", QMessageBox::AcceptRole);
-    box.addButton(QMessageBox::Cancel);
-    box.exec();
+    int absoluteMaxMa = (int)maxLoadCurrentMa();
+    int defaultPoints = loadPointCount();
+    int defaultMaxMa = (int)(maxLoadCurrentMa() * 0.8);
+    int minMaxMa = (int)AUTOCAL_LOAD_MIN_CURRENT + 1;
 
-    if(box.clickedButton() == externalBtn)
-    {
-        bool ok = false;
-        double value = QInputDialog::getDouble(this, "External reference",
-                                               "External reference voltage held on the input [V]:",
-                                               2.049, 0.05, 20.0, 4, &ok);
-        if(!ok) return;
+    if(absoluteMaxMa < minMaxMa) absoluteMaxMa = minMaxMa;
+    if(defaultMaxMa < minMaxMa) defaultMaxMa = minMaxMa;
+    if(defaultMaxMa > absoluteMaxMa) defaultMaxMa = absoluteMaxMa;
 
-        externalReference = true;
-        referenceVoltage = value;
-    }
-    else if(box.clickedButton() == internalBtn)
-    {
-        externalReference = false;
-        referenceVoltage = AUTOCAL_VOLTAGE_REFERENCE;
-    }
-    else
-    {
-        return;
-    }
+    QDialog dialog(this);
+    dialog.setWindowTitle("Automatic calibration setup");
 
-    {
-        bool ok = false;
-        int defaultPoints = loadPointCount();
+    QFormLayout *form = new QFormLayout(&dialog);
 
-        currentSpanPoints = QInputDialog::getInt(this, "Current span points",
-                            "Number of current points, you enter the reference current at each (min 3):",
-                            qMax(3, defaultPoints), 3, 20, 1, &ok);
-        if(!ok) return;
+    QRadioButton *internalRadio = new QRadioButton("Internal 2.049 V", &dialog);
+    QRadioButton *externalRadio = new QRadioButton("External value", &dialog);
+    internalRadio->setChecked(true);
 
-        loadPoints = QInputDialog::getInt(this, "Load calibration points",
-                     "Number of load points (no input needed, measured automatically):",
-                     defaultPoints, 2, 20, 1, &ok);
-        if(!ok) return;
-    }
+    QHBoxLayout *referenceLayout = new QHBoxLayout();
+    referenceLayout->addWidget(internalRadio);
+    referenceLayout->addWidget(externalRadio);
+
+    QDoubleSpinBox *externalValueSpin = new QDoubleSpinBox(&dialog);
+    externalValueSpin->setDecimals(4);
+    externalValueSpin->setRange(0.05, 20.0);
+    externalValueSpin->setValue(AUTOCAL_VOLTAGE_REFERENCE);
+    externalValueSpin->setSuffix(" V");
+    externalValueSpin->setEnabled(false);
+
+    QSpinBox *spanPointsSpin = new QSpinBox(&dialog);
+    spanPointsSpin->setRange(3, 20);
+    spanPointsSpin->setValue(qMax(3, defaultPoints));
+
+    QSpinBox *spanMaxSpin = new QSpinBox(&dialog);
+    spanMaxSpin->setRange(minMaxMa, absoluteMaxMa);
+    spanMaxSpin->setValue(defaultMaxMa);
+    spanMaxSpin->setSuffix(" mA");
+
+    QSpinBox *loadPointsSpin = new QSpinBox(&dialog);
+    loadPointsSpin->setRange(2, 20);
+    loadPointsSpin->setValue(defaultPoints);
+
+    QSpinBox *loadMaxSpin = new QSpinBox(&dialog);
+    loadMaxSpin->setRange(minMaxMa, absoluteMaxMa);
+    loadMaxSpin->setValue(defaultMaxMa);
+    loadMaxSpin->setSuffix(" mA");
+
+    QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+
+    form->addRow("Voltage reference:", referenceLayout);
+    form->addRow("External reference:", externalValueSpin);
+    form->addRow("Current span points:", spanPointsSpin);
+    form->addRow("Current span max current:", spanMaxSpin);
+    form->addRow("Load points:", loadPointsSpin);
+    form->addRow("Load max current:", loadMaxSpin);
+    form->addRow(buttons);
+
+    connect(externalRadio, &QRadioButton::toggled, externalValueSpin, &QDoubleSpinBox::setEnabled);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if(dialog.exec() != QDialog::Accepted) return;
+
+    externalReference = externalRadio->isChecked();
+    referenceVoltage = externalReference ? externalValueSpin->value() : AUTOCAL_VOLTAGE_REFERENCE;
+    currentSpanPoints = spanPointsSpin->value();
+    currentSpanMaxMa = spanMaxSpin->value();
+    loadPoints = loadPointsSpin->value();
+    loadMaxMa = loadMaxSpin->value();
 
     voltageHistory.clear();
     currentHistory.clear();
     logView->clear();
     appendLog("Calibration started");
-    appendLog("Current span points: " + QString::number(currentSpanPoints)
-              + ", load points: " + QString::number(loadPoints));
+    appendLog("Current span: " + QString::number(currentSpanPoints) + " points, max "
+              + QString::number((int)currentSpanMaxMa) + " mA");
+    appendLog("Load: " + QString::number(loadPoints) + " points, max "
+              + QString::number((int)loadMaxMa) + " mA");
     appendLog(externalReference ? ("External reference " + QString::number(referenceVoltage, 'f', 4)
                                    + " V, jumper steps skipped")
                                 : "Internal reference 2.049 V");
@@ -347,10 +385,11 @@ void AutoCalibrationWnd::goToStep(autocal_step_t newStep)
     if(step == AUTOCAL_STEP_CURRENT_SPAN)
     {
         int points = currentSpanPoints;
-        double maxMa = maxLoadCurrentMa() * 0.8;
+        double maxMa = currentSpanMaxMa;
         double first = AUTOCAL_LOAD_MIN_CURRENT;
 
         if(points < 2) points = 2;
+        if(maxMa > maxLoadCurrentMa()) maxMa = maxLoadCurrentMa();
         if(maxMa < first + 1.0) maxMa = first + 1.0;
 
         loadRequested.clear();
@@ -379,9 +418,10 @@ void AutoCalibrationWnd::goToStep(autocal_step_t newStep)
     {
         {
             int points = loadPoints;
-            double maxMa = maxLoadCurrentMa() * 0.8;
+            double maxMa = loadMaxMa;
             double first = AUTOCAL_LOAD_MIN_CURRENT;
 
+            if(maxMa > maxLoadCurrentMa()) maxMa = maxLoadCurrentMa();
             if(maxMa < first + 1.0) maxMa = first + 1.0;
 
             loadRequested.clear();
