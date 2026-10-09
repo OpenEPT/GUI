@@ -32,6 +32,10 @@ public:
     control_link_status_t   establishLink(QString aIpAddress, QString aPortNumber);
     control_link_status_t   establishSerialLink(QString aPortName, qint32 aBaudRate = CONTROL_LINK_SERIAL_BAUDRATE);
     bool                    getDeviceName(QString* deviceName);
+
+    /* Binary board-data (EEPROM) transfer over serial (0xA5 0xA5 frame). */
+    bool                    transferBdWrite(const QByteArray& data, int timeout);
+    bool                    transferBdRead(QByteArray* out, int timeout);
     bool                    executeCommand(QString command, QString* response, int timeout);
     bool                    executeCommand(QByteArray request, QString* response, int timeout);
 
@@ -41,12 +45,15 @@ public:
 signals:
     void                    sigDisconnected();
     void                    sigConnected();
+    void                    sigAsyncMessage(QString message);   /*!< Unsolicited status-link notification (serial) */
+    void                    sigSerialResponseReady();           /*!< Internal: command response line received */
 
 public slots:
     void                    onDisconnected();
     void                    onReconnected();
     void                    reconnect();
     void                    onSerialErrorOccurred(QSerialPort::SerialPortError error);
+    void                    onSerialReadyRead();
 
 private:
 
@@ -58,6 +65,14 @@ private:
     quint16                 portNumber;
     control_link_status_t   linkStatus;
     QTimer                  *reconnectTimer;
+
+    /* Serial async reception / response capture */
+    QByteArray              serialRxBuffer;
+    QString                 serialResponsePayload;
+    QByteArray              serialBinaryPayload;    /* payload of a binary 'R' response frame */
+    bool                    serialResponseOk;
+    bool                    serialResponseGot;
+    bool                    serialResponseIsBinary;
 
     bool                    setSocketKeepAlive();
     bool                    prvReadResponse(QString* response, int timeout);

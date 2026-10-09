@@ -191,6 +191,13 @@ public:
     bool        getChargerTermVoltage(float* voltage= NULL);
     bool        getChargerHWSerial(QString* serial= NULL);
     bool        getChargerFWVersion(QString* version= NULL);
+    bool        getChargerRegister(int reg, int* value = NULL);
+    bool        setChargerRegister(int reg, int value);
+    int         getChargerEepromSize();
+    bool        readChargerEeprom(QByteArray* out);
+    bool        writeChargerEeprom(const QByteArray& data);
+    bool        formatChargerEeprom();
+    bool        storeChargerConfig();
     bool        latchTrigger();
     bool        getUVoltageStatus(bool* status = NULL);
     bool        getOVoltageStatus(bool* status = NULL);
@@ -251,6 +258,7 @@ signals:
 
     void        sigChargerHWSerialObtained(QString  serial);
     void        sigChargerFWVersionObtained(QString  serial);
+    void        sigChargerModeObtained(QString  mode);
 
 
     void        sigAvgRatio(QString voffset);
@@ -267,6 +275,7 @@ signals:
 public slots:
     void        onControlLinkConnected();
     void        onControlLinkDisconnected();
+    void        onControlLinkAsyncMessage(QString message);
 
 private slots:
     void        onStatusLinkNewDeviceAdded(QString aDeviceIP);

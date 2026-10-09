@@ -2,6 +2,7 @@
 #include <QtGlobal>
 #include <QHostAddress>
 #include <QTimer>
+#include <QEventLoop>
 
 #ifdef Q_OS_WIN
 #include "Ws2tcpip.h"
@@ -19,8 +20,11 @@ ControlLink::ControlLink(QObject *parent)
 {
     tcpSocket       =   new QTcpSocket(this);
     tcpSocket->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
-    serialPort      =   nullptr;
-    transport       =   CONTROL_LINK_TRANSPORT_TCP;
+    serialPort        = nullptr;
+    transport         = CONTROL_LINK_TRANSPORT_TCP;
+    serialResponseOk       = false;
+    serialResponseGot      = false;
+    serialResponseIsBinary = false;
     ipAddress       =   "0.0.0.0";
     serialPortName  =   "";
     portNumber      =   0;
@@ -71,9 +75,13 @@ control_link_status_t   ControlLink::establishSerialLink(QString aPortName, qint
         serialPort = new QSerialPort(this);
         connect(serialPort, SIGNAL(errorOccurred(QSerialPort::SerialPortError)),
                 this, SLOT(onSerialErrorOccurred(QSerialPort::SerialPortError)));
+        connect(serialPort, SIGNAL(readyRead()), this, SLOT(onSerialReadyRead()));
     }
 
     if(serialPort->isOpen()) serialPort->close();
+
+    serialRxBuffer.clear();
+    serialResponseGot = false;
 
     serialPort->setPortName(aPortName);
     serialPort->setBaudRate(aBaudRate);                 /* ignored by USB CDC, required by API */
@@ -103,43 +111,138 @@ control_link_status_t   ControlLink::establishSerialLink(QString aPortName, qint
 
 bool ControlLink::prvReadSerialResponse(QString* response, int timeout)
 {
-    QByteArray  receivedData;
-
-    while(true)
+    /* Responses arrive asynchronously in onSerialReadyRead(), which sets
+     * serialResponseGot and emits sigSerialResponseReady(). Wait for it (or the
+     * timeout) via a local event loop, so readyRead keeps firing and any
+     * asynchronous notifications continue to be dispatched meanwhile. */
+    if(!serialResponseGot)
     {
-        if(!serialPort->waitForReadyRead(timeout))
+        QEventLoop  loop;
+        QTimer      timer;
+        timer.setSingleShot(true);
+        connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+        connect(this, &ControlLink::sigSerialResponseReady, &loop, &QEventLoop::quit);
+        timer.start(timeout);
+        loop.exec();
+    }
+
+    if(serialResponseGot)
+    {
+        if(!serialResponseIsBinary && response != nullptr)
+            *response = serialResponsePayload;
+        return serialResponseOk;
+    }
+
+    if(response != nullptr) *response = "Unable to read data";
+    return false;
+}
+
+void ControlLink::onSerialReadyRead()
+{
+    if(serialPort == nullptr) return;
+
+    serialRxBuffer += serialPort->readAll();
+
+    for(;;)
+    {
+        /* Binary board-data response frame: 0xA5 0xA5 'R' <sizeLo> <sizeHi> <data> */
+        if(serialRxBuffer.size() >= 3 &&
+           (quint8)serialRxBuffer.at(0) == 0xA5 &&
+           (quint8)serialRxBuffer.at(1) == 0xA5 &&
+           serialRxBuffer.at(2) == 'R')
         {
-            *response = "Unable to read data";
-            return false;
+            if(serialRxBuffer.size() < 5) return;          /* need the size field */
+            quint16 size = (quint8)serialRxBuffer.at(3) | ((quint16)(quint8)serialRxBuffer.at(4) << 8);
+            if(serialRxBuffer.size() < 5 + (int)size) return;  /* wait for all data */
+
+            serialBinaryPayload    = serialRxBuffer.mid(5, size);
+            serialRxBuffer.remove(0, 5 + size);
+            serialResponseOk       = true;
+            serialResponseGot      = true;
+            serialResponseIsBinary = true;
+            emit sigSerialResponseReady();
+            continue;
         }
 
-        receivedData += serialPort->readAll();
+        int nlIndex = serialRxBuffer.indexOf('\n');
+        if(nlIndex < 0) return;
 
-        /* Process complete, newline-terminated lines. The firmware terminates
-         * every response with "\r\n". Asynchronous status-link notifications
-         * (which do not start with STATUS/ERROR) are skipped. */
-        int nlIndex;
-        while((nlIndex = receivedData.indexOf('\n')) != -1)
+        QByteArray lineBytes = serialRxBuffer.left(nlIndex);
+        serialRxBuffer.remove(0, nlIndex + 1);
+
+        QString line = QString::fromUtf8(lineBytes).trimmed();
+        if(line.isEmpty()) continue;
+
+        if(line.startsWith("STATUS"))
         {
-            QByteArray lineBytes = receivedData.left(nlIndex);
-            receivedData.remove(0, nlIndex + 1);
-
-            QString line = QString::fromUtf8(lineBytes).trimmed();
-            if(line.isEmpty()) continue;
-
-            if(line.startsWith("STATUS"))
-            {
-                *response = line.mid(6).trimmed();   /* payload after "STATUS" */
-                return true;
-            }
-            if(line.startsWith("ERROR"))
-            {
-                *response = "ERROR";
-                return false;
-            }
-            /* otherwise: asynchronous notification -> ignore, keep reading */
+            serialResponsePayload  = line.mid(6).trimmed();   /* payload after "STATUS" */
+            serialResponseOk       = true;
+            serialResponseGot      = true;
+            serialResponseIsBinary = false;
+            emit sigSerialResponseReady();
+        }
+        else if(line.startsWith("ERROR"))
+        {
+            serialResponsePayload  = "ERROR";
+            serialResponseOk       = false;
+            serialResponseGot      = true;
+            serialResponseIsBinary = false;
+            emit sigSerialResponseReady();
+        }
+        else
+        {
+            /* Asynchronous status-link notification (e.g. charger mode change) */
+            emit sigAsyncMessage(line);
         }
     }
+}
+
+bool ControlLink::transferBdWrite(const QByteArray& data, int timeout)
+{
+    if(transport != CONTROL_LINK_TRANSPORT_SERIAL) return false;
+    if(serialPort == nullptr || !serialPort->isOpen() || linkStatus != CONTROL_LINK_STATUS_ESTABLISHED) return false;
+
+    quint16 size = (quint16)data.size();
+
+    QByteArray frame;
+    frame.append((char)0xA5);
+    frame.append((char)0xA5);
+    frame.append('W');
+    frame.append((char)(size & 0xFF));
+    frame.append((char)((size >> 8) & 0xFF));
+    frame.append(data);
+
+    serialResponseGot      = false;
+    serialResponseIsBinary = false;
+
+    if(serialPort->write(frame) == -1)              return false;
+    if(!serialPort->waitForBytesWritten(timeout))   return false;
+
+    QString response;
+    if(!prvReadSerialResponse(&response, timeout))  return false;
+    return (response == "OK");
+}
+
+bool ControlLink::transferBdRead(QByteArray* out, int timeout)
+{
+    if(out == nullptr) return false;
+    if(transport != CONTROL_LINK_TRANSPORT_SERIAL) return false;
+    if(serialPort == nullptr || !serialPort->isOpen() || linkStatus != CONTROL_LINK_STATUS_ESTABLISHED) return false;
+
+    serialResponseGot      = false;
+    serialResponseIsBinary = false;
+
+    QByteArray cmd("charger bd read");
+    cmd.append('\r');
+    if(serialPort->write(cmd) == -1)                return false;
+    if(!serialPort->waitForBytesWritten(timeout))   return false;
+
+    QString dummy;
+    if(!prvReadSerialResponse(&dummy, timeout))     return false;
+    if(!serialResponseIsBinary)                     return false;   /* got an error line instead */
+
+    *out = serialBinaryPayload;
+    return true;
 }
 
 bool ControlLink::prvReadResponse(QString* response, int timeout)
@@ -263,7 +366,8 @@ bool ControlLink::executeCommand(QString command, QString* response, int timeout
             return false;
         }
 
-        serialPort->clear(QSerialPort::Input);
+        /* Arm response capture before sending (onSerialReadyRead fills it in). */
+        serialResponseGot = false;
 
         QByteArray packet = command.toUtf8();
         packet.append('\r');

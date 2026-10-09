@@ -95,6 +95,7 @@ void Device::controlLinkAssign(ControlLink* link)
     controlLink = link;
     connect(controlLink, SIGNAL(sigConnected()), this, SLOT(onControlLinkConnected()));
     connect(controlLink, SIGNAL(sigDisconnected()), this, SLOT(onControlLinkDisconnected()));
+    connect(controlLink, SIGNAL(sigAsyncMessage(QString)), this, SLOT(onControlLinkAsyncMessage(QString)));
     m_params->setParamValue("deviceIp",link->getDeviceIP_Addr());
     m_params->setParamValue("controlPort",QString::number(link->getDeviceIP_Port()));
     emit sigControlLinkConnected();
@@ -1806,6 +1807,84 @@ bool Device::getChargerFWVersion(QString *version)
     *version = response;
     emit sigChargerFWVersionObtained(*version);
     return true;
+}
+
+bool Device::getChargerRegister(int reg, int* value)
+{
+    QString response;
+    QString command = QString("charger reg read -reg=%1").arg(reg, 0, 16);
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    /* Firmware replies "OK: 0x<hex>" */
+    int idx = response.indexOf("0x");
+    if(idx < 0) return false;
+    bool ok = false;
+    int v = response.mid(idx + 2).trimmed().toInt(&ok, 16);
+    if(!ok) return false;
+    if(value != NULL) *value = v;
+    return true;
+}
+
+bool Device::setChargerRegister(int reg, int value)
+{
+    QString response;
+    QString command = QString("charger reg write -reg=%1 -value=%2").arg(reg, 0, 16).arg(value, 0, 16);
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK") return false;
+    return true;
+}
+
+void Device::onControlLinkAsyncMessage(QString message)
+{
+    /* Asynchronous status-link notifications pushed by the charger firmware,
+     * e.g. "charger charging mode cc" on a charging-mode change. */
+    QString m = message.trimmed();
+    if(m.startsWith("charger charging mode"))
+    {
+        QString mode = m.section(' ', 3).trimmed();   /* word after "... mode " */
+        emit sigChargerModeObtained(mode);
+    }
+}
+
+int Device::getChargerEepromSize()
+{
+    if(controlLink == NULL) return -1;
+    QString response;
+    if(!controlLink->executeCommand(QString("charger bd size get"), &response, 1000)) return -1;
+    bool ok = false;
+    int sz = response.trimmed().toInt(&ok);
+    return ok ? sz : -1;
+}
+
+bool Device::readChargerEeprom(QByteArray* out)
+{
+    if(controlLink == NULL || out == NULL) return false;
+    /* Full board-data read via the binary response frame. */
+    return controlLink->transferBdRead(out, 3000);
+}
+
+bool Device::writeChargerEeprom(const QByteArray& data)
+{
+    if(controlLink == NULL) return false;
+    /* Full board-data write via the binary request frame. */
+    return controlLink->transferBdWrite(data, 3000);
+}
+
+bool Device::formatChargerEeprom()
+{
+    if(controlLink == NULL) return false;
+    QString response;
+    if(!controlLink->executeCommand(QString("charger bd format"), &response, 5000)) return false;
+    return (response == "OK");
+}
+
+bool Device::storeChargerConfig()
+{
+    if(controlLink == NULL) return false;
+    QString response;
+    if(!controlLink->executeCommand(QString("charger config store"), &response, 3000)) return false;
+    return (response == "OK");
 }
 
 bool Device::latchTrigger()
