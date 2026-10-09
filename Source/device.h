@@ -198,6 +198,10 @@ public:
     bool        writeChargerEeprom(const QByteArray& data);
     bool        formatChargerEeprom();
     bool        storeChargerConfig();
+    bool        startChargerVoltageStream();
+    bool        stopChargerVoltageStream();
+    bool        getChargerVCal(double* gain);
+    bool        setChargerVCal(double gain);
     bool        latchTrigger();
     bool        getUVoltageStatus(bool* status = NULL);
     bool        getOVoltageStatus(bool* status = NULL);
@@ -259,6 +263,8 @@ signals:
     void        sigChargerHWSerialObtained(QString  serial);
     void        sigChargerFWVersionObtained(QString  serial);
     void        sigChargerModeObtained(QString  mode);
+    void        sigChargerVoltageObtained(double voltageV, quint16 rawAdc);
+    void        sigChargerStatusObtained(int stat0);
 
 
     void        sigAvgRatio(QString voffset);

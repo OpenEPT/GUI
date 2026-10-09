@@ -1,8 +1,8 @@
 #include "controllink.h"
+#include "seriallink.h"
 #include <QtGlobal>
 #include <QHostAddress>
 #include <QTimer>
-#include <QEventLoop>
 
 #ifdef Q_OS_WIN
 #include "Ws2tcpip.h"
@@ -20,11 +20,8 @@ ControlLink::ControlLink(QObject *parent)
 {
     tcpSocket       =   new QTcpSocket(this);
     tcpSocket->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
-    serialPort        = nullptr;
-    transport         = CONTROL_LINK_TRANSPORT_TCP;
-    serialResponseOk       = false;
-    serialResponseGot      = false;
-    serialResponseIsBinary = false;
+    serialLink      =   nullptr;
+    transport       =   CONTROL_LINK_TRANSPORT_TCP;
     ipAddress       =   "0.0.0.0";
     serialPortName  =   "";
     portNumber      =   0;
@@ -36,16 +33,13 @@ ControlLink::ControlLink(QObject *parent)
 
 ControlLink::~ControlLink()
 {
-    if(linkStatus == CONTROL_LINK_STATUS_ESTABLISHED)
+    if(transport == CONTROL_LINK_TRANSPORT_SERIAL)
     {
-        if(transport == CONTROL_LINK_TRANSPORT_SERIAL)
-        {
-            if(serialPort != nullptr && serialPort->isOpen()) serialPort->close();
-        }
-        else
-        {
-            tcpSocket->disconnect();
-        }
+        if(serialLink != nullptr) { serialLink->close(); delete serialLink; serialLink = nullptr; }
+    }
+    else if(linkStatus == CONTROL_LINK_STATUS_ESTABLISHED)
+    {
+        tcpSocket->disconnect();
     }
 }
 
@@ -70,35 +64,18 @@ control_link_status_t   ControlLink::establishSerialLink(QString aPortName, qint
     serialPortName  = aPortName;
     ipAddress       = aPortName;   /* reuse for display (getDeviceIP_Addr) */
 
-    if(serialPort == nullptr)
+    if(serialLink == nullptr)
     {
-        serialPort = new QSerialPort(this);
-        connect(serialPort, SIGNAL(errorOccurred(QSerialPort::SerialPortError)),
-                this, SLOT(onSerialErrorOccurred(QSerialPort::SerialPortError)));
-        connect(serialPort, SIGNAL(readyRead()), this, SLOT(onSerialReadyRead()));
+        serialLink = new SerialLink(this);
+        connect(serialLink, &SerialLink::sigAsyncMessage, this, &ControlLink::sigAsyncMessage);
+        connect(serialLink, &SerialLink::sigDisconnected, this, &ControlLink::onSerialDisconnected);
     }
 
-    if(serialPort->isOpen()) serialPort->close();
-
-    serialRxBuffer.clear();
-    serialResponseGot = false;
-
-    serialPort->setPortName(aPortName);
-    serialPort->setBaudRate(aBaudRate);                 /* ignored by USB CDC, required by API */
-    serialPort->setDataBits(QSerialPort::Data8);
-    serialPort->setParity(QSerialPort::NoParity);
-    serialPort->setStopBits(QSerialPort::OneStop);
-    serialPort->setFlowControl(QSerialPort::NoFlowControl);
-
-    if(!serialPort->open(QIODevice::ReadWrite))
+    if(!serialLink->open(aPortName, aBaudRate))
     {
         linkStatus = CONTROL_LINK_STATUS_DISABLED;
         return linkStatus;
     }
-
-    /* Assert DTR so the firmware's CDC driver enables the TX path (dtrActive) */
-    serialPort->setDataTerminalReady(true);
-    serialPort->clear();
 
     linkStatus = CONTROL_LINK_STATUS_ESTABLISHED;
 
@@ -109,140 +86,22 @@ control_link_status_t   ControlLink::establishSerialLink(QString aPortName, qint
     return linkStatus;
 }
 
-bool ControlLink::prvReadSerialResponse(QString* response, int timeout)
+void ControlLink::onSerialDisconnected()
 {
-    /* Responses arrive asynchronously in onSerialReadyRead(), which sets
-     * serialResponseGot and emits sigSerialResponseReady(). Wait for it (or the
-     * timeout) via a local event loop, so readyRead keeps firing and any
-     * asynchronous notifications continue to be dispatched meanwhile. */
-    if(!serialResponseGot)
-    {
-        QEventLoop  loop;
-        QTimer      timer;
-        timer.setSingleShot(true);
-        connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-        connect(this, &ControlLink::sigSerialResponseReady, &loop, &QEventLoop::quit);
-        timer.start(timeout);
-        loop.exec();
-    }
-
-    if(serialResponseGot)
-    {
-        if(!serialResponseIsBinary && response != nullptr)
-            *response = serialResponsePayload;
-        return serialResponseOk;
-    }
-
-    if(response != nullptr) *response = "Unable to read data";
-    return false;
-}
-
-void ControlLink::onSerialReadyRead()
-{
-    if(serialPort == nullptr) return;
-
-    serialRxBuffer += serialPort->readAll();
-
-    for(;;)
-    {
-        /* Binary board-data response frame: 0xA5 0xA5 'R' <sizeLo> <sizeHi> <data> */
-        if(serialRxBuffer.size() >= 3 &&
-           (quint8)serialRxBuffer.at(0) == 0xA5 &&
-           (quint8)serialRxBuffer.at(1) == 0xA5 &&
-           serialRxBuffer.at(2) == 'R')
-        {
-            if(serialRxBuffer.size() < 5) return;          /* need the size field */
-            quint16 size = (quint8)serialRxBuffer.at(3) | ((quint16)(quint8)serialRxBuffer.at(4) << 8);
-            if(serialRxBuffer.size() < 5 + (int)size) return;  /* wait for all data */
-
-            serialBinaryPayload    = serialRxBuffer.mid(5, size);
-            serialRxBuffer.remove(0, 5 + size);
-            serialResponseOk       = true;
-            serialResponseGot      = true;
-            serialResponseIsBinary = true;
-            emit sigSerialResponseReady();
-            continue;
-        }
-
-        int nlIndex = serialRxBuffer.indexOf('\n');
-        if(nlIndex < 0) return;
-
-        QByteArray lineBytes = serialRxBuffer.left(nlIndex);
-        serialRxBuffer.remove(0, nlIndex + 1);
-
-        QString line = QString::fromUtf8(lineBytes).trimmed();
-        if(line.isEmpty()) continue;
-
-        if(line.startsWith("STATUS"))
-        {
-            serialResponsePayload  = line.mid(6).trimmed();   /* payload after "STATUS" */
-            serialResponseOk       = true;
-            serialResponseGot      = true;
-            serialResponseIsBinary = false;
-            emit sigSerialResponseReady();
-        }
-        else if(line.startsWith("ERROR"))
-        {
-            serialResponsePayload  = "ERROR";
-            serialResponseOk       = false;
-            serialResponseGot      = true;
-            serialResponseIsBinary = false;
-            emit sigSerialResponseReady();
-        }
-        else
-        {
-            /* Asynchronous status-link notification (e.g. charger mode change) */
-            emit sigAsyncMessage(line);
-        }
-    }
+    linkStatus = CONTROL_LINK_STATUS_DISABLED;
+    emit sigDisconnected();
 }
 
 bool ControlLink::transferBdWrite(const QByteArray& data, int timeout)
 {
-    if(transport != CONTROL_LINK_TRANSPORT_SERIAL) return false;
-    if(serialPort == nullptr || !serialPort->isOpen() || linkStatus != CONTROL_LINK_STATUS_ESTABLISHED) return false;
-
-    quint16 size = (quint16)data.size();
-
-    QByteArray frame;
-    frame.append((char)0xA5);
-    frame.append((char)0xA5);
-    frame.append('W');
-    frame.append((char)(size & 0xFF));
-    frame.append((char)((size >> 8) & 0xFF));
-    frame.append(data);
-
-    serialResponseGot      = false;
-    serialResponseIsBinary = false;
-
-    if(serialPort->write(frame) == -1)              return false;
-    if(!serialPort->waitForBytesWritten(timeout))   return false;
-
-    QString response;
-    if(!prvReadSerialResponse(&response, timeout))  return false;
-    return (response == "OK");
+    if(transport != CONTROL_LINK_TRANSPORT_SERIAL || serialLink == nullptr) return false;
+    return serialLink->transferBdWrite(data, timeout);
 }
 
 bool ControlLink::transferBdRead(QByteArray* out, int timeout)
 {
-    if(out == nullptr) return false;
-    if(transport != CONTROL_LINK_TRANSPORT_SERIAL) return false;
-    if(serialPort == nullptr || !serialPort->isOpen() || linkStatus != CONTROL_LINK_STATUS_ESTABLISHED) return false;
-
-    serialResponseGot      = false;
-    serialResponseIsBinary = false;
-
-    QByteArray cmd("charger bd read");
-    cmd.append('\r');
-    if(serialPort->write(cmd) == -1)                return false;
-    if(!serialPort->waitForBytesWritten(timeout))   return false;
-
-    QString dummy;
-    if(!prvReadSerialResponse(&dummy, timeout))     return false;
-    if(!serialResponseIsBinary)                     return false;   /* got an error line instead */
-
-    *out = serialBinaryPayload;
-    return true;
+    if(transport != CONTROL_LINK_TRANSPORT_SERIAL || serialLink == nullptr) return false;
+    return serialLink->transferBdRead(out, timeout);
 }
 
 bool ControlLink::prvReadResponse(QString* response, int timeout)
@@ -319,24 +178,6 @@ void ControlLink::reconnect()
     tcpSocket->waitForConnected(10);
 }
 
-void ControlLink::onSerialErrorOccurred(QSerialPort::SerialPortError error)
-{
-    if(error == QSerialPort::NoError) return;
-
-    /* Treat fatal transport errors (device unplugged, etc.) as a disconnect. */
-    if(error == QSerialPort::ResourceError ||
-       error == QSerialPort::PermissionError ||
-       error == QSerialPort::DeviceNotFoundError)
-    {
-        if(linkStatus != CONTROL_LINK_STATUS_DISABLED)
-        {
-            linkStatus = CONTROL_LINK_STATUS_DISABLED;
-            if(serialPort != nullptr && serialPort->isOpen()) serialPort->close();
-            emit sigDisconnected();
-        }
-    }
-}
-
 bool                    ControlLink::getDeviceName(QString *deviceName)
 {
     QString response;
@@ -357,33 +198,11 @@ bool ControlLink::executeCommand(QString command, QString* response, int timeout
         return false;
     }
 
-    /* ===== SERIAL (Charger): plain text terminated by CR ===== */
+    /* ===== SERIAL (Charger): delegated to the threaded SerialLink ===== */
     if(transport == CONTROL_LINK_TRANSPORT_SERIAL)
     {
-        if(serialPort == nullptr || !serialPort->isOpen())
-        {
-            *response = "Control link not established";
-            return false;
-        }
-
-        /* Arm response capture before sending (onSerialReadyRead fills it in). */
-        serialResponseGot = false;
-
-        QByteArray packet = command.toUtf8();
-        packet.append('\r');
-
-        if(serialPort->write(packet) == -1)
-        {
-            *response = "Write failed";
-            return false;
-        }
-        if(!serialPort->waitForBytesWritten(timeout))
-        {
-            *response = "Write timeout";
-            return false;
-        }
-
-        return prvReadSerialResponse(response, timeout);
+        if(serialLink == nullptr) { *response = "Control link not established"; return false; }
+        return serialLink->executeCommand(command, response, timeout);
     }
 
     /* ===== TCP (EPP): binary 0xA5 framing ===== */

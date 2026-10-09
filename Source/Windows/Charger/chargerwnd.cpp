@@ -1,5 +1,6 @@
 #include "chargerwnd.h"
 #include "device.h"
+#include "Windows/Plot/plot.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -19,6 +20,10 @@
 #include <QMessageBox>
 #include <QIcon>
 #include <QSize>
+
+/* Default scale before calibration: Vref 3.3 V, 12-bit, /2 input divider. */
+#define CHARGER_DEFAULT_CAL_GAIN   (3.3 / 4095.0 * 2.0)
+#define CHARGER_PLOT_WINDOW_MS     30000.0   /* live sliding window: last 30 s */
 
 #define CHARGER_ICON_BTN_SIZE   32
 #define CHARGER_ICON_SIZE       24
@@ -42,8 +47,13 @@ QToolTip { background-color: white; color: black; border: 1px solid #ccc; }
 
 ChargerWnd::ChargerWnd(Device* device, QWidget *parent) :
     QWidget(parent),
-    m_device(device)
+    m_device(device),
+    m_acqTimeMs(0.0),
+    m_calGain(CHARGER_DEFAULT_CAL_GAIN),
+    m_lastRaw(0)
 {
+    /* Calibration gain (V_CAL) lives on the device EEPROM; it is fetched from
+     * the firmware in onReadClicked() below. Default until then. */
     buildUi();
 
     connect(readPusb,           SIGNAL(clicked()), this, SLOT(onReadClicked()));
@@ -58,9 +68,18 @@ ChargerWnd::ChargerWnd(Device* device, QWidget *parent) :
     connect(eepromImportPusb, SIGNAL(clicked()), this, SLOT(onEepromImportClicked()));
     connect(eepromExportPusb, SIGNAL(clicked()), this, SLOT(onEepromExportClicked()));
 
-    /* Live charging-mode updates pushed by the firmware over the serial link. */
+    connect(acqStartPusb, SIGNAL(clicked()), this, SLOT(onStartAcquisitionClicked()));
+    connect(acqPausePusb, SIGNAL(clicked()), this, SLOT(onPauseAcquisitionClicked()));
+    connect(acqStopPusb,  SIGNAL(clicked()), this, SLOT(onStopAcquisitionClicked()));
+    connect(calibratePusb, SIGNAL(clicked()), this, SLOT(onCalibrateClicked()));
+
+    /* Live updates pushed by the firmware over the serial link. */
     if(m_device != nullptr)
+    {
         connect(m_device, SIGNAL(sigChargerModeObtained(QString)), this, SLOT(onChargerModeObtained(QString)));
+        connect(m_device, SIGNAL(sigChargerStatusObtained(int)), this, SLOT(onChargerStatusObtained(int)));
+        connect(m_device, SIGNAL(sigChargerVoltageObtained(double,quint16)), this, SLOT(onChargerVoltageObtained(double,quint16)));
+    }
 
     /* Populate current values from the device. */
     onReadClicked();
@@ -78,7 +97,72 @@ void ChargerWnd::buildUi()
     scroll->setFrameShape(QFrame::NoFrame);
 
     QWidget*     content = new QWidget();
-    QVBoxLayout* mainL   = new QVBoxLayout(content);
+    QHBoxLayout* bodyL   = new QHBoxLayout(content);
+
+    /* ---- Left: live input-voltage plot + acquisition control ---- */
+    QVBoxLayout* plotColL = new QVBoxLayout();
+    voltageChart = new Plot(360, 260);
+    voltageChart->setTitle("Input voltage");
+    voltageChart->setYLabel("[V]");
+    voltageChart->setXLabel("[ms]");
+    voltageChart->setTrackingWindow(CHARGER_PLOT_WINDOW_MS);   /* show last 30 s while tracking */
+    plotColL->addWidget(voltageChart, 1);
+
+    QHBoxLayout* acqL = new QHBoxLayout();
+    acqStartPusb = new QPushButton();
+    acqPausePusb = new QPushButton();
+    acqStopPusb  = new QPushButton();
+    acqStartPusb->setIcon(QIcon(":/images/NewSet/play.png"));
+    acqPausePusb->setIcon(QIcon(":/images/NewSet/pause.png"));
+    acqStopPusb->setIcon(QIcon(":/images/NewSet/stop.png"));
+
+    QPushButton* acqBtns[] = { acqStartPusb, acqPausePusb, acqStopPusb };
+    for(QPushButton* b : acqBtns)
+    {
+        b->setIconSize(QSize(CHARGER_ICON_SIZE, CHARGER_ICON_SIZE));
+        b->setFixedSize(CHARGER_ICON_BTN_SIZE, CHARGER_ICON_BTN_SIZE);
+        b->setStyleSheet(CHARGER_ICON_BTN_STYLE);
+    }
+    acqStartPusb->setToolTip("Start acquisition");
+    acqPausePusb->setToolTip("Pause acquisition (keep data)");
+    acqStopPusb->setToolTip("Stop acquisition (clear)");
+
+    /* Initial: only Start is available. */
+    acqPausePusb->setEnabled(false);
+    acqStopPusb->setEnabled(false);
+
+    acqL->addStretch(1);
+    acqL->addWidget(acqStartPusb);
+    acqL->addWidget(acqPausePusb);
+    acqL->addWidget(acqStopPusb);
+    acqL->addStretch(1);
+    plotColL->addLayout(acqL);
+
+    /* ---- Auto-calibration: apply a known voltage, enter it, click Calibrate ---- */
+    calValueLabel = new QLabel("Measured: —", content);
+    QFont cvFont = calValueLabel->font(); cvFont.setBold(true); calValueLabel->setFont(cvFont);
+    calValueLabel->setAlignment(Qt::AlignCenter);
+    plotColL->addWidget(calValueLabel);
+
+    QHBoxLayout* calL = new QHBoxLayout();
+    calVoltageEdit = new QLineEdit(content);
+    calVoltageEdit->setValidator(new QDoubleValidator(0.0, 100.0, 3, calVoltageEdit));
+    calVoltageEdit->setPlaceholderText("known V");
+    calVoltageEdit->setFixedWidth(90);
+    calibratePusb = new QPushButton("Calibrate", content);
+    calibratePusb->setToolTip("Set the input to a known DC voltage, type it here, then click to calibrate");
+    calL->addStretch(1);
+    calL->addWidget(new QLabel("Ref [V]:", content));
+    calL->addWidget(calVoltageEdit);
+    calL->addWidget(calibratePusb);
+    calL->addStretch(1);
+    plotColL->addLayout(calL);
+
+    bodyL->addLayout(plotColL, 1);
+
+    /* ---- Right: all charger parameters and controls ---- */
+    QVBoxLayout* mainL = new QVBoxLayout();
+    bodyL->addLayout(mainL, 1);
 
     /* ---- Device information (read-only) ---- */
     QGroupBox*  infoBox = new QGroupBox("Device information");
@@ -289,15 +373,8 @@ void ChargerWnd::updateChargingModeLabel(const QString& modeCode)
     chargingModeLabel->setText(text);
 }
 
-void ChargerWnd::readStatus()
+void ChargerWnd::updateStatusFromStat0(int stat0)
 {
-    int stat0 = 0;
-    if(!m_device->getChargerRegister(BQ25180_REG_STAT0, &stat0))
-    {
-        stat0Label->setText("read error");
-        return;
-    }
-
     int chg = (stat0 >> 5) & 0x03;   /* CHG_STAT[1:0] */
     QString modeCode = (chg == 1) ? "cc" : (chg == 2) ? "cv" : (chg == 3) ? "done" : "not";
     updateChargingModeLabel(modeCode);
@@ -306,6 +383,23 @@ void ChargerWnd::readStatus()
     if(stat0 & 0x01) s += "  VIN:good"; else s += "  VIN:---";
     if(stat0 & 0x02) s += "  THERMREG";
     stat0Label->setText(s);
+}
+
+void ChargerWnd::readStatus()
+{
+    int stat0 = 0;
+    if(!m_device->getChargerRegister(BQ25180_REG_STAT0, &stat0))
+    {
+        stat0Label->setText("read error");
+        return;
+    }
+    updateStatusFromStat0(stat0);
+}
+
+void ChargerWnd::onChargerStatusObtained(int stat0)
+{
+    /* Pushed asynchronously by the firmware (~1 Hz); no Read needed. */
+    updateStatusFromStat0(stat0);
 }
 
 void ChargerWnd::onReadClicked()
@@ -353,6 +447,10 @@ void ChargerWnd::onReadClicked()
     }
 
     readStatus();
+
+    /* Input-voltage calibration gain (V_CAL) from the device EEPROM/params. */
+    double gain;
+    if(m_device->getChargerVCal(&gain)) m_calGain = gain;
 
     statusLabel->setText("Parameters read from device.");
 }
@@ -430,6 +528,97 @@ void ChargerWnd::onStopChargingClicked()
     if(m_device == nullptr) return;
     bool ok = m_device->setChargerStatus(false);
     statusLabel->setText(ok ? "Charging stopped." : "Failed to stop charging.");
+}
+
+/* ---- Live input-voltage acquisition ---- */
+
+void ChargerWnd::onStartAcquisitionClicked()
+{
+    if(m_device == nullptr) return;
+    /* Start (or resume after pause) - do NOT clear, so Pause->Start continues. */
+    if(!m_device->startChargerVoltageStream())
+    {
+        statusLabel->setText("Failed to start acquisition.");
+        return;
+    }
+    acqStartPusb->setEnabled(false);
+    acqPausePusb->setEnabled(true);
+    acqStopPusb->setEnabled(true);
+    statusLabel->setText("Acquisition started.");
+}
+
+void ChargerWnd::onPauseAcquisitionClicked()
+{
+    if(m_device == nullptr) return;
+    /* Pause: stop the stream but keep the data on screen for inspection. */
+    bool ok = m_device->stopChargerVoltageStream();
+    acqStartPusb->setEnabled(true);
+    acqPausePusb->setEnabled(false);
+    acqStopPusb->setEnabled(true);
+    statusLabel->setText(ok ? "Acquisition paused." : "Failed to pause acquisition.");
+}
+
+void ChargerWnd::onStopAcquisitionClicked()
+{
+    if(m_device == nullptr) return;
+    /* Stop = pause + clear: stop the stream and wipe the plot. */
+    m_device->stopChargerVoltageStream();
+    m_acqTimeMs = 0.0;
+    voltageChart->clear();
+    acqStartPusb->setEnabled(true);
+    acqPausePusb->setEnabled(false);
+    acqStopPusb->setEnabled(false);
+    statusLabel->setText("Acquisition stopped.");
+}
+
+void ChargerWnd::onChargerVoltageObtained(double voltageV, quint16 rawAdc)
+{
+    Q_UNUSED(voltageV);   /* we re-derive from raw using the calibrated gain */
+
+    m_lastRaw = rawAdc;
+    double v = (double)rawAdc * m_calGain;
+    calValueLabel->setText(QString("Measured: %1 V").arg(v, 0, 'f', 3));
+
+    /* Firmware streams samples at ~10 Hz (every 100 ms). Feed the Plot the same
+     * way as before: appendData keeps the full history (so Expand shows it all)
+     * and, while tracking, slides a 30 s window (set via setTrackingWindow). */
+    m_acqTimeMs += 100.0;
+    QVector<double> vd; vd.append(v);
+    QVector<double> kd; kd.append(m_acqTimeMs);
+    voltageChart->appendData(vd, kd);
+}
+
+void ChargerWnd::onCalibrateClicked()
+{
+    if(m_lastRaw == 0)
+    {
+        statusLabel->setText("Start acquisition first - no sample to calibrate against.");
+        return;
+    }
+
+    bool ok = false;
+    double knownV = calVoltageEdit->text().toDouble(&ok);
+    if(!ok || knownV <= 0.0)
+    {
+        statusLabel->setText("Enter a valid known reference voltage.");
+        return;
+    }
+
+    /* gain [V/count] = known voltage / current raw count. */
+    m_calGain = knownV / (double)m_lastRaw;
+
+    /* Push the new gain to the device (volatile until "Store" persists it to
+     * EEPROM as the V_CAL parameter). */
+    bool pushed = m_device->setChargerVCal(m_calGain);
+
+    /* Reflect the new scale immediately in the live readout. */
+    calValueLabel->setText(QString("Measured: %1 V").arg((double)m_lastRaw * m_calGain, 0, 'f', 3));
+
+    QString msg = QString("Calibrated: V_CAL = %1 mV/count (%2 V at raw %3). ")
+                      .arg(m_calGain * 1000.0, 0, 'f', 5).arg(knownV, 0, 'f', 3).arg(m_lastRaw);
+    msg += pushed ? "Click Store to save it to EEPROM."
+                  : "WARNING: could not send V_CAL to device.";
+    statusLabel->setText(msg);
 }
 
 /* ---- EEPROM ---- */

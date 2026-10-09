@@ -30,6 +30,7 @@ public:
                            int lineWidth, bool gridVisible, bool minorGridVisible);
     bool        saveImageToSvg(QString path);
     void        appendData(QVector<double> data, QVector<double> keys);
+    void        setTrackingWindow(double ms);   /*!< live sliding-window width while tracking */
     void        setYRange(double min, double max);
     void        setYLabel(QString label);
     void        setXRange(double min, double max);
@@ -90,6 +91,7 @@ private:
     QCPGraph    *keyMarkerGraph;
     QVector<QCPItemText *> keyMarkerText;
 
+    double      trackWindowMs;
     bool        enableTracking;
     bool        replotActive;
     bool        scatterGraphAdded;

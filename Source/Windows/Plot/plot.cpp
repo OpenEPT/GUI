@@ -124,6 +124,7 @@ Plot::Plot(int mw, int mh, bool aEnableTracking, QWidget *parent)
     title = new QCPTextElement(plot, "NN", QFont("Helvetica", 16));
     plot->plotLayout()->addElement(0, 0, title);
 
+    trackWindowMs       = 10000;
     enableTracking      = aEnableTracking;
     replotActive        = true;
     scatterGraphAdded   = false;
@@ -480,7 +481,7 @@ void        Plot::appendData(QVector<double> data, QVector<double> keys)
     yData.append(data);
     plotXData.append(keys);
     plotYData.append(data);
-    if((plotXData.last() > 10000) && (plotXData.size() > data.size()))
+    if((plotXData.last() > trackWindowMs) && (plotXData.size() > data.size()))
     {
         plotXData.remove(0,data.size());
         plotYData.remove(0,data.size());
@@ -501,6 +502,10 @@ void        Plot::appendData(QVector<double> data, QVector<double> keys)
         scatterReplotDataWithName();
     }
 
+}
+void        Plot::setTrackingWindow(double ms)
+{
+    if(ms > 0) trackWindowMs = ms;
 }
 void        Plot::setYRange(double min, double max)
 {

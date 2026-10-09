@@ -3,7 +3,6 @@
 
 #include <QObject>
 #include <QTcpSocket>
-#include <QSerialPort>
 #include <QString>
 #include <QTimer>
 
@@ -11,10 +10,12 @@
 #define CONTROL_LINK_RECONNECT_PERIOD   1000
 #define CONTROL_LINK_SERIAL_BAUDRATE    115200
 
+class SerialLink;
+
 /* Transport used by the control link */
 typedef enum{
     CONTROL_LINK_TRANSPORT_TCP,     /*!< EPP devices over TCP/IP (binary 0xA5 framing) */
-    CONTROL_LINK_TRANSPORT_SERIAL   /*!< Charger device over USB CDC serial (text, \r terminated) */
+    CONTROL_LINK_TRANSPORT_SERIAL   /*!< Charger device over USB CDC serial (via SerialLink) */
 }control_link_transport_t;
 
 typedef enum{
@@ -45,20 +46,18 @@ public:
 signals:
     void                    sigDisconnected();
     void                    sigConnected();
-    void                    sigAsyncMessage(QString message);   /*!< Unsolicited status-link notification (serial) */
-    void                    sigSerialResponseReady();           /*!< Internal: command response line received */
+    void                    sigAsyncMessage(QString message);   /*!< Unsolicited notification (serial) */
 
 public slots:
     void                    onDisconnected();
     void                    onReconnected();
     void                    reconnect();
-    void                    onSerialErrorOccurred(QSerialPort::SerialPortError error);
-    void                    onSerialReadyRead();
+    void                    onSerialDisconnected();
 
 private:
 
     QTcpSocket              *tcpSocket;
-    QSerialPort             *serialPort;
+    SerialLink              *serialLink;        /*!< Threaded serial transport (charger) */
     control_link_transport_t transport;
     QString                 ipAddress;
     QString                 serialPortName;
@@ -66,17 +65,8 @@ private:
     control_link_status_t   linkStatus;
     QTimer                  *reconnectTimer;
 
-    /* Serial async reception / response capture */
-    QByteArray              serialRxBuffer;
-    QString                 serialResponsePayload;
-    QByteArray              serialBinaryPayload;    /* payload of a binary 'R' response frame */
-    bool                    serialResponseOk;
-    bool                    serialResponseGot;
-    bool                    serialResponseIsBinary;
-
     bool                    setSocketKeepAlive();
     bool                    prvReadResponse(QString* response, int timeout);
-    bool                    prvReadSerialResponse(QString* response, int timeout);
 
 };
 

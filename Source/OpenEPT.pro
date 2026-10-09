@@ -30,6 +30,7 @@ win32 {
 SOURCES += \
     Chart/qcustomplot.cpp \
     Links/controllink.cpp \
+    Links/seriallink.cpp \
     Links/edlink.cpp \
     Links/statuslink.cpp \
     Links/streamlink.cpp \
@@ -82,6 +83,7 @@ SOURCES += \
 HEADERS += \
     Chart/qcustomplot.h \
     Links/controllink.h \
+    Links/seriallink.h \
     Links/edlink.h \
     Links/statuslink.h \
     Links/streamlink.h \
