@@ -1793,8 +1793,8 @@ bool Device::getChargerHWSerial(QString* serial)
     QString command = "charger hwserial get";
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     //Parse response
-    *serial = response;
-    emit sigChargerHWSerialObtained(*serial);
+    if(serial != NULL) *serial = response;
+    emit sigChargerHWSerialObtained(response);
     return true;
 }
 
@@ -1804,8 +1804,8 @@ bool Device::getChargerFWVersion(QString *version)
     QString command = "charger fwversion get";
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     //Parse response
-    *version = response;
-    emit sigChargerFWVersionObtained(*version);
+    if(version != NULL) *version = response;
+    emit sigChargerFWVersionObtained(response);
     return true;
 }
 

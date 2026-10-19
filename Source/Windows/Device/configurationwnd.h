@@ -112,6 +112,8 @@ private:
 
     QWidget *createTab(Params::GroupId group);
     QVBoxLayout *createGroupLayout(Params::GroupId group);
+    QVBoxLayout *createChargerConfigLayout();
+    QGroupBox   *createChargerParamBox(const QString &title, Params::SubGroupId subGroup);
     QGroupBox *createSubGroupBox(Params::GroupId group,
                                  Params::SubGroupId subGroup);
 

@@ -1,4 +1,5 @@
 #include <QMessageBox>
+#include <QTimer>
 #include "Processing/batteryparamsextraction.h"
 
 #define DEVICECONTAINER_RELAX_SAMPLES_MAX      2000000
@@ -1596,20 +1597,39 @@ void DeviceContainer::onDeviceChargerConnectionStatusOntained(bool state)
 
     if(state == true)
     {
-        QString hwSerial, fwversion;
-        device->getChargerCurrent();
-        device->getChargerTermCurrent();
-        device->getChargerTermVoltage();
-        device->getChargerFWVersion(&fwversion);
-        device->getChargerHWSerial(&hwSerial);
-        device->getChargerMaxChargingCurrent();
         log->printLogMessage("Charger connected", LOG_MESSAGE_TYPE_INFO);
+        /* This slot can run inside the status-link socket read handler. Issuing
+         * blocking control-link reads from there is re-entrant and unreliable,
+         * so defer the parameter pull to a clean event-loop turn (and give the
+         * charger-on-EPP a moment to become ready). */
+        QTimer::singleShot(200, this, [this](){ refreshChargerParameters(3); });
     }
     else
     {
         log->printLogMessage("Charger disconnected", LOG_MESSAGE_TYPE_WARNING);
     }
 
+}
+
+void DeviceContainer::refreshChargerParameters(int retriesLeft)
+{
+    /* Pull the latest charger parameters from the device. Each getter emits an
+     * "obtained" signal that populates the charger tab; on failure it returns
+     * false and leaves the field untouched, so retry a few times because the
+     * charger may not answer immediately after it is first detected. */
+    bool ok = true;
+    ok &= device->getChargerCurrent();
+    ok &= device->getChargerTermCurrent();
+    ok &= device->getChargerTermVoltage();
+    ok &= device->getChargerMaxChargingCurrent();
+    device->getChargerFWVersion();
+    device->getChargerHWSerial();
+
+    if(!ok && retriesLeft > 0)
+    {
+        log->printLogMessage("Charger parameters not ready yet, retrying...", LOG_MESSAGE_TYPE_WARNING);
+        QTimer::singleShot(500, this, [this, retriesLeft](){ refreshChargerParameters(retriesLeft - 1); });
+    }
 }
 
 void DeviceContainer::onDeviceOVoltageObtained(bool state)
