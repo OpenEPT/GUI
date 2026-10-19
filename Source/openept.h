@@ -33,7 +33,7 @@ protected:
 
 private slots:
     void onActionAddSingleDeviceTriggered();
-    void onAddDeviceWndAddDevice(QString aIpAddress, QString aPort);
+    void onAddDeviceWndAddDevice(QString aIpAddress, QString aPort, int aDeviceType);
     void onDeviceContainerDeviceWndClosed(DeviceContainer* container);
     void onDeviceContainerAllDeviceWndClosed();
     void onActionOpenAndProcessData();
@@ -63,7 +63,7 @@ private:
     QMessageBox                 msgBox;
 
     /**/
-    bool                        addNewDevice(QString aIpAddress, QString aPort);
+    bool                        addNewDevice(QString aIpAddress, QString aPort, int aDeviceType = ADD_DEVICE_TYPE_EPP);
 
     /**/
     void                        setTheme();

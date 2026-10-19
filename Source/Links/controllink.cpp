@@ -1,6 +1,8 @@
 #include "controllink.h"
+#include "seriallink.h"
 #include <QtGlobal>
 #include <QHostAddress>
+#include <QTimer>
 
 #ifdef Q_OS_WIN
 #include "Ws2tcpip.h"
@@ -18,7 +20,10 @@ ControlLink::ControlLink(QObject *parent)
 {
     tcpSocket       =   new QTcpSocket(this);
     tcpSocket->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
+    serialLink      =   nullptr;
+    transport       =   CONTROL_LINK_TRANSPORT_TCP;
     ipAddress       =   "0.0.0.0";
+    serialPortName  =   "";
     portNumber      =   0;
     linkStatus      =   CONTROL_LINK_STATUS_DISABLED;
     reconnectTimer  = new QTimer(this);
@@ -28,7 +33,11 @@ ControlLink::ControlLink(QObject *parent)
 
 ControlLink::~ControlLink()
 {
-    if(linkStatus == CONTROL_LINK_STATUS_ESTABLISHED)
+    if(transport == CONTROL_LINK_TRANSPORT_SERIAL)
+    {
+        if(serialLink != nullptr) { serialLink->close(); delete serialLink; serialLink = nullptr; }
+    }
+    else if(linkStatus == CONTROL_LINK_STATUS_ESTABLISHED)
     {
         tcpSocket->disconnect();
     }
@@ -46,6 +55,53 @@ control_link_status_t   ControlLink::establishLink(QString aIpAddress, QString a
     tcpSocket->connectToHost(hostAddress, hostPort);
     tcpSocket->waitForConnected(1000);
     return linkStatus;
+}
+
+control_link_status_t   ControlLink::establishSerialLink(QString aPortName, qint32 aBaudRate)
+{
+    transport       = CONTROL_LINK_TRANSPORT_SERIAL;
+    linkStatus      = CONTROL_LINK_STATUS_DISABLED;
+    serialPortName  = aPortName;
+    ipAddress       = aPortName;   /* reuse for display (getDeviceIP_Addr) */
+
+    if(serialLink == nullptr)
+    {
+        serialLink = new SerialLink(this);
+        connect(serialLink, &SerialLink::sigAsyncMessage, this, &ControlLink::sigAsyncMessage);
+        connect(serialLink, &SerialLink::sigDisconnected, this, &ControlLink::onSerialDisconnected);
+    }
+
+    if(!serialLink->open(aPortName, aBaudRate))
+    {
+        linkStatus = CONTROL_LINK_STATUS_DISABLED;
+        return linkStatus;
+    }
+
+    linkStatus = CONTROL_LINK_STATUS_ESTABLISHED;
+
+    /* Mirror TCP timing: deliver sigConnected through the event loop, after the
+     * caller has assigned this link to the Device and connected the signal. */
+    QTimer::singleShot(0, this, [this](){ emit sigConnected(); });
+
+    return linkStatus;
+}
+
+void ControlLink::onSerialDisconnected()
+{
+    linkStatus = CONTROL_LINK_STATUS_DISABLED;
+    emit sigDisconnected();
+}
+
+bool ControlLink::transferBdWrite(const QByteArray& data, int timeout)
+{
+    if(transport != CONTROL_LINK_TRANSPORT_SERIAL || serialLink == nullptr) return false;
+    return serialLink->transferBdWrite(data, timeout);
+}
+
+bool ControlLink::transferBdRead(QByteArray* out, int timeout)
+{
+    if(transport != CONTROL_LINK_TRANSPORT_SERIAL || serialLink == nullptr) return false;
+    return serialLink->transferBdRead(out, timeout);
 }
 
 bool ControlLink::prvReadResponse(QString* response, int timeout)
@@ -117,6 +173,7 @@ bool ControlLink::prvReadResponse(QString* response, int timeout)
 
 void ControlLink::reconnect()
 {
+    if(transport == CONTROL_LINK_TRANSPORT_SERIAL) return;   /* serial auto-reconnect is Phase 2 */
     tcpSocket->connectToHost(ipAddress, portNumber);
     tcpSocket->waitForConnected(10);
 }
@@ -141,6 +198,14 @@ bool ControlLink::executeCommand(QString command, QString* response, int timeout
         return false;
     }
 
+    /* ===== SERIAL (Charger): delegated to the threaded SerialLink ===== */
+    if(transport == CONTROL_LINK_TRANSPORT_SERIAL)
+    {
+        if(serialLink == nullptr) { *response = "Control link not established"; return false; }
+        return serialLink->executeCommand(command, response, timeout);
+    }
+
+    /* ===== TCP (EPP): binary 0xA5 framing ===== */
     QByteArray packet;
 
     /* HEADER */
@@ -168,6 +233,14 @@ bool ControlLink::executeCommand(QByteArray request, QString* response, int time
     if(linkStatus != CONTROL_LINK_STATUS_ESTABLISHED)
     {
         *response = "Control link not established";
+        return false;
+    }
+
+    /* Binary (0xA5 'B') framing is EPP/TCP-only. The serial charger uses a
+     * text BD protocol which is a Phase-2 item. */
+    if(transport == CONTROL_LINK_TRANSPORT_SERIAL)
+    {
+        *response = "Binary commands not supported over serial";
         return false;
     }
 

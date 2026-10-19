@@ -297,7 +297,19 @@ QWidget *ConfigurationWnd::createTab(Params::GroupId group)
     QVBoxLayout *tabMainLayout = new QVBoxLayout(tab);
 
     QWidget *scrollContent = new QWidget(this);
-    scrollContent->setLayout(createGroupLayout(group));
+
+    /* The charger configuration tab gets a dedicated layout that mirrors the
+     * Charger device window (ChargerWnd): Device information and Charging
+     * parameters side by side, EEPROM memory below. (Live status / registers,
+     * plot and calibration are intentionally not included here.) */
+    if(group == static_cast<Params::GroupId>(DeviceParamDefs::ChargerConfig))
+    {
+        scrollContent->setLayout(createChargerConfigLayout());
+    }
+    else
+    {
+        scrollContent->setLayout(createGroupLayout(group));
+    }
 
     QScrollArea *scrollArea = new QScrollArea(this);
     scrollArea->setWidget(scrollContent);
@@ -361,6 +373,85 @@ QVBoxLayout *ConfigurationWnd::createGroupLayout(Params::GroupId group)
     groupLayout->addStretch();
 
     return groupLayout;
+}
+
+QGroupBox *ConfigurationWnd::createChargerParamBox(const QString &title, Params::SubGroupId subGroup)
+{
+    QGroupBox *box = new QGroupBox(title, this);
+    QGridLayout *grid = new QGridLayout();
+
+    if(m_params != nullptr)
+    {
+        QList<Params::Param> params = m_params->getParamsBySubGroup(
+            static_cast<Params::GroupId>(DeviceParamDefs::ChargerConfig), subGroup);
+
+        int row = 0;
+        for(const Params::Param &param : params)
+        {
+            if(param.meta.visible == false)
+            {
+                continue;
+            }
+
+            /* Single column (label above field) so the box reads like a form,
+             * matching the Charger device window. Fields are still registered,
+             * so Set/Store keep working. */
+            grid->addWidget(createParamWidget(param), row, 0);
+            row++;
+        }
+    }
+
+    box->setLayout(grid);
+    return box;
+}
+
+QVBoxLayout *ConfigurationWnd::createChargerConfigLayout()
+{
+    QVBoxLayout *mainLayout = new QVBoxLayout();
+
+    if(m_params == nullptr)
+    {
+        mainLayout->addStretch();
+        return mainLayout;
+    }
+
+    QGroupBox *infoBox =
+        createChargerParamBox("Device information",
+                              static_cast<Params::SubGroupId>(DeviceParamDefs::ChargerGeneral));
+
+    QGroupBox *paramBox =
+        createChargerParamBox("Charging parameters",
+                              static_cast<Params::SubGroupId>(DeviceParamDefs::ChargerConf));
+
+    /* Top: two columns (info | parameters), like ChargerWnd. */
+    QVBoxLayout *leftCol = new QVBoxLayout();
+    leftCol->addWidget(infoBox);
+    leftCol->addStretch();
+
+    QVBoxLayout *rightCol = new QVBoxLayout();
+    rightCol->addWidget(paramBox);
+    rightCol->addStretch();
+
+    QHBoxLayout *topRow = new QHBoxLayout();
+    topRow->addLayout(leftCol, 1);
+    topRow->addLayout(rightCol, 1);
+
+    mainLayout->addLayout(topRow);
+
+    /* EEPROM memory view below, full width (reuses the existing builder that
+     * adds the hex/icon-button memory widget). */
+    QGroupBox *memoryBox = createSubGroupBox(
+        static_cast<Params::GroupId>(DeviceParamDefs::ChargerConfig),
+        static_cast<Params::SubGroupId>(DeviceParamDefs::ChargerBD));
+
+    if(memoryBox != nullptr)
+    {
+        mainLayout->addWidget(memoryBox);
+    }
+
+    mainLayout->addStretch();
+
+    return mainLayout;
 }
 
 QGroupBox *ConfigurationWnd::createSubGroupBox(Params::GroupId group, Params::SubGroupId subGroup)

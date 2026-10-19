@@ -95,6 +95,7 @@ void Device::controlLinkAssign(ControlLink* link)
     controlLink = link;
     connect(controlLink, SIGNAL(sigConnected()), this, SLOT(onControlLinkConnected()));
     connect(controlLink, SIGNAL(sigDisconnected()), this, SLOT(onControlLinkDisconnected()));
+    connect(controlLink, SIGNAL(sigAsyncMessage(QString)), this, SLOT(onControlLinkAsyncMessage(QString)));
     m_params->setParamValue("deviceIp",link->getDeviceIP_Addr());
     m_params->setParamValue("controlPort",QString::number(link->getDeviceIP_Port()));
     emit sigControlLinkConnected();
@@ -1792,8 +1793,8 @@ bool Device::getChargerHWSerial(QString* serial)
     QString command = "charger hwserial get";
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     //Parse response
-    *serial = response;
-    emit sigChargerHWSerialObtained(*serial);
+    if(serial != NULL) *serial = response;
+    emit sigChargerHWSerialObtained(response);
     return true;
 }
 
@@ -1803,9 +1804,148 @@ bool Device::getChargerFWVersion(QString *version)
     QString command = "charger fwversion get";
     if(!controlLink->executeCommand(command, &response, 1000)) return false;
     //Parse response
-    *version = response;
-    emit sigChargerFWVersionObtained(*version);
+    if(version != NULL) *version = response;
+    emit sigChargerFWVersionObtained(response);
     return true;
+}
+
+bool Device::getChargerRegister(int reg, int* value)
+{
+    QString response;
+    QString command = QString("charger reg read -reg=%1").arg(reg, 0, 16);
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    /* Firmware replies "OK: 0x<hex>" */
+    int idx = response.indexOf("0x");
+    if(idx < 0) return false;
+    bool ok = false;
+    int v = response.mid(idx + 2).trimmed().toInt(&ok, 16);
+    if(!ok) return false;
+    if(value != NULL) *value = v;
+    return true;
+}
+
+bool Device::setChargerRegister(int reg, int value)
+{
+    QString response;
+    QString command = QString("charger reg write -reg=%1 -value=%2").arg(reg, 0, 16).arg(value, 0, 16);
+    if(controlLink == NULL) return false;
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    if(response != "OK") return false;
+    return true;
+}
+
+void Device::onControlLinkAsyncMessage(QString message)
+{
+    /* Asynchronous status-link notifications pushed by the charger firmware,
+     * e.g. "charger charging mode cc" on a charging-mode change. */
+    QString m = message.trimmed();
+    if(m.startsWith("charger charging mode"))
+    {
+        QString mode = m.section(' ', 3).trimmed();   /* word after "... mode " */
+        emit sigChargerModeObtained(mode);
+    }
+    else if(m.startsWith("charger status stat0"))
+    {
+        /* "charger status stat0 N" - raw STAT0 register byte, pushed ~1 Hz. */
+        bool ok = false;
+        int stat0 = m.section(' ', 3).trimmed().toInt(&ok);
+        if(ok) emit sigChargerStatusObtained(stat0);
+    }
+    else if(m.startsWith("bat voltage"))
+    {
+        /* "bat voltage N" where N is the raw 12-bit ADC count of PC3. */
+        bool ok = false;
+        quint16 raw = (quint16)m.section(' ', 2).trimmed().toUInt(&ok);
+        if(ok)
+        {
+            /* Voltage at the ADC pin: Vpin = raw / 4095 * Vref (3.3 V).
+             * The input is attenuated by an on-board resistive divider before
+             * PC3, so the real input voltage is Vpin * DIVIDER_RATIO. */
+            const double VREF           = 3.3;
+            const double DIVIDER_RATIO  = 2.0;   /* /2 divider on PC3 */
+            double vpin     = (double)raw / 4095.0 * VREF;
+            double voltageV = vpin * DIVIDER_RATIO;
+            emit sigChargerVoltageObtained(voltageV, raw);
+        }
+    }
+}
+
+int Device::getChargerEepromSize()
+{
+    if(controlLink == NULL) return -1;
+    QString response;
+    if(!controlLink->executeCommand(QString("charger bd size get"), &response, 1000)) return -1;
+    bool ok = false;
+    int sz = response.trimmed().toInt(&ok);
+    return ok ? sz : -1;
+}
+
+bool Device::readChargerEeprom(QByteArray* out)
+{
+    if(controlLink == NULL || out == NULL) return false;
+    /* Full board-data read via the binary response frame. */
+    return controlLink->transferBdRead(out, 3000);
+}
+
+bool Device::writeChargerEeprom(const QByteArray& data)
+{
+    if(controlLink == NULL) return false;
+    /* Full board-data write via the binary request frame. */
+    return controlLink->transferBdWrite(data, 3000);
+}
+
+bool Device::formatChargerEeprom()
+{
+    if(controlLink == NULL) return false;
+    QString response;
+    if(!controlLink->executeCommand(QString("charger bd format"), &response, 5000)) return false;
+    return (response == "OK");
+}
+
+bool Device::storeChargerConfig()
+{
+    if(controlLink == NULL) return false;
+    QString response;
+    if(!controlLink->executeCommand(QString("charger config store"), &response, 3000)) return false;
+    return (response == "OK");
+}
+
+bool Device::startChargerVoltageStream()
+{
+    if(controlLink == NULL) return false;
+    QString response;
+    if(!controlLink->executeCommand(QString("charger voltage stream start"), &response, 1000)) return false;
+    return (response == "OK");
+}
+
+bool Device::stopChargerVoltageStream()
+{
+    if(controlLink == NULL) return false;
+    QString response;
+    if(!controlLink->executeCommand(QString("charger voltage stream stop"), &response, 1000)) return false;
+    return (response == "OK");
+}
+
+bool Device::getChargerVCal(double* gain)
+{
+    if(controlLink == NULL || gain == NULL) return false;
+    QString response;
+    if(!controlLink->executeCommand(QString("charger vcal get"), &response, 1000)) return false;
+    bool ok = false;
+    double g = response.trimmed().toDouble(&ok);
+    if(!ok || g <= 0.0) return false;
+    *gain = g;
+    return true;
+}
+
+bool Device::setChargerVCal(double gain)
+{
+    if(controlLink == NULL) return false;
+    QString response;
+    QString command = "charger vcal set -value=" + QString::number(gain, 'f', 8);
+    if(!controlLink->executeCommand(command, &response, 1000)) return false;
+    return (response == "OK");
 }
 
 bool Device::latchTrigger()

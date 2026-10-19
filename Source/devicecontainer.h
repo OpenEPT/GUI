@@ -147,6 +147,8 @@ private slots:
 
 
 private:
+    void                            refreshChargerParameters(int retriesLeft = 3);
+
     DeviceWnd*                      deviceWnd;
     Device*                         device;
     Log*                            log;

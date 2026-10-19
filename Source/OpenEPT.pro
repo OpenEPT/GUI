@@ -1,6 +1,7 @@
 QT       += core gui opengl concurrent
 QT       += network
 QT       += svg
+QT       += serialport
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport
 
@@ -29,6 +30,7 @@ win32 {
 SOURCES += \
     Chart/qcustomplot.cpp \
     Links/controllink.cpp \
+    Links/seriallink.cpp \
     Links/edlink.cpp \
     Links/statuslink.cpp \
     Links/streamlink.cpp \
@@ -57,6 +59,7 @@ SOURCES += \
     Windows/BatteryParams/batteryparamstrendwnd.cpp \
     Windows/BatteryParams/batteryparamswnd.cpp \
     Windows/AddDevice/adddevicewnd.cpp \
+    Windows/Charger/chargerwnd.cpp \
     Windows/ApplicationConf/applicationconfwnd.cpp \
     Windows/Console/consolewnd.cpp \
     Windows/DataAnalyzer/dataanalyzer.cpp \
@@ -80,6 +83,7 @@ SOURCES += \
 HEADERS += \
     Chart/qcustomplot.h \
     Links/controllink.h \
+    Links/seriallink.h \
     Links/edlink.h \
     Links/statuslink.h \
     Links/streamlink.h \
@@ -110,6 +114,7 @@ HEADERS += \
     Windows/BatteryParams/batteryparamstrendwnd.h \
     Windows/BatteryParams/batteryparamswnd.h \
     Windows/AddDevice/adddevicewnd.h \
+    Windows/Charger/chargerwnd.h \
     Windows/ApplicationConf/applicationconfwnd.h \
     Windows/Console/consolewnd.h \
     Windows/DataAnalyzer/dataanalyzer.h \

@@ -1091,14 +1091,14 @@ bool DeviceWnd::setChargerMaxCurrent(int current)
 bool DeviceWnd::setChargerHWSerial(QString serial)
 {
     configurationWnd->setParamValue("chargerSerial", serial);
-    energyControlWnd->chargerFWVersionSet(serial);
+    energyControlWnd->chargerSerialNumberSet(serial);
     return true;
 }
 
 bool DeviceWnd::setChargerFWSerial(QString serial)
 {
     configurationWnd->setParamValue("chargerFwVersion", serial);
-    energyControlWnd->chargerSerialNumberSet(serial);
+    energyControlWnd->chargerFWVersionSet(serial);
     return true;
 }
 

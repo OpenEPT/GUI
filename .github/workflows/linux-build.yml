@@ -28,6 +28,7 @@ jobs:
             qt5-qmake \
             libqt5svg5-dev \
             libqt5opengl5-dev \
+            libqt5serialport5-dev \
             libgl1-mesa-dev \
             libfuse2 \
             dpkg-dev \

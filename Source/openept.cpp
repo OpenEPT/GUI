@@ -5,6 +5,7 @@
 #include "Windows/About/aboutwnd.h"
 #include "Windows/About/updatechecker.h"
 #include "Windows/Device/devicewnd.h"
+#include "Windows/Charger/chargerwnd.h"
 #include "ui_openept.h"
 #include "Links/controllink.h"
 #include <QStandardPaths>
@@ -41,7 +42,7 @@ OpenEPT::OpenEPT(QString aWorkspacePath, QWidget *parent)
     addDeviceWnd = new AddDeviceWnd(this);
     addDeviceWnd->setWindowFlags(Qt::Dialog | Qt::MSWindowsFixedSizeDialogHint);
     addDeviceWnd->setWindowModality(Qt::WindowModal);
-    connect(addDeviceWnd, SIGNAL(sigAddDevice(QString,QString)), this, SLOT(onAddDeviceWndAddDevice(QString,QString)), Qt::QueuedConnection);
+    connect(addDeviceWnd, SIGNAL(sigAddDevice(QString,QString,int)), this, SLOT(onAddDeviceWndAddDevice(QString,QString,int)), Qt::QueuedConnection);
 
 
     connectedDevicesMenu = new QMenu("Connected devices");
@@ -109,9 +110,9 @@ void OpenEPT::onActionAddSingleDeviceTriggered()
     addDeviceWnd->show();
 }
 
-void OpenEPT::onAddDeviceWndAddDevice(QString aIpAddress, QString aPort)
+void OpenEPT::onAddDeviceWndAddDevice(QString aIpAddress, QString aPort, int aDeviceType)
 {
-    if(addNewDevice(aIpAddress, aPort))
+    if(addNewDevice(aIpAddress, aPort, aDeviceType))
     {
         msgBox.setText("Device sucessfully added");
         msgBox.exec();
@@ -124,15 +125,22 @@ void OpenEPT::onAddDeviceWndAddDevice(QString aIpAddress, QString aPort)
 }
 
 
-bool OpenEPT::addNewDevice(QString aIpAddress, QString aPort)
+bool OpenEPT::addNewDevice(QString aIpAddress, QString aPort, int aDeviceType)
 {
     QString deviceName;
 
     /* Create control link and try to access device*/
     ControlLink* tmpControlLink = new ControlLink();
 
-    /* Try to establish connection with device*/
-    if(tmpControlLink->establishLink(aIpAddress, aPort) != CONTROL_LINK_STATUS_ESTABLISHED)
+    /* Try to establish connection with device. A Charger connects over a
+     * serial port (its name arrives in aIpAddress); EPP connects over TCP/IP. */
+    control_link_status_t linkStatus;
+    if(aDeviceType == ADD_DEVICE_TYPE_CHARGER)
+        linkStatus = tmpControlLink->establishSerialLink(aIpAddress);
+    else
+        linkStatus = tmpControlLink->establishLink(aIpAddress, aPort);
+
+    if(linkStatus != CONTROL_LINK_STATUS_ESTABLISHED)
     {
         delete tmpControlLink;
         return false;
@@ -149,6 +157,42 @@ bool OpenEPT::addNewDevice(QString aIpAddress, QString aPort)
     Device  *tmpDevice = new Device(0, m_AppParam, connectedDeviceNumber++);
     tmpDevice->setName(deviceName);
     tmpDevice->controlLinkAssign(tmpControlLink);
+
+    /* A Charger device opens only the focused charger window, not the full
+     * EPP device window (acquisition/plots/etc. do not apply to it). */
+    if(aDeviceType == ADD_DEVICE_TYPE_CHARGER)
+    {
+        ChargerWnd *chargerWnd = new ChargerWnd(tmpDevice, 0);
+        chargerWnd->setWindowTitle(deviceName);
+
+        QDockWidget *dock = new QDockWidget(deviceName, this);
+        dock->setObjectName("DeviceDock_" + QString::number(connectedDeviceNumber));
+        dock->setWidget(chargerWnd);
+        dock->setAllowedAreas(Qt::AllDockWidgetAreas);
+        dock->setFeatures(QDockWidget::DockWidgetMovable |
+                          QDockWidget::DockWidgetFloatable |
+                          QDockWidget::DockWidgetClosable);
+        addDockWidget(Qt::TopDockWidgetArea, dock);
+
+        QList<QDockWidget*> existing = findChildren<QDockWidget*>();
+        for(QDockWidget *existingDock : existing)
+        {
+            if(existingDock != dock &&
+               existingDock->objectName().startsWith("DeviceDock_"))
+            {
+                tabifyDockWidget(existingDock, dock);
+                break;
+            }
+        }
+
+        QAction* tmpDeviceAction = new QAction(deviceName);
+        connectedDevicesMenu->addAction(tmpDeviceAction);
+
+        dock->show();
+        dock->raise();
+        setTheme();
+        return true;
+    }
 
     /* Create corresponding device window*/
     DeviceWnd *tmpdeviceWnd = new DeviceWnd(0);
