@@ -8,7 +8,10 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QTableWidget>
+#include <QTabWidget>
 #include <QVector>
+#include <QSet>
+#include <QPair>
 
 #include "Processing/batteryparamsextraction.h"
 #include "batterycyclewnd.h"
@@ -28,18 +31,25 @@ public:
 
     void                setProfileName(QString name);
     void                setSettings(batteryparams_settings_t settings);
+    void                setExtractionRunning(bool running);
     void                addCycles(QVector<batteryparams_cycle_t> newCycles, QProgressDialog *progressDialog);
+    void                addChargeCycles(QVector<batteryparams_charge_cycle_t> newCharges);
 
 signals:
     void                sigSettingsChanged(batteryparams_settings_t settings);
+    void                sigPointsStored(QVector<QPair<QString, double>> markers);
 
 public slots:
     void                onCycleStarted(unsigned int index, double key);
     void                onCycleFinished(batteryparams_cycle_t cycle);
+    void                onChargeCycleFinished(batteryparams_charge_cycle_t cycle);
     void                onClear();
 
 private slots:
     void                onExport();
+    void                onDeleteCycle();
+    void                onStatistics();
+    void                onStoreNewPoints();
     void                onSettings();
     void                onResistanceTrend();
     void                onCapacitanceTrend();
@@ -51,9 +61,12 @@ private slots:
     void                onFitCyclePoints();
     void                onFitPointsSave();
     void                onFitPointsRestore();
+    void                onFindNewStartPoint();
     void                onSweepRequested(batteryfitinterval_sweep_t mode, double fixedValue,
                                          double from, double to, int steps, bool compare);
     void                onCycleSelected(int row, int column);
+    void                onCycleContextMenu(const QPoint &pos);
+    void                onSaveNewCycles();
     void                onCycleUpdated(batteryparams_cycle_t cycle);
 
 private:
@@ -69,6 +82,8 @@ private:
     QPushButton        *fitPointsButton;
     QPushButton        *fitPointsSaveButton;
     QPushButton        *fitPointsRestoreButton;
+    QPushButton        *fitPointsFindStartButton;
+    QPushButton        *recalculateButton;
     QLabel             *settingsLabel;
 
     BatteryParamsSettingsDlg *settingsDlg;
@@ -81,12 +96,23 @@ private:
     BatteryFitIntervalWnd    *fitIntervalWnd;
 
     batteryparams_settings_t  settings;
+    bool                      extractionRunning;
     batteryparams_plot_settings_t plotSettings;
     int                       parallelAnswer;
     QLabel             *summaryLabel;
+    QPushButton        *statisticsButton;
+    QTabWidget         *cycleTabs;
     QTableWidget       *cyclesTable;
+    QTableWidget       *chargeCyclesTable;
+    QVector<batteryparams_charge_cycle_t> chargeCycles;
     QPushButton        *clearButton;
     QPushButton        *exportButton;
+    QPushButton        *saveCyclesButton;
+    QPushButton        *storeCyclesButton;
+    QSet<int>           deletedCycleRows;
+    QVector<double>     removedMarkerKeys;
+    bool                fitInProgress;
+    QVector<batteryparams_cycle_t> pendingCycles;
     BatteryCycleWnd    *cycleWnd;
     QVector<int>        fittedPositions;
     QVector<batteryparams_cycle_t> fittedOriginals;
@@ -100,6 +126,12 @@ private:
 
     QTableWidgetItem*   createItem(QString text);
     void                addCycleRow(batteryparams_cycle_t cycle);
+    void                addChargeCycleRow(batteryparams_charge_cycle_t cycle);
+    void                openCycleData(int row);
+    void                deleteCycleAt(int row);
+    void                fitCycleAt(int row);
+    void                endFit();
+    QVector<QPair<QString, double>> collectCycleMarkers();
     void                fillCycleRow(int row, batteryparams_cycle_t cycle);
     void                updateSummary();
     void                recalculate();

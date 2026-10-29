@@ -63,6 +63,7 @@ public slots:
     void    onDeviceWndBatParamViewRequested();
     void    onDeviceWndBatParamCapacityChanged(double capacity);
     void    onDeviceWndBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, double filterMs);
+    void    onDeviceWndBatParamExtractionRunning(bool running);
     void    onBatParamCycleFinished(batteryparams_cycle_t cycle);
     void    onBatParamSettingsChanged(batteryparams_settings_t settings);
     void    onDeviceWndLoadWaveClear();
@@ -71,6 +72,7 @@ public slots:
     void    onDeviceWndChargingTermCurrentSetValue(unsigned int current);
     void    onDeviceWndChargingTermVoltageSetValue(float voltage);
     void    onDeviceWndChargingCurrentSetStatus(bool status);
+    void    onDeviceWndChargeMarkersEnabled(bool enabled);
     void    onDeviceWndChDschSaveToFileChanged(bool saveToFile);
     void    onDeviceWndGetBDContent();
     void    onDeviceWndSetBDContent(QByteArray content);
@@ -98,6 +100,7 @@ public slots:
     void    onDeviceOVoltageObtained(bool state);
     void    onDeviceOCurrentObtained(bool state);
     void    onDeviceUVoltageValueObtained(float value);
+    void    onUvWatchTimeout();
     void    onDeviceOVoltageValueObtained(float value);
     void    onDeviceOCurrentValueObtained(int value);
     void    onDeviceBDSizeObtained(int value);
@@ -177,8 +180,27 @@ private:
     bool                            batParamRelaxPauseActive;
     bool                            batParamRelaxRunning;
     bool                            batParamRelaxRestarting;
+    bool                            batParamExtractionRunning;
+
+    bool                            batParamUVFinal;
+    double                          batParamLastSampleKey;
+
+    bool                            chargeMarkersEnabled;
+    bool                            chargeMarkerActive;
+    bool                            chargeMarkerStartPlaced;
+    double                          chargeMarkerCharge;
+    double                          chargeMarkerStartKey;
+    double                          chargeMarkerLastKey;
+    QVector<batteryparams_charge_cycle_t> chargeCyclesBuffer;
+    unsigned int                    chargeCycleCounter;
     double                          samplingPeriodMs;
     bool                            uVoltageActive;
+    float                           uVoltageThreshold;
+    bool                            uvWatchActive;
+    bool                            uvWatchHandled;
+    int                             uvWatchPhase;
+    int                             uvWatchPollsLeft;
+    QTimer                          *uvWatchTimer;
     bool                            oVoltageActive;
     bool                            oCurrentActive;
     double                          batParamRelaxCheckKey;

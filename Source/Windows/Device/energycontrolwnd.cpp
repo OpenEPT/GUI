@@ -178,10 +178,22 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     QVBoxLayout *batParamLayout = new QVBoxLayout(batParamWidget);
     batParamLayout->setContentsMargins(0, 0, 0, 0);
 
+    QHBoxLayout *batParamLibRow = new QHBoxLayout();
+    QLabel *batParamLibLabel = new QLabel("Library", this);
+    batParamLibLabel->setFixedSize(ENTRY_LABEL_WIDTH, ENTRY_ROW_HEIGHT);
+    batParamLibraryCombo = new QComboBox(this);
+    batParamLibraryCombo->setFixedHeight(ENTRY_ROW_HEIGHT);
+    batParamLibraryCombo->setMinimumWidth(ENTRY_EDIT_WIDTH + ENTRY_UNIT_WIDTH);
+    batParamLibraryCombo->setToolTip("Saved battery parameter waves. Select one to load its settings back into the fields and the region table.");
+    batParamLibRow->addWidget(batParamLibLabel);
+    batParamLibRow->addWidget(batParamLibraryCombo, 1);
+    batParamLibraryDeleteButton = createSmallButton("Delete", batParamLibRow);
+    batParamLayout->addLayout(batParamLibRow);
+
+    connect(batParamLibraryCombo, QOverload<int>::of(&QComboBox::activated), this, &EnergyControlWnd::onBatParamLibrarySelected);
+    connect(batParamLibraryDeleteButton, &QPushButton::clicked, this, &EnergyControlWnd::onBatParamLibraryDelete);
+
     batParamLayout->addLayout(createEntryRow("Battery Capacity", "mAh", loadEntryEdits));
-    batParamLayout->addLayout(createEntryRow("Extraction Accuracy", "%", loadEntryEdits));
-    batParamLayout->addLayout(createEntryRow("Maximum Current", "mA", loadEntryEdits));
-    batParamLayout->addLayout(createEntryRow("Pause Duration", "ms", loadEntryEdits));
     batParamLayout->addLayout(createEntryRow("Marker Guard", "ms", loadEntryEdits));
 
     QHBoxLayout *batParamRelaxRow = new QHBoxLayout();
@@ -197,25 +209,10 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     batParamRelaxRow->addStretch();
     batParamLayout->addLayout(batParamRelaxRow);
 
-    batParamLayout->addLayout(createEntryRow("Relax Threshold", "mV", loadEntryEdits));
-    batParamLayout->addLayout(createEntryRow("Relax Window", "s", loadEntryEdits));
-    batParamLayout->addLayout(createEntryRow("Relax Filter", "ms", loadEntryEdits));
     loadEntryEdits["Battery Capacity"]->setText("500");
-    loadEntryEdits["Extraction Accuracy"]->setText("1");
-    loadEntryEdits["Maximum Current"]->setText("1000");
-    loadEntryEdits["Pause Duration"]->setText("1000");
     loadEntryEdits["Marker Guard"]->setText("1");
-    loadEntryEdits["Relax Threshold"]->setText("5");
-    loadEntryEdits["Relax Window"]->setText("60");
-    loadEntryEdits["Relax Filter"]->setText("1000");
     loadEntryEdits["Battery Capacity"]->setToolTip("Nominal battery capacity");
-    loadEntryEdits["Extraction Accuracy"]->setToolTip("Charge extracted by a single pulse, in percent of the battery capacity");
-    loadEntryEdits["Maximum Current"]->setToolTip("Pulse amplitude, pause is always 0 mA");
-    loadEntryEdits["Pause Duration"]->setToolTip("Relaxation time between two pulses");
     loadEntryEdits["Marker Guard"]->setToolTip("Distance between a current step and the marker that follows it.\nKeeps every marker inside a settled level instead of on the step itself.\nMust cover the load response time, a few sample periods at least");
-    loadEntryEdits["Relax Threshold"]->setToolTip("Voltage span allowed inside the relaxation window, the pause ends when the battery stays within it");
-    loadEntryEdits["Relax Window"]->setToolTip("Time window the voltage has to stay inside the threshold before the pause is ended");
-    loadEntryEdits["Relax Filter"]->setToolTip("Voltage is averaged over this window, in milliseconds, before it is compared with the threshold.\nThe averaged voltage is drawn over the live voltage plot.\n0 turns the filter off");
 
     batParamInfoLabel = new QLabel(this);
     batParamInfoLabel->setStyleSheet("color: gray;");
@@ -224,26 +221,44 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     batParamSaveWaveButton->setToolTip("Save generated wave to library for later use");
     loadButtons.insert("SaveBatParamWave", batParamSaveWaveButton);
     batParamSaveRow->addWidget(batParamInfoLabel, 1);
+    batParamAddRegionButton = createSmallButton("Add Region", batParamSaveRow);
+    batParamRemoveRegionButton = createSmallButton("Remove Region", batParamSaveRow);
+    batParamClearRegionButton = createSmallButton("Clear", batParamSaveRow);
     batParamLayout->addLayout(batParamSaveRow);
     connect(batParamSaveWaveButton, &QPushButton::clicked, this, &EnergyControlWnd::onLoadWaveSave);
+    connect(batParamAddRegionButton, &QPushButton::clicked, this, &EnergyControlWnd::onBatParamAddRegion);
+    connect(batParamRemoveRegionButton, &QPushButton::clicked, this, &EnergyControlWnd::onBatParamRemoveRegion);
+    connect(batParamClearRegionButton, &QPushButton::clicked, this, &EnergyControlWnd::onBatParamClearRegions);
 
-    batParamTable = createWaveTable(false);
+    batParamTable = new QTableWidget(0, 8, this);
+    QStringList batParamRegionHeader;
+    batParamRegionHeader << "SoC hi [%]" << "SoC lo [%]" << "Acc [%]" << "Amp [mA]"
+                         << "Pause [ms]" << "R thr [mV]" << "R win [s]" << "R filt [ms]";
+    batParamTable->setHorizontalHeaderLabels(batParamRegionHeader);
+    batParamTable->horizontalHeader()->setMinimumSectionSize(40);
+    batParamTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    batParamTable->horizontalHeader()->setStretchLastSection(true);
+    batParamTable->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    batParamTable->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    batParamTable->verticalHeader()->setDefaultSectionSize(22);
+    batParamTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    batParamTable->setMinimumHeight(140);
+    batParamTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    batParamTable->setToolTip("Extraction regions over the state of charge. Each row is a SoC range with its own accuracy, amplitude, pause and relaxation.\nThe region matching the current state of charge is used for the next pulse.\nColumns: SoC high %, SoC low %, accuracy %, amplitude mA, pause ms, relax threshold mV, relax window s, relax filter ms.");
     batParamLayout->addWidget(batParamTable, 1);
+
+    batParamRegionsInit();
 
     batParamWidget->setVisible(false);
     loadTopLayout->addWidget(batParamWidget);
 
     connect(loadEntryEdits["Battery Capacity"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
-    connect(loadEntryEdits["Extraction Accuracy"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
-    connect(loadEntryEdits["Maximum Current"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
-    connect(loadEntryEdits["Pause Duration"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
     connect(loadEntryEdits["Marker Guard"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
-    connect(loadEntryEdits["Relax Threshold"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
-    connect(loadEntryEdits["Relax Window"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
-    connect(loadEntryEdits["Relax Filter"], &QLineEdit::textChanged, this, &EnergyControlWnd::onBatParamChanged);
+    connect(batParamTable, &QTableWidget::cellChanged, this, &EnergyControlWnd::onBatParamChanged);
     connect(batParamRelaxCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(onBatParamChanged()));
 
     refreshCustomWaveLibraryCombo();
+    refreshBatParamLibraryCombo();
     updateStdWaveInfo();
     updateCustomWaveInfo();
     updateBatParamInfo();
@@ -331,7 +346,21 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     chargerTopLayout->addLayout(createSectionHeader("Parameters"));
     chargerTopLayout->addLayout(createEntryRow("Current", "mA", chargerEntryEdits));
     chargerTopLayout->addLayout(createEntryRow("Term Voltage", "V", chargerEntryEdits));
-    chargerTopLayout->addLayout(createEntryRow("Term Current", "%", chargerEntryEdits));
+    QHBoxLayout *termCurrentRow = new QHBoxLayout();
+    QLabel *termCurrentLabel = new QLabel("Term Current", this);
+    termCurrentLabel->setObjectName("Term CurrentLabel");
+    termCurrentLabel->setFixedSize(ENTRY_LABEL_WIDTH, ENTRY_ROW_HEIGHT);
+    chargerTermCurrentCombo = new QComboBox(this);
+    chargerTermCurrentCombo->setObjectName("Term CurrentComboBox");
+    chargerTermCurrentCombo->setFixedSize(ENTRY_EDIT_WIDTH + ENTRY_UNIT_WIDTH, ENTRY_ROW_HEIGHT);
+    chargerTermCurrentCombo->addItem("Disabled", 0);
+    chargerTermCurrentCombo->addItem("5 %", 5);
+    chargerTermCurrentCombo->addItem("10 %", 10);
+    chargerTermCurrentCombo->addItem("20 %", 20);
+    termCurrentRow->addWidget(termCurrentLabel);
+    termCurrentRow->addWidget(chargerTermCurrentCombo);
+    termCurrentRow->addSpacerItem(new QSpacerItem(0, 0, QSizePolicy::Expanding, QSizePolicy::Minimum));
+    chargerTopLayout->addLayout(termCurrentRow);
     chargerTopLayout->addSpacerItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
     chargerTopLayout->addLayout(createButtonRow("Set", "Set", chargerButtons));
     chargerTopLayout->addLayout(createButtonRow("StartStop", "Start", chargerButtons));
@@ -342,12 +371,12 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
 
     connect(chargerEntryEdits["Current"], &QLineEdit::textChanged, this, &EnergyControlWnd::onChargerEntryChanged);
     connect(chargerEntryEdits["Term Voltage"], &QLineEdit::textChanged, this, &EnergyControlWnd::onChargerEntryChanged);
-    connect(chargerEntryEdits["Term Current"], &QLineEdit::textChanged, this, &EnergyControlWnd::onChargerEntryChanged);
+    chargerTermCurrentChanged = false;
+    connect(chargerTermCurrentCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int){ chargerTermCurrentChanged = true; });
 
     // Initialize all entries as "not changed"
     chargerEntryChanged["Current"] = false;
     chargerEntryChanged["Term Voltage"] = false;
-    chargerEntryChanged["Term Current"] = false;
 
     connect(chargerButtons["Set"], &QPushButton::clicked, this, &EnergyControlWnd::onChargingConfigSet);
     connect(chargerButtons["StartStop"], &QPushButton::clicked, this, &EnergyControlWnd::onChargingStartStop);
@@ -423,6 +452,7 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     paramLeftLayout->addLayout(createEntryRow("Charge Current", "mA", chdischEntryEdits));
     paramLeftLayout->addLayout(createTimeEntryRow("Charge Relax Time", chdischTimeEdits));
     paramLeftLayout->addLayout(createEntryRow("Cycles", "", chdischEntryEdits));
+    chdischEntryEdits["Cycles"]->setText("1");
 
     // --- Right side: radio buttons ("Start with") ---
     QVBoxLayout *paramRightLayout = new QVBoxLayout();
@@ -430,7 +460,12 @@ EnergyControlWnd::EnergyControlWnd(QWidget *parent) :
     QStringList radioNames = {"Discharge", "Charge"};
     paramRightLayout->addLayout(createRadioButtonRow("Start with", 2, radioNames, chdischDirectionGroups));
     paramRightLayout->addLayout(createCheckButtonRow("Write To File", chdischCheckBox));
+    paramRightLayout->addLayout(createCheckButtonRow("Charge Markers", chdischCheckBox));
+    chdischCheckBox["Charge Markers"]->setToolTip("Place Charge Start / Charge End markers and report the mAh charged into the battery between them");
     paramRightLayout->addStretch();
+
+    connect(chdischCheckBox["Charge Markers"], &QCheckBox::toggled,
+            this, &EnergyControlWnd::sigChargeMarkersEnabled);
 
     connect(chdischDirectionGroups["Start with"], QOverload<QAbstractButton *>::of(&QButtonGroup::buttonClicked),
             this, &EnergyControlWnd::onChdischDirectionChanged);
@@ -987,6 +1022,9 @@ void EnergyControlWnd::chDischStartDischargeRelaxTimeout()
         connect(chdischDischargeRelaxTimer, &QTimer::timeout, this, &EnergyControlWnd::onChDschDischargeRelaxTick);
     }
 
+    chdischDischargeRelaxRemaining = chdischTimeEdits["Discharge Relax Time"]->time();
+    chdischTimeEdits["Discharge Relax Timeout"]->setTime(chdischDischargeRelaxRemaining);
+
     chdischDischargeRelaxTimer->start();
 }
 
@@ -1002,6 +1040,9 @@ void EnergyControlWnd::chDischStartChargeRelaxTimeout()
         chdischChargeRelaxTimer->setInterval(1000); // 1 second
         connect(chdischChargeRelaxTimer, &QTimer::timeout, this, &EnergyControlWnd::onChDschChargeRelaxTick);
     }
+
+    chdischChargeRelaxRemaining = chdischTimeEdits["Charge Relax Time"]->time();
+    chdischTimeEdits["Charge Relax Timeout"]->setTime(chdischChargeRelaxRemaining);
 
     chdischChargeRelaxTimer->start();
 }
@@ -1158,7 +1199,6 @@ bool EnergyControlWnd::chdischDoneCurrentStep()
 
 bool EnergyControlWnd::chdischMoveToNextStep()
 {
-    QTime now = QTime::currentTime();
     if(chdischCycleSteps[chdischCurrentStepIndex].status != StepDone) return false;
     chdischCurrentStepIndex += 1;
     if(chdischCurrentStepIndex == 4)
@@ -1166,7 +1206,15 @@ bool EnergyControlWnd::chdischMoveToNextStep()
         chdischCycleCompleted();
         return true;
     }
-    else
+    chdischStartStep();
+    chdischCycleSteps[chdischCurrentStepIndex].status = StepOngoing;
+    chdischUpdateCycleStatusSteps(chdischCycleSteps);
+    return true;
+}
+
+void EnergyControlWnd::chdischStartStep()
+{
+    QTime now = QTime::currentTime();
     {
         if(chdischCycleSteps[chdischCurrentStepIndex].state == ChDschCharge)
         {
@@ -1237,13 +1285,23 @@ bool EnergyControlWnd::chdischMoveToNextStep()
             chDischStartDischargeRelaxTimeout();
         }
     }
-    chdischCycleSteps[chdischCurrentStepIndex].status = StepOngoing;
-    chdischUpdateCycleStatusSteps(chdischCycleSteps);
-    return true;
 }
 
 void EnergyControlWnd::chdischCycleCompleted()
 {
+    chdischCyclesDone += 1;
+    if(chdischCyclesDone < chdischCyclesTotal)
+    {
+        for(int i = 0; i < 4; i++)
+        {
+            chdischCycleSteps[i].status = StepUnknown;
+        }
+        chdischCurrentStepIndex = 0;
+        chdischStartStep();
+        chdischCycleSteps[chdischCurrentStepIndex].status = StepOngoing;
+        chdischUpdateCycleStatusSteps(chdischCycleSteps);
+        return;
+    }
     chdischStartStatusSet(false, ChDschUnknown);
     if(chdischCheckBox["Write To File"]->isChecked())
     {
@@ -1285,7 +1343,7 @@ void EnergyControlWnd::underVoltageStatusSet(bool enabled)
         break;
     break;
     case ModeChDisch:
-        if(chdischStartStopStatus && uVoltage)
+        if(chdischStartStopStatus && uVoltage && chdischCycleSteps[chdischCurrentStepIndex].state == ChDschDischarge)
         {
             chdischDoneCurrentStep();
             chdischMoveToNextStep();
@@ -1425,6 +1483,7 @@ bool EnergyControlWnd::loadCurrentStatusSet(bool status)
         }
         loadStartStopStatus = status;
         loadButtons["Set"]->setEnabled(!loadStartStopStatus);
+        emit sigBatParamExtractionRunning(status && (loadModeGet() == LoadModeBatParamExtraction));
         if(loadStartStopStatus)
         {
             loadButtons["StartStop"]->setText("Stop");
@@ -1507,9 +1566,10 @@ void EnergyControlWnd::chargerTermVoltageSet(float voltage)
 
 void EnergyControlWnd::chargerTermCurrentSet(int current)
 {
-    chargerEntryEdits["Term Current"]->blockSignals(true);
-    chargerEntryEdits["Term Current"]->setText(QString::number(current));
-    chargerEntryEdits["Term Current"]->blockSignals(false);
+    chargerTermCurrentCombo->blockSignals(true);
+    int idx = chargerTermCurrentCombo->findData(current);
+    if(idx >= 0) chargerTermCurrentCombo->setCurrentIndex(idx);
+    chargerTermCurrentCombo->blockSignals(false);
 }
 
 bool EnergyControlWnd::chargerCurrentStatusSet(bool status)
@@ -1533,7 +1593,7 @@ bool EnergyControlWnd::chargerCurrentStatusSet(bool status)
             chargerTimeEdits["Charging Stop Time"]->setEnabled(false);
             chargerEntryEdits["Current"]->setEnabled(false);
             chargerEntryEdits["Term Voltage"]->setEnabled(false);
-            chargerEntryEdits["Term Current"]->setEnabled(false);
+            chargerTermCurrentCombo->setEnabled(false);
 
             statusControlButtons["LoadDisable"]->setEnabled(false);
             statusControlButtons["PPathDisable"]->setEnabled(false);
@@ -1554,7 +1614,7 @@ bool EnergyControlWnd::chargerCurrentStatusSet(bool status)
             chargerTimeEdits["Charging Stop Time"]->setTime(now);
             chargerEntryEdits["Current"]->setEnabled(true);
             chargerEntryEdits["Term Voltage"]->setEnabled(true);
-            chargerEntryEdits["Term Current"]->setEnabled(true);
+            chargerTermCurrentCombo->setEnabled(true);
 
             statusControlButtons["LoadDisable"]->setEnabled(true);
             statusControlButtons["PPathDisable"]->setEnabled(true);
@@ -1585,12 +1645,12 @@ void EnergyControlWnd::chargingDone()
     QMessageBox *msgBox = new QMessageBox(this);
     switch(mode){
     case ModeCharge:
-        msgBox->setIcon(QMessageBox::Warning);
-        msgBox->setWindowTitle("Warning");
+        msgBox->setIcon(QMessageBox::Information);
+        msgBox->setWindowTitle("Charging");
+        msgBox->setText("Charging completed");
         if(chargingStartStopStatus)
         {
             emit sigChargingCurrentStatusChanged(false);
-            msgBox->setText("Charging completed");
         }
         msgBox->setStandardButtons(QMessageBox::Ok);
         msgBox->show();
@@ -1598,7 +1658,7 @@ void EnergyControlWnd::chargingDone()
         break;
     break;
     case ModeChDisch:
-        if(chdischStartStopStatus)
+        if(chdischStartStopStatus && chdischCycleSteps[chdischCurrentStepIndex].state == ChDschCharge)
         {
             chdischDoneCurrentStep();
             chdischMoveToNextStep();
@@ -1737,9 +1797,16 @@ bool EnergyControlWnd::chdischStartStatusSet(bool status, ChDschState state)
         chdischEntryEdits["Charge Current"]->setEnabled(false);
         chdischEntryEdits["Cycles"]->setEnabled(false);
 
+        chdischCyclesTotal = chdischEntryEdits["Cycles"]->text().toInt();
+        if(chdischCyclesTotal < 1) chdischCyclesTotal = 1;
+        chdischCyclesDone = 0;
+
         statusControlButtons["LoadDisable"]->setEnabled(false);
         statusControlButtons["PPathDisable"]->setEnabled(false);
         statusControlButtons["BatteryDisable"]->setEnabled(false);
+
+        if(chdischChargeRelaxTimer) chdischChargeRelaxTimer->stop();
+        if(chdischDischargeRelaxTimer) chdischDischargeRelaxTimer->stop();
 
         chdischDischargeRelaxRemaining = chdischTimeEdits["Discharge Relax Time"]->time();
 
@@ -1754,6 +1821,12 @@ bool EnergyControlWnd::chdischStartStatusSet(bool status, ChDschState state)
         chdischButtons["NextStep"]->setEnabled(true);
         setTabControlsEnabled(loadTab, false);
         setTabControlsEnabled(chargerTab, false);
+
+        if(chdischDischargeIsBatParam())
+        {
+            batParamViewButton->setVisible(false);
+            batParamViewButton->setEnabled(true);
+        }
 
         chdischCycleSteps[chdischCurrentStepIndex].status = StepOngoing;
         chdischUpdateCycleStatusSteps(chdischCycleSteps);
@@ -1775,14 +1848,14 @@ bool EnergyControlWnd::chdischStartStatusSet(bool status, ChDschState state)
             chdischTimeEdits["Discharge Stop Time"]->setTime(now);
             chdischDischargeStop();
         }
-        if(chdischCycleStartStep.state == ChDschChargeRelax)
-        {
-            chdischChargeRelaxTimer->stop();
-        }
-        if(chdischCycleStartStep.state == ChDschDischargeRelax)
-        {
-            chdischDischargeRelaxTimer->stop();
-        }
+        if(chdischChargeRelaxTimer) chdischChargeRelaxTimer->stop();
+        if(chdischDischargeRelaxTimer) chdischDischargeRelaxTimer->stop();
+
+        chdischChargeRelaxRemaining = chdischTimeEdits["Charge Relax Time"]->time();
+        chdischTimeEdits["Charge Relax Timeout"]->setTime(chdischChargeRelaxRemaining);
+        chdischDischargeRelaxRemaining = chdischTimeEdits["Discharge Relax Time"]->time();
+        chdischTimeEdits["Discharge Relax Timeout"]->setTime(chdischDischargeRelaxRemaining);
+
         chdischTimeEdits["Discharge Relax Time"]->setEnabled(true);
         chdischTimeEdits["Charge Relax Time"]->setEnabled(true);
         chdischComboBoxEdits["Discharge Profile"]->setEnabled(true);
@@ -1799,6 +1872,10 @@ bool EnergyControlWnd::chdischStartStatusSet(bool status, ChDschState state)
 
         setTabControlsEnabled(loadTab, true);
         setTabControlsEnabled(chargerTab, true);
+
+        batParamViewButton->setEnabled(false);
+        batParamViewButton->setVisible(false);
+
         if(chdischCurrentStepIndex < 4)
         {
             chdischCycleSteps[chdischCurrentStepIndex].status = StepDone;
@@ -1886,7 +1963,7 @@ void EnergyControlWnd::onLoadModeChanged(const QString &mode)
     standardWaveWidget->setVisible(mode == "Standard Wave");
     customWaveWidget->setVisible(mode == "Custom Wave");
     batParamWidget->setVisible(mode == "Bat Param Extraction");
-    batParamViewButton->setVisible(mode == "Bat Param Extraction");
+    batParamViewButton->setVisible(false);
 }
 
 LoadMode EnergyControlWnd::loadModeGet()
@@ -1983,7 +2060,101 @@ QString EnergyControlWnd::getCustomWaveLibraryName(int index)
 void EnergyControlWnd::onWaveLibraryChanged()
 {
     refreshCustomWaveLibraryCombo();
+    refreshBatParamLibraryCombo();
     chdischRefreshLibraryCombo();
+}
+
+void EnergyControlWnd::refreshBatParamLibraryCombo()
+{
+    QString current = batParamLibraryCombo->currentText();
+    QList<Waveform> waves = WaveformLibrary::instance().getWaves();
+    int index;
+
+    batParamLibraryCombo->blockSignals(true);
+    batParamLibraryCombo->clear();
+    batParamLibraryCombo->addItem("<select from library>");
+    for(int i = 0; i < waves.size(); i++)
+    {
+        if(!waves[i].batParam) continue;
+        batParamLibraryCombo->addItem(waves[i].name);
+    }
+    index = batParamLibraryCombo->findText(current);
+    if(index < 0) index = 0;
+    batParamLibraryCombo->setCurrentIndex(index);
+    batParamLibraryCombo->blockSignals(false);
+}
+
+void EnergyControlWnd::loadBatParamWaveToUi(Waveform wave)
+{
+    loadEntryEdits["Battery Capacity"]->setText(QString::number(wave.batCapacity));
+
+    unsigned int guard = (wave.chunks.size() > 0) ? wave.chunks[0].duration : 1;
+    loadEntryEdits["Marker Guard"]->setText(QString::number(guard));
+
+    batParamRelaxCombo->setCurrentIndex(wave.batRelaxAdaptive ? 1 : 0);
+
+    batparams_region_t region;
+    region.socHigh = 100;
+    region.socLow = 0;
+
+    double amplitude = (wave.chunks.size() > 0) ? wave.chunks[0].value : 1000;
+    double pulseDuration = (wave.chunks.size() > 1) ? (double)(wave.chunks[0].duration + wave.chunks[1].duration) : 0;
+    double pauseDuration = (wave.chunks.size() > 3) ? (double)(wave.chunks[2].duration + wave.chunks[3].duration) : 1000;
+
+    region.amplitude = amplitude;
+    region.pause = pauseDuration;
+    region.accuracy = (wave.batCapacity > 0) ? (pulseDuration * amplitude * 100.0 / (wave.batCapacity * 3600000.0)) : 1;
+    region.relaxThreshold = wave.batRelaxThreshold;
+    region.relaxWindow = wave.batRelaxWindow;
+    region.relaxFilter = wave.batRelaxFilter;
+
+    batParamTable->setRowCount(0);
+
+    if(!wave.batRegions.isEmpty())
+    {
+        for(int i = 0; i < wave.batRegions.size(); i++)
+        {
+            batparams_region_t r;
+            r.socHigh = wave.batRegions[i].socHigh;
+            r.socLow = wave.batRegions[i].socLow;
+            r.accuracy = wave.batRegions[i].accuracy;
+            r.amplitude = wave.batRegions[i].amplitude;
+            r.pause = wave.batRegions[i].pause;
+            r.relaxThreshold = wave.batRegions[i].relaxThreshold;
+            r.relaxWindow = wave.batRegions[i].relaxWindow;
+            r.relaxFilter = wave.batRegions[i].relaxFilter;
+            batParamAddRegionRow(r);
+        }
+    }
+    else
+    {
+        batParamAddRegionRow(region);
+    }
+
+    updateBatParamInfo();
+}
+
+void EnergyControlWnd::onBatParamLibrarySelected(int index)
+{
+    Waveform wave;
+
+    if(index <= 0) return;
+    if(!WaveformLibrary::instance().get(batParamLibraryCombo->itemText(index), &wave)) return;
+    if(!wave.batParam) return;
+
+    loadBatParamWaveToUi(wave);
+}
+
+void EnergyControlWnd::onBatParamLibraryDelete()
+{
+    int index = batParamLibraryCombo->currentIndex();
+
+    if(index <= 0) return;
+
+    QString name = batParamLibraryCombo->itemText(index);
+    if(QMessageBox::question(this, "Delete wave", "Delete \"" + name + "\" from the library?") != QMessageBox::Yes) return;
+
+    WaveformLibrary::instance().remove(name);
 }
 
 QTableWidgetItem* EnergyControlWnd::createCustomWaveTableItem(QString text)
@@ -2136,15 +2307,30 @@ void EnergyControlWnd::updateCustomWaveInfo()
 }
 
 /* -------------------- Battery parameter extraction --------------------- */
-bool EnergyControlWnd::batParamCompute(unsigned int *pulseDuration, int *repetitions, QString *error)
+batparams_region_t EnergyControlWnd::batParamRegion0()
+{
+    QVector<batparams_region_t> regions = batParamRegionsGet();
+    if(!regions.isEmpty()) return regions[0];
+
+    batparams_region_t region;
+    region.socHigh = 100;
+    region.socLow = 0;
+    region.accuracy = 1;
+    region.amplitude = 1000;
+    region.pause = 1000;
+    region.relaxThreshold = 5;
+    region.relaxWindow = 60;
+    region.relaxFilter = 1000;
+    return region;
+}
+
+bool EnergyControlWnd::batParamCompute(batparams_region_t region, unsigned int *pulseDuration, int *repetitions, QString *error)
 {
     bool capacityOk;
-    bool accuracyOk;
-    bool currentOk;
     double capacity = loadEntryEdits["Battery Capacity"]->text().toDouble(&capacityOk);
-    double accuracy = loadEntryEdits["Extraction Accuracy"]->text().toDouble(&accuracyOk);
-    double current = loadEntryEdits["Maximum Current"]->text().toDouble(&currentOk);
-    unsigned int pause = loadEntryEdits["Pause Duration"]->text().toUInt();
+    double accuracy = region.accuracy;
+    double current = region.amplitude;
+    unsigned int pause = (unsigned int)region.pause;
     unsigned int guard = loadEntryEdits["Marker Guard"]->text().toUInt();
     double duration;
 
@@ -2153,14 +2339,14 @@ bool EnergyControlWnd::batParamCompute(unsigned int *pulseDuration, int *repetit
         if(error != NULL) *error = "Battery capacity must be greater than 0 mAh";
         return false;
     }
-    if(!accuracyOk || accuracy <= 0 || accuracy > 100)
+    if(accuracy <= 0 || accuracy > 100)
     {
-        if(error != NULL) *error = "Extraction accuracy must be between 0 and 100 %";
+        if(error != NULL) *error = "Region accuracy must be between 0 and 100 %";
         return false;
     }
-    if(!currentOk || current <= 0)
+    if(current <= 0)
     {
-        if(error != NULL) *error = "Maximum current must be greater than 0 mA";
+        if(error != NULL) *error = "Region amplitude must be greater than 0 mA";
         return false;
     }
 
@@ -2211,15 +2397,39 @@ Waveform EnergyControlWnd::buildBatParamWave()
     unsigned int pauseDuration;
     unsigned int guard;
 
-    if(!batParamCompute(&pulseDuration, NULL, NULL)) return wave;
+    batparams_region_t region = batParamRegion0();
 
-    pauseDuration = loadEntryEdits["Pause Duration"]->text().toUInt();
+    if(!batParamCompute(region, &pulseDuration, NULL, NULL)) return wave;
+
+    pauseDuration = (unsigned int)region.pause;
     guard = loadEntryEdits["Marker Guard"]->text().toUInt();
 
     wave.name = "BatParam " + loadEntryEdits["Battery Capacity"]->text() + "mAh " +
-                loadEntryEdits["Extraction Accuracy"]->text() + "%";
+                QString::number(region.accuracy) + "%";
     wave.type = WAVEFORM_TYPE_CUSTOM;
     wave.origin = WAVEFORM_ORIGIN_USER;
+    wave.batParam = true;
+    wave.batCapacity = loadEntryEdits["Battery Capacity"]->text().toDouble();
+    wave.batRelaxAdaptive = batParamRelaxationEnabled();
+    wave.batRelaxThreshold = region.relaxThreshold;
+    wave.batRelaxWindow = region.relaxWindow;
+    wave.batRelaxFilter = region.relaxFilter;
+
+    wave.batRegions.clear();
+    QVector<batparams_region_t> regions = batParamRegionsGet();
+    for(int i = 0; i < regions.size(); i++)
+    {
+        waveform_batregion_t r;
+        r.socHigh = regions[i].socHigh;
+        r.socLow = regions[i].socLow;
+        r.accuracy = regions[i].accuracy;
+        r.amplitude = regions[i].amplitude;
+        r.pause = regions[i].pause;
+        r.relaxThreshold = regions[i].relaxThreshold;
+        r.relaxWindow = regions[i].relaxWindow;
+        r.relaxFilter = regions[i].relaxFilter;
+        wave.batRegions.append(r);
+    }
 
     /*With the adaptive relaxation the device runs one pulse and one pause per pass,
       the application ends the pause as soon as the voltage settles and starts the
@@ -2233,7 +2443,7 @@ Waveform EnergyControlWnd::buildBatParamWave()
       inside a settled level instead of on the current step itself. The load
       needs a few samples to reach the new level, and a marker placed on the
       step would still read the previous level*/
-    pulseHead.value = loadEntryEdits["Maximum Current"]->text().toUInt();
+    pulseHead.value = (unsigned int)region.amplitude;
     pulseHead.duration = guard;
     pulseHead.repetitions = 1;
     pulseHead.lastInGroup = false;
@@ -2265,30 +2475,133 @@ Waveform EnergyControlWnd::buildBatParamWave()
     return wave;
 }
 
+void EnergyControlWnd::batParamAddRegionRow(batparams_region_t region)
+{
+    int row = batParamTable->rowCount();
+
+    batParamTable->blockSignals(true);
+    batParamTable->insertRow(row);
+    batParamTable->setItem(row, 0, new QTableWidgetItem(QString::number(region.socHigh)));
+    batParamTable->setItem(row, 1, new QTableWidgetItem(QString::number(region.socLow)));
+    batParamTable->setItem(row, 2, new QTableWidgetItem(QString::number(region.accuracy)));
+    batParamTable->setItem(row, 3, new QTableWidgetItem(QString::number(region.amplitude)));
+    batParamTable->setItem(row, 4, new QTableWidgetItem(QString::number(region.pause)));
+    batParamTable->setItem(row, 5, new QTableWidgetItem(QString::number(region.relaxThreshold)));
+    batParamTable->setItem(row, 6, new QTableWidgetItem(QString::number(region.relaxWindow)));
+    batParamTable->setItem(row, 7, new QTableWidgetItem(QString::number(region.relaxFilter)));
+    batParamTable->blockSignals(false);
+}
+
+void EnergyControlWnd::batParamRegionsInit()
+{
+    batParamTable->setRowCount(0);
+
+    batparams_region_t region;
+    region.socHigh = 100;
+    region.socLow = 0;
+    region.accuracy = 1;
+    region.amplitude = 1000;
+    region.pause = 1000;
+    region.relaxThreshold = 5;
+    region.relaxWindow = 60;
+    region.relaxFilter = 1000;
+
+    batParamAddRegionRow(region);
+}
+
+QVector<batparams_region_t> EnergyControlWnd::batParamRegionsGet()
+{
+    QVector<batparams_region_t> regions;
+
+    for(int row = 0; row < batParamTable->rowCount(); row++)
+    {
+        batparams_region_t region;
+        region.socHigh = batParamTable->item(row, 0) ? batParamTable->item(row, 0)->text().toDouble() : 0;
+        region.socLow = batParamTable->item(row, 1) ? batParamTable->item(row, 1)->text().toDouble() : 0;
+        region.accuracy = batParamTable->item(row, 2) ? batParamTable->item(row, 2)->text().toDouble() : 0;
+        region.amplitude = batParamTable->item(row, 3) ? batParamTable->item(row, 3)->text().toDouble() : 0;
+        region.pause = batParamTable->item(row, 4) ? batParamTable->item(row, 4)->text().toDouble() : 0;
+        region.relaxThreshold = batParamTable->item(row, 5) ? batParamTable->item(row, 5)->text().toDouble() : 0;
+        region.relaxWindow = batParamTable->item(row, 6) ? batParamTable->item(row, 6)->text().toDouble() : 0;
+        region.relaxFilter = batParamTable->item(row, 7) ? batParamTable->item(row, 7)->text().toDouble() : 0;
+        regions.append(region);
+    }
+
+    return regions;
+}
+
+void EnergyControlWnd::onBatParamAddRegion()
+{
+    batparams_region_t region;
+    int rows = batParamTable->rowCount();
+
+    region.socHigh = (rows > 0 && batParamTable->item(rows - 1, 1)) ? batParamTable->item(rows - 1, 1)->text().toDouble() : 100;
+    region.socLow = 0;
+
+    if(rows > 0)
+    {
+        batparams_region_t last = batParamRegionsGet().last();
+        region.accuracy = last.accuracy;
+        region.amplitude = last.amplitude;
+        region.pause = last.pause;
+        region.relaxThreshold = last.relaxThreshold;
+        region.relaxWindow = last.relaxWindow;
+        region.relaxFilter = last.relaxFilter;
+    }
+    else
+    {
+        region.accuracy = 1;
+        region.amplitude = 1000;
+        region.pause = 1000;
+        region.relaxThreshold = 5;
+        region.relaxWindow = 60;
+        region.relaxFilter = 1000;
+    }
+
+    batParamAddRegionRow(region);
+}
+
+void EnergyControlWnd::onBatParamRemoveRegion()
+{
+    if(batParamTable->rowCount() <= 1) return;
+
+    int row = batParamTable->currentRow();
+    if(row < 0) row = batParamTable->rowCount() - 1;
+
+    batParamTable->removeRow(row);
+}
+
+void EnergyControlWnd::onBatParamClearRegions()
+{
+    batParamRegionsInit();
+    updateBatParamInfo();
+}
+
 void EnergyControlWnd::updateBatParamInfo()
 {
     QString error;
     Waveform wave;
     unsigned int pulseDuration;
 
-    if(!batParamCompute(&pulseDuration, NULL, &error))
+    if(!batParamCompute(batParamRegion0(), &pulseDuration, NULL, &error))
     {
         batParamInfoLabel->setText(error);
-        batParamTable->setRowCount(0);
         return;
     }
 
     wave = buildBatParamWave();
-    fillWaveTable(batParamTable, wave);
 
     QString info = QString::number(pulseDuration) + " ms pulse, " +
                    QString::number(wave.getTotalDuration()) + " ms per pass";
 
     if(batParamRelaxationEnabled())
     {
-        info += " at most, pause ends on " + loadEntryEdits["Relax Threshold"]->text() +
-                " mV in " + loadEntryEdits["Relax Window"]->text() + " s";
+        batparams_region_t region = batParamRegion0();
+        info += " at most, pause ends on " + QString::number(region.relaxThreshold) +
+                " mV in " + QString::number(region.relaxWindow) + " s";
     }
+
+    if(batParamTable->rowCount() > 1) info += ", " + QString::number(batParamTable->rowCount()) + " SoC regions";
 
     info += ", runs until under voltage protection";
 
@@ -2303,12 +2616,6 @@ bool EnergyControlWnd::batParamRelaxationEnabled()
 
 void EnergyControlWnd::onBatParamChanged()
 {
-    bool adaptive = batParamRelaxationEnabled();
-
-    loadEntryEdits["Relax Threshold"]->setEnabled(adaptive);
-    loadEntryEdits["Relax Window"]->setEnabled(adaptive);
-    loadEntryEdits["Relax Filter"]->setEnabled(adaptive);
-
     updateBatParamInfo();
 }
 
@@ -2448,13 +2755,28 @@ void EnergyControlWnd::onLoadWaveSave()
     case LoadModeBatParamExtraction:
         {
             QString error;
-            if(!batParamCompute(NULL, NULL, &error))
+            if(!batParamCompute(batParamRegion0(), NULL, NULL, &error))
             {
                 QMessageBox::warning(this, "Save wave", error);
                 return;
             }
         }
         wave = buildBatParamWave();
+        {
+            bool accepted = false;
+            QString defaultName = wave.name;
+            if(batParamLibraryCombo->currentIndex() > 0) defaultName = batParamLibraryCombo->currentText();
+            QString name = QInputDialog::getText(this, "Save wave", "Wave name:",
+                                                 QLineEdit::Normal, defaultName, &accepted);
+            if(!accepted) return;
+            name = name.trimmed();
+            if(name.isEmpty())
+            {
+                QMessageBox::warning(this, "Save wave", "Please enter wave name");
+                return;
+            }
+            wave.name = name;
+        }
         break;
     case LoadModeStatic:
     default:
@@ -2542,7 +2864,7 @@ void EnergyControlWnd::onLoadSet()
     case LoadModeBatParamExtraction:
         {
             QString error;
-            if(!batParamCompute(NULL, NULL, &error))
+            if(!batParamCompute(batParamRegion0(), NULL, NULL, &error))
             {
                 QMessageBox::warning(this, "Warning", error);
                 return;
@@ -2551,11 +2873,14 @@ void EnergyControlWnd::onLoadSet()
         wave = buildBatParamWave();
         if(!waveMarkersConfirm(wave)) return;
         loadActiveWave = wave;
-        emit sigBatParamCapacityChanged(loadEntryEdits["Battery Capacity"]->text().toDouble());
-        emit sigBatParamRelaxationChanged(batParamRelaxationEnabled(),
-                                          loadEntryEdits["Relax Threshold"]->text().toDouble(),
-                                          loadEntryEdits["Relax Window"]->text().toDouble(),
-                                          loadEntryEdits["Relax Filter"]->text().toDouble());
+        {
+            batparams_region_t region0 = batParamRegion0();
+            emit sigBatParamCapacityChanged(loadEntryEdits["Battery Capacity"]->text().toDouble());
+            emit sigBatParamRelaxationChanged(batParamRelaxationEnabled(),
+                                              region0.relaxThreshold,
+                                              region0.relaxWindow,
+                                              region0.relaxFilter);
+        }
         emit sigLoadWaveChanged(wave);
         break;
     case LoadModeCustomWave:
@@ -2730,13 +3055,6 @@ void EnergyControlWnd::onChargingConfigSet()
                     emit sigChargingTermVoltageChanged(staticChargingTermVoltage);
                 }
             }
-            else if (key == "Term Current") {
-                bool ok = false;
-                staticChargingTermCurrent = text.toInt(&ok);
-                if (ok) {
-                    emit sigChargingTermCurrentChanged(staticChargingTermCurrent);
-                }
-            }
             // After sending the signal, reset color and flag
             QPalette palette = chargerEntryEdits[key]->palette();
             palette.setColor(QPalette::Text, Qt::black);
@@ -2744,6 +3062,12 @@ void EnergyControlWnd::onChargingConfigSet()
 
             chargerEntryChanged[key] = false;
         }
+    }
+
+    if (chargerTermCurrentChanged) {
+        staticChargingTermCurrent = chargerTermCurrentCombo->currentData().toInt();
+        emit sigChargingTermCurrentChanged(staticChargingTermCurrent);
+        chargerTermCurrentChanged = false;
     }
 }
 
@@ -2883,6 +3207,14 @@ LoadMode EnergyControlWnd::chdischDischargeProfileGet()
     return LoadModeStatic;
 }
 
+bool EnergyControlWnd::chdischDischargeIsBatParam()
+{
+    Waveform wave;
+    if(chdischDischargeProfileGet() != LoadModeCustomWave) return false;
+    if(!WaveformLibrary::instance().get(chdischComboBoxEdits["Discharge Wave"]->currentText(), &wave)) return false;
+    return wave.batParam;
+}
+
 void EnergyControlWnd::chdischRefreshLibraryCombo()
 {
     QString current = chdischComboBoxEdits["Discharge Wave"]->currentText();
@@ -2932,6 +3264,18 @@ void EnergyControlWnd::chdischDischargeStart()
 
     if(!WaveformLibrary::instance().get(chdischComboBoxEdits["Discharge Wave"]->currentText(), &wave)) return;
     chdischActiveWave = wave;
+    if(wave.batParam)
+    {
+        emit sigBatParamCapacityChanged(wave.batCapacity);
+        emit sigBatParamRelaxationChanged(wave.batRelaxAdaptive, wave.batRelaxThreshold,
+                                          wave.batRelaxWindow, wave.batRelaxFilter);
+        emit sigBatParamExtractionRunning(true);
+    }
+    else
+    {
+        emit sigBatParamRelaxationChanged(false, 0, 0, 0);
+        emit sigBatParamExtractionRunning(false);
+    }
     emit sigLoadWaveChanged(wave);
     emit sigLoadWaveStatusChanged(true);
 }
@@ -2945,6 +3289,10 @@ void EnergyControlWnd::chdischDischargeStop()
     else
     {
         emit sigLoadWaveStatusChanged(false);
+        if(chdischActiveWave.batParam)
+        {
+            emit sigBatParamExtractionRunning(false);
+        }
     }
 }
 

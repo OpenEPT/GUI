@@ -1261,6 +1261,65 @@
               </layout>
              </item>
              <item>
+              <layout class="QHBoxLayout" name="BatteryParamsRow">
+               <item>
+                <widget class="QLabel" name="BatteryParamsLabel">
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                   <pointsize>10</pointsize>
+                  </font>
+                 </property>
+                 <property name="text">
+                  <string>Battery params</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="BatteryParamsPushb">
+                 <property name="minimumSize">
+                  <size>
+                   <width>30</width>
+                   <height>30</height>
+                  </size>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>30</width>
+                   <height>30</height>
+                  </size>
+                 </property>
+                 <property name="toolTip">
+                  <string>Open the battery parameters view (available while the battery parameter extraction runs)</string>
+                 </property>
+                 <property name="text">
+                  <string/>
+                 </property>
+                 <property name="icon">
+                  <iconset resource="../../resource.qrc">
+                   <normaloff>:/images/NewSet/battery.png</normaloff>:/images/NewSet/battery.png</iconset>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="BatteryParamsHors">
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="sizeType">
+                  <enum>QSizePolicy::Minimum</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+              </layout>
+             </item>
+             <item>
               <spacer name="systemVers">
                <property name="font">
                 <font>

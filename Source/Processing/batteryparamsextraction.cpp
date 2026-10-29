@@ -14,6 +14,7 @@ BatteryParamsExtraction::BatteryParamsExtraction(QObject *parent)
     samplingPeriod = 0;
     settings = settingsDefault();
     analysisDeferred = false;
+    captureIncomplete = false;
     chargeTotal = 0;
     cycleActive = false;
     cycleCounter = 0;
@@ -43,7 +44,6 @@ batteryparams_settings_t BatteryParamsExtraction::settingsDefault()
     defaults.model = BATTERYPARAMS_MODEL_SECOND_ORDER;
     defaults.fitEnd = BATTERYPARAMS_FIT_END_PAUSE;
     defaults.tauGridPoints = BATTERYPARAMS_TAU_GRID_POINTS;
-    defaults.tauRefinementNo = BATTERYPARAMS_TAU_REFINEMENT_NO;
     defaults.tauSeparation = BATTERYPARAMS_TAU_SEPARATION;
     defaults.capacity = 0;
     defaults.initialSoc = BATTERYPARAMS_INITIAL_SOC_DEFAULT;
@@ -63,6 +63,36 @@ void BatteryParamsExtraction::setSettings(batteryparams_settings_t aSettings)
 void BatteryParamsExtraction::setAnalysisDeferred(bool aDeferred)
 {
     analysisDeferred = aDeferred;
+}
+
+void BatteryParamsExtraction::setCaptureIncomplete(bool aCapture)
+{
+    captureIncomplete = aCapture;
+}
+
+void BatteryParamsExtraction::finalizeIncompleteCycle(double pauseEndKey)
+{
+    if(!cycleActive) return;
+
+    if(activeCycle.pulseStartKey <= 0 || keySamples.isEmpty())
+    {
+        cycleActive = false;
+        return;
+    }
+
+    activeCycle.pauseEndKey = pauseEndKey;
+    activeCycle.incomplete = true;
+    storeCycleSamples();
+    cycles.append(activeCycle);
+    cycleActive = false;
+    emit sigCycleFinished(activeCycle);
+    trimSamples(pauseEndKey);
+}
+
+void BatteryParamsExtraction::flushIncompleteCycle()
+{
+    if(!cycleActive || keySamples.isEmpty()) return;
+    finalizeIncompleteCycle(keySamples.last());
 }
 
 batteryparams_settings_t BatteryParamsExtraction::getSettings()
@@ -113,81 +143,81 @@ static int prvBATTERYPARAMS_RelaxationPositionGet(const QVector<double> &keys, c
     return -1;
 }
 
-/*With the time constants fixed the relaxation curve is linear in its remaining
-  parameters, so the open circuit voltage the cell is heading to and the branch
-  amplitudes are obtained by least squares. Fitting the asymptote instead of
-  taking it from the last sample keeps the result usable even when the pause is
-  cut short*/
-static bool prvBATTERYPARAMS_RelaxationFit(const QVector<double> &time, const QVector<double> &voltage,
-                                           double tauFast, double tauSlow, bool secondOrder,
-                                           double *openCircuitVoltage, double *amplitudeFast, double *amplitudeSlow)
+/*Fits a single decaying exponential value ~ amplitude * exp(-time / tau) over the
+  given index range. The time constant is searched on a logarithmic grid, the
+  amplitude is solved by least squares for every candidate, and the grid is narrowed
+  around the best value a few times. Used for peeling the slow and fast branches off
+  separate portions of the relaxation*/
+static bool prvBATTERYPARAMS_SingleExpFit(const QVector<double> &time, const QVector<double> &value,
+                                          int startIndex, int endIndex,
+                                          double tauLow, double tauHigh,
+                                          int gridPoints, int refinementNo,
+                                          double *bestTau, double *bestAmplitude)
 {
-    int size = secondOrder ? 3 : 2;
-    double matrix[3][4];
+    if((startIndex < 0) || (endIndex >= time.size()) || ((endIndex - startIndex) < 1)) return false;
+    if(gridPoints < 2) gridPoints = 2;
+    if(refinementNo < 1) refinementNo = 1;
+    if(tauLow <= 0) return false;
+    if(tauHigh <= tauLow) tauHigh = tauLow * 10.0;
 
-    for(int row = 0; row < size; row++)
+    double low = tauLow;
+    double high = tauHigh;
+    double resultTau = 0;
+    double resultAmplitude = 0;
+    bool found = false;
+
+    for(int refinement = 0; refinement < refinementNo; refinement++)
     {
-        for(int column = 0; column < size + 1; column++)
+        double refineBestError = -1;
+        double refineBestTau = 0;
+        double refineBestAmplitude = 0;
+
+        for(int step = 0; step < gridPoints; step++)
         {
-            matrix[row][column] = 0;
-        }
-    }
+            double tau = low * pow(high / low, (double)step / (gridPoints - 1));
+            double sumXe = 0;
+            double sumEe = 0;
 
-    for(int i = 0; i < time.size(); i++)
-    {
-        double basis[3];
-
-        basis[0] = 1.0;
-        basis[1] = exp(-time[i] / tauFast);
-        basis[2] = secondOrder ? exp(-time[i] / tauSlow) : 0;
-
-        for(int row = 0; row < size; row++)
-        {
-            for(int column = 0; column < size; column++)
+            for(int i = startIndex; i <= endIndex; i++)
             {
-                matrix[row][column] += basis[row] * basis[column];
+                double basis = exp(-time[i] / tau);
+                sumXe += value[i] * basis;
+                sumEe += basis * basis;
             }
-            matrix[row][size] += basis[row] * voltage[i];
-        }
-    }
 
-    for(int column = 0; column < size; column++)
-    {
-        int pivot = column;
+            if(sumEe <= 0) continue;
 
-        for(int row = column + 1; row < size; row++)
-        {
-            if(fabs(matrix[row][column]) > fabs(matrix[pivot][column])) pivot = row;
-        }
+            double amplitude = sumXe / sumEe;
+            double error = 0;
 
-        if(fabs(matrix[pivot][column]) < 1e-18) return false;
-
-        for(int i = 0; i < size + 1; i++)
-        {
-            double temporary = matrix[column][i];
-            matrix[column][i] = matrix[pivot][i];
-            matrix[pivot][i] = temporary;
-        }
-
-        for(int row = 0; row < size; row++)
-        {
-            double factor;
-
-            if(row == column) continue;
-
-            factor = matrix[row][column] / matrix[column][column];
-
-            for(int i = column; i < size + 1; i++)
+            for(int i = startIndex; i <= endIndex; i++)
             {
-                matrix[row][i] -= factor * matrix[column][i];
+                double residual = value[i] - amplitude * exp(-time[i] / tau);
+                error += residual * residual;
+            }
+
+            if((refineBestError < 0) || (error < refineBestError))
+            {
+                refineBestError = error;
+                refineBestTau = tau;
+                refineBestAmplitude = amplitude;
             }
         }
+
+        if(refineBestError < 0) break;
+
+        resultTau = refineBestTau;
+        resultAmplitude = refineBestAmplitude;
+        found = true;
+
+        low = refineBestTau / BATTERYPARAMS_TAU_REFINEMENT_SPAN;
+        high = refineBestTau * BATTERYPARAMS_TAU_REFINEMENT_SPAN;
     }
 
-    *openCircuitVoltage = matrix[0][size] / matrix[0][0];
-    *amplitudeFast = -matrix[1][size] / matrix[1][1];
-    *amplitudeSlow = secondOrder ? (-matrix[2][size] / matrix[2][2]) : 0;
+    if(!found) return false;
 
+    *bestTau = resultTau;
+    *bestAmplitude = resultAmplitude;
     return true;
 }
 
@@ -197,7 +227,6 @@ bool BatteryParamsExtraction::analyzeCycle(batteryparams_cycle_t *cycle, battery
     int pauseStart = -1;
     int pauseEnd = -1;
     int relaxPosition;
-    int fastPosition;
     bool secondOrder = (model == BATTERYPARAMS_MODEL_SECOND_ORDER);
     double threshold = settings.relaxationThreshold / 1000.0;
     double window = settings.relaxationWindow * 1000.0;
@@ -219,6 +248,8 @@ bool BatteryParamsExtraction::analyzeCycle(batteryparams_cycle_t *cycle, battery
     cycle->modelValid = false;
     cycle->tauFast = 0;
     cycle->tauSlow = 0;
+    cycle->fastPortionEndKey = 0;
+    cycle->fitEndKey = 0;
     cycle->r1 = 0;
     cycle->c1 = 0;
     cycle->r2 = 0;
@@ -281,9 +312,10 @@ bool BatteryParamsExtraction::analyzeCycle(batteryparams_cycle_t *cycle, battery
         }
     }
 
-    /*Cell is at rest once it relaxed, so the voltage measured there is its open
-      circuit voltage*/
-    cycle->ocv = cycle->relaxationVoltage;
+    /*Open circuit voltage is taken at the end of the fit interval: the relaxation
+      point when the fit stops there, otherwise the end of the pause. This keeps the
+      parameters independent of the relaxation point when the whole pause is used*/
+    cycle->ocv = (settings.fitEnd == BATTERYPARAMS_FIT_END_RELAXATION) ? cycle->relaxationVoltage : cycle->plotVoltage[pauseEnd];
 
     /*Overpotential left on the RC branches when the pulse ends, decaying to zero
       as the cell relaxes towards its open circuit voltage*/
@@ -291,6 +323,8 @@ bool BatteryParamsExtraction::analyzeCycle(batteryparams_cycle_t *cycle, battery
       the cell relaxed, or from the whole pause. Errors and the drawn curve always
       cover the whole pause, so the two settings stay comparable*/
     int fitEndPosition = (settings.fitEnd == BATTERYPARAMS_FIT_END_RELAXATION) ? relaxPosition : pauseEnd;
+
+    cycle->fitEndKey = cycle->plotKeys[fitEndPosition];
 
     for(int i = pauseStart; i <= fitEndPosition; i++)
     {
@@ -300,127 +334,138 @@ bool BatteryParamsExtraction::analyzeCycle(batteryparams_cycle_t *cycle, battery
 
     if(relaxTime.size() < 4) return false;
 
-    /*Time constants are searched for on a logarithmic grid, with the asymptote
-      and the amplitudes solved by least squares for every candidate. The grid is
-      then narrowed around the best pair a few times to refine the result.
-      Settling takes about five time constants, so nothing much longer than the
-      relaxation itself is worth trying*/
+    /*The fit is anchored at both ends: the open circuit voltage is the relaxed
+      voltage, and the branch amplitudes sum to the overpotential present at the
+      pause start, so the drawn curve always starts exactly from the pause start
+      point and settles on the open circuit voltage.
+      The slow branch is peeled from the later portion of the relaxation, where the
+      fast branch has already settled, and the fast branch is then fitted on the
+      early residual, so it is clear which portion of the signal each time constant
+      comes from*/
+    openCircuitVoltage = cycle->ocv;
+
+    double overpotential = openCircuitVoltage - cycle->pauseStartVoltage;
+
+    if(fabs(overpotential) < 1e-6) return false;
+
     {
+        int sampleNo = relaxTime.size();
         double relaxDuration = relaxTime.last();
-        double tauFastLow = relaxTime[1] - relaxTime[0];
-        double tauFastHigh = relaxDuration / BATTERYPARAMS_SETTLING_TAU_NO * 2.0;
-        double tauSlowLow;
-        double tauSlowHigh;
-        double bestError = -1;
+        QVector<double> decay(sampleNo);
 
-        if(tauFastLow <= 0) tauFastLow = relaxDuration / 1000.0;
-        if(tauFastHigh <= tauFastLow) tauFastHigh = tauFastLow * 10.0;
-
-        tauSlowLow = tauFastLow;
-        tauSlowHigh = tauFastHigh;
-
-        for(int refinement = 0; refinement < settings.tauRefinementNo; refinement++)
+        for(int i = 0; i < sampleNo; i++)
         {
-            double bestTauFast = 0;
-            double bestTauSlow = 0;
-            double bestAmplitudeFast = 0;
-            double bestAmplitudeSlow = 0;
-            double bestVoltage = 0;
+            decay[i] = openCircuitVoltage - relaxValue[i];
+        }
 
-            bestError = -1;
+        double sampleStep = relaxTime[1] - relaxTime[0];
+        if(sampleStep <= 0) sampleStep = relaxDuration / sampleNo;
 
-            for(int fastStep = 0; fastStep < settings.tauGridPoints; fastStep++)
+        int splitIndex = sampleNo - 1;
+        for(int i = 0; i < sampleNo; i++)
+        {
+            if(relaxTime[i] >= relaxDuration * BATTERYPARAMS_PEEL_SPLIT)
             {
-                double tauFastCandidate = tauFastLow * pow(tauFastHigh / tauFastLow,
-                                                           (double)fastStep / (settings.tauGridPoints - 1));
-                int slowSteps = secondOrder ? settings.tauGridPoints : 1;
-
-                for(int slowStep = 0; slowStep < slowSteps; slowStep++)
-                {
-                    double tauSlowCandidate = 0;
-                    double candidateFast = 0;
-                    double candidateSlow = 0;
-                    double candidateVoltage = 0;
-                    double errorSum = 0;
-
-                    if(secondOrder)
-                    {
-                        tauSlowCandidate = tauSlowLow * pow(tauSlowHigh / tauSlowLow,
-                                                            (double)slowStep / (settings.tauGridPoints - 1));
-
-                        /*Branches have to be clearly separated, otherwise the two
-                          exponentials describe the same thing*/
-                        if(tauSlowCandidate < tauFastCandidate * settings.tauSeparation) continue;
-                    }
-
-                    if(!prvBATTERYPARAMS_RelaxationFit(relaxTime, relaxValue, tauFastCandidate, tauSlowCandidate,
-                                                       secondOrder, &candidateVoltage, &candidateFast, &candidateSlow))
-                    {
-                        continue;
-                    }
-
-                    if(candidateFast < 0) continue;
-                    if(secondOrder && (candidateSlow < 0)) continue;
-
-                    for(int i = 0; i < relaxTime.size(); i++)
-                    {
-                        double fitted = candidateVoltage - candidateFast * exp(-relaxTime[i] / tauFastCandidate);
-                        double error;
-
-                        if(secondOrder) fitted -= candidateSlow * exp(-relaxTime[i] / tauSlowCandidate);
-
-                        error = relaxValue[i] - fitted;
-                        errorSum += error * error;
-                    }
-
-                    if((bestError < 0) || (errorSum < bestError))
-                    {
-                        bestError = errorSum;
-                        bestTauFast = tauFastCandidate;
-                        bestTauSlow = tauSlowCandidate;
-                        bestAmplitudeFast = candidateFast;
-                        bestAmplitudeSlow = candidateSlow;
-                        bestVoltage = candidateVoltage;
-                    }
-                }
-            }
-
-            if(bestError < 0) return false;
-
-            cycle->tauFast = bestTauFast;
-            cycle->tauSlow = bestTauSlow;
-            amplitudeFast = bestAmplitudeFast;
-            amplitudeSlow = bestAmplitudeSlow;
-            openCircuitVoltage = bestVoltage;
-
-            tauFastLow = bestTauFast / BATTERYPARAMS_TAU_REFINEMENT_SPAN;
-            tauFastHigh = bestTauFast * BATTERYPARAMS_TAU_REFINEMENT_SPAN;
-
-            if(secondOrder)
-            {
-                tauSlowLow = bestTauSlow / BATTERYPARAMS_TAU_REFINEMENT_SPAN;
-                tauSlowHigh = bestTauSlow * BATTERYPARAMS_TAU_REFINEMENT_SPAN;
+                splitIndex = i;
+                break;
             }
         }
+        if(splitIndex < 1) splitIndex = 1;
+        if(splitIndex > sampleNo - 2) splitIndex = sampleNo - 2;
+
+        double tauSlowValue = 0;
+        double amplitudeSlowValue = 0;
+        bool slowOk = secondOrder &&
+                      prvBATTERYPARAMS_SingleExpFit(relaxTime, decay, splitIndex, sampleNo - 1,
+                          sampleStep, relaxDuration, settings.tauGridPoints, BATTERYPARAMS_TAU_REFINEMENT_NO,
+                          &tauSlowValue, &amplitudeSlowValue);
+
+        double tauFastValue = 0;
+        double amplitudeFastValue = 0;
+        bool fastOk;
+
+        if(slowOk)
+        {
+            QVector<double> residual(splitIndex);
+
+            for(int i = 0; i < splitIndex; i++)
+            {
+                residual[i] = decay[i] - amplitudeSlowValue * exp(-relaxTime[i] / tauSlowValue);
+            }
+
+            fastOk = prvBATTERYPARAMS_SingleExpFit(relaxTime, residual, 0, splitIndex - 1,
+                        sampleStep, tauSlowValue / settings.tauSeparation,
+                        settings.tauGridPoints, BATTERYPARAMS_TAU_REFINEMENT_NO,
+                        &tauFastValue, &amplitudeFastValue);
+        }
+        else
+        {
+            fastOk = prvBATTERYPARAMS_SingleExpFit(relaxTime, decay, 0, sampleNo - 1,
+                        sampleStep, relaxDuration, settings.tauGridPoints, BATTERYPARAMS_TAU_REFINEMENT_NO,
+                        &tauFastValue, &amplitudeFastValue);
+            secondOrder = false;
+        }
+
+        (void)amplitudeFastValue;
+
+        if(!fastOk) return false;
+
+        if(secondOrder && (tauSlowValue <= tauFastValue))
+        {
+            secondOrder = false;
+        }
+
+        cycle->tauFast = tauFastValue;
+        cycle->tauSlow = secondOrder ? tauSlowValue : 0;
+
+        if(secondOrder)
+        {
+            /*Amplitudes are re-solved under the constraint that they sum to the
+              overpotential, so the curve is pinned to the pause start voltage*/
+            double numerator = 0;
+            double denominator = 0;
+
+            for(int i = 0; i < sampleNo; i++)
+            {
+                double basisFast = exp(-relaxTime[i] / cycle->tauFast);
+                double basisSlow = exp(-relaxTime[i] / cycle->tauSlow);
+                double difference = basisFast - basisSlow;
+
+                numerator += (decay[i] - overpotential * basisSlow) * difference;
+                denominator += difference * difference;
+            }
+
+            amplitudeFast = (denominator > 0) ? (numerator / denominator) : overpotential;
+
+            if((overpotential > 0) && (amplitudeFast < 0)) amplitudeFast = 0;
+            if((overpotential < 0) && (amplitudeFast > 0)) amplitudeFast = 0;
+            if(fabs(amplitudeFast) > fabs(overpotential)) amplitudeFast = overpotential;
+
+            amplitudeSlow = overpotential - amplitudeFast;
+        }
+        else
+        {
+            amplitudeFast = overpotential;
+            amplitudeSlow = 0;
+        }
+
+        double boundaryTime = BATTERYPARAMS_PEEL_BOUNDARY_TAU * cycle->tauFast;
+
+        if(secondOrder && (boundaryTime > relaxTime[splitIndex])) boundaryTime = relaxTime[splitIndex];
+        if(boundaryTime > relaxDuration) boundaryTime = relaxDuration;
+
+        cycle->fastPortionEndKey = cycle->pauseStartKey + boundaryTime * 1000.0;
     }
 
-    if(secondOrder && (cycle->tauSlow <= cycle->tauFast))
-    {
-        secondOrder = false;
-        cycle->model = BATTERYPARAMS_MODEL_FIRST_ORDER;
-        cycle->tauSlow = 0;
-        amplitudeSlow = 0;
-    }
+    cycle->model = secondOrder ? BATTERYPARAMS_MODEL_SECOND_ORDER : BATTERYPARAMS_MODEL_FIRST_ORDER;
 
-    /*Overpotential left on the RC branches when the pulse ends, decaying to zero
-      as the cell relaxes towards its open circuit voltage*/
+    /*During the pulse each branch charges towards I*R, so the amplitude seen at the
+      beginning of the relaxation is scaled by how far it got*/
     pulseDuration = (cycle->pulseEndKey - cycle->pulseStartKey) / 1000.0;
     pulseCurrent = cycle->pulseEndCurrent / 1000.0;
 
     if((pulseDuration <= 0) || (fabs(pulseCurrent) < 1e-9)) return false;
 
-    /*During the pulse each branch charges towards I*R, so the amplitude seen at
-      the beginning of the relaxation is scaled by how far it got*/
     double chargedFast = 1.0 - exp(-pulseDuration / cycle->tauFast);
 
     if(chargedFast <= 0) return false;
@@ -496,6 +541,7 @@ void BatteryParamsExtraction::cycleReset()
     activeCycle.soc = 0;
     activeCycle.resistanceValid = false;
     activeCycle.socValid = false;
+    activeCycle.incomplete = false;
     activeCycle.relaxationReached = false;
     activeCycle.relaxationKey = 0;
     activeCycle.relaxationVoltage = 0;
@@ -702,6 +748,43 @@ bool BatteryParamsExtraction::cyclePointsFit(batteryparams_cycle_t *cycle)
     return true;
 }
 
+/*Moves the pause start onto the sample at or after the given key and recomputes the
+  series resistance from the new pause start. Pulse end stays where it is, so the
+  instantaneous step the resistance is read from is measured against the new pause
+  start. The RC fit is left to analyzeCycle, which reads the updated pause start*/
+bool BatteryParamsExtraction::setPauseStart(batteryparams_cycle_t *cycle, double pauseStartKey)
+{
+    int position = -1;
+
+    if(cycle == NULL) return false;
+    if(cycle->plotKeys.size() != cycle->plotVoltage.size()) return false;
+    if(cycle->plotKeys.size() != cycle->plotCurrent.size()) return false;
+
+    for(int i = 0; i < cycle->plotKeys.size(); i++)
+    {
+        if(cycle->plotKeys[i] >= pauseStartKey)
+        {
+            position = i;
+            break;
+        }
+    }
+
+    if(position < 0) return false;
+    if(cycle->plotKeys[position] <= cycle->pulseEndKey) return false;
+    if(cycle->plotKeys[position] >= cycle->pauseEndKey) return false;
+
+    cycle->pauseStartKey = cycle->plotKeys[position];
+    cycle->pauseStartVoltage = cycle->plotVoltage[position];
+    cycle->pauseStartCurrent = cycle->plotCurrent[position];
+
+    cycle->deltaVoltage = cycle->pauseStartVoltage - cycle->pulseEndVoltage;
+    cycle->deltaCurrent = cycle->pulseEndCurrent - cycle->pauseStartCurrent;
+    cycle->resistanceValid = fabs(cycle->deltaCurrent) > 0.000001;
+    cycle->resistance = cycle->resistanceValid ? cycle->deltaVoltage / (cycle->deltaCurrent / 1000.0) : 0;
+
+    return true;
+}
+
 void BatteryParamsExtraction::seriesSmooth(const QVector<double> &keys, const QVector<double> &values,
                                            double window, QVector<double> *smoothed)
 {
@@ -847,10 +930,9 @@ void BatteryParamsExtraction::processPendingMarkers()
     {
         double markerKey;
 
-        if(samplingPeriod <= 0) return;
         if(keySamples.isEmpty()) return;
 
-        markerKey = pendingMarkers.first().key * samplingPeriod;
+        markerKey = pendingMarkers.first().key;
 
         if(markerKey > keySamples.last()) return;
 
@@ -877,6 +959,7 @@ void BatteryParamsExtraction::processMarker(QString name, int position)
 
     if(name == pulseStartMarker)
     {
+        if(captureIncomplete && cycleActive) finalizeIncompleteCycle(key);
         cycleReset();
         cycleActive = true;
         cycleCounter++;

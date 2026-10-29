@@ -20,6 +20,10 @@
 #define BATTERYPARAMS_TAU_SEPARATION                3.0
 #define BATTERYPARAMS_TAU_REFINEMENT_NO             3
 #define BATTERYPARAMS_TAU_REFINEMENT_SPAN           1.6
+#define BATTERYPARAMS_PEEL_SPLIT                    0.4
+#define BATTERYPARAMS_PEEL_BOUNDARY_TAU             3.0
+#define BATTERYPARAMS_START_SWEEP_WINDOW            5000.0
+#define BATTERYPARAMS_START_SWEEP_MAX_STEPS         40
 #define BATTERYPARAMS_INITIAL_SOC_DEFAULT           100.0
 #define BATTERYPARAMS_CYCLE_PLOT_STEP_WINDOW        50.0
 
@@ -43,7 +47,6 @@ typedef struct
     batteryparams_model_t   model;
     batteryparams_fit_end_t fitEnd;
     int                     tauGridPoints;
-    int                     tauRefinementNo;
     double                  tauSeparation;
     double                  capacity;
     double                  initialSoc;
@@ -81,10 +84,14 @@ typedef struct
     double          relaxationVoltage;
     double          ocv;
 
+    bool            incomplete;
+
     batteryparams_model_t model;
     bool            modelValid;
     double          tauFast;
     double          tauSlow;
+    double          fastPortionEndKey;
+    double          fitEndKey;
     double          r1;
     double          c1;
     double          r2;
@@ -105,6 +112,16 @@ typedef struct
 
 Q_DECLARE_METATYPE(batteryparams_cycle_t);
 
+typedef struct
+{
+    unsigned int    index;
+    double          startKey;
+    double          endKey;
+    double          capacity;
+}batteryparams_charge_cycle_t;
+
+Q_DECLARE_METATYPE(batteryparams_charge_cycle_t);
+
 class BatteryParamsExtraction : public QObject
 {
     Q_OBJECT
@@ -115,6 +132,8 @@ public:
     void                    setSamplingPeriod(double aSamplingPeriod);
     void                    setSettings(batteryparams_settings_t aSettings);
     void                    setAnalysisDeferred(bool aDeferred);
+    void                    setCaptureIncomplete(bool aCapture);
+    void                    flushIncompleteCycle();
     batteryparams_settings_t getSettings();
 
     static batteryparams_settings_t settingsDefault();
@@ -122,6 +141,7 @@ public:
     static int              relaxationPositionGet(const QVector<double> &keys, const QVector<double> &voltage,
                                                   int start, int end, double threshold, double window);
     static bool             cyclePointsFit(batteryparams_cycle_t *cycle);
+    static bool             setPauseStart(batteryparams_cycle_t *cycle, double pauseStartKey);
     static void             seriesSmooth(const QVector<double> &keys, const QVector<double> &values,
                                          double window, QVector<double> *smoothed);
     QVector<batteryparams_cycle_t> getCycles();
@@ -153,6 +173,7 @@ private:
     double                  samplingPeriod;
     batteryparams_settings_t settings;
     bool                    analysisDeferred;
+    bool                    captureIncomplete;
     double                  chargeTotal;
 
     QVector<batteryparams_marker_t> pendingMarkers;
@@ -167,6 +188,7 @@ private:
     void                    processMarker(QString name, int position);
     void                    trimSamples(double key);
     void                    storeCycleSamples();
+    void                    finalizeIncompleteCycle(double pauseEndKey);
     void                    cycleReset();
 };
 

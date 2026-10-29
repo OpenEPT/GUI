@@ -4,6 +4,9 @@
 #include <math.h>
 #include <QMessageBox>
 #include <QDateTime>
+#include <QFileInfo>
+#include <QDir>
+#include <algorithm>
 #include <QPushButton>
 #include <QThread>
 #include <QFile>
@@ -124,6 +127,12 @@ QStringList DataAnalyzer::listConsumptionProfiles()
     if(!dir.exists()) return profileList;
 
     listConsumptionProfilesInDir(dir, "", profileList, 0);
+
+    std::sort(profileList.begin(), profileList.end(), [this](const QString &a, const QString &b){
+        QDateTime ta = QFileInfo(QDir(wsDirPath).filePath(a)).lastModified();
+        QDateTime tb = QFileInfo(QDir(wsDirPath).filePath(b)).lastModified();
+        return ta > tb;
+    });
 
     return profileList;
 }

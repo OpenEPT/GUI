@@ -370,6 +370,38 @@ void Plot::overlayClear()
     plot->replot();
 }
 
+void Plot::shadeKeyRange(double keyMin, double keyMax, QColor color)
+{
+    QCPItemRect *rect = new QCPItemRect(plot);
+
+    rect->setPen(Qt::NoPen);
+    rect->setBrush(QBrush(color));
+    rect->setClipToAxisRect(true);
+    rect->setLayer("grid");
+
+    rect->topLeft->setTypeX(QCPItemPosition::ptPlotCoords);
+    rect->topLeft->setTypeY(QCPItemPosition::ptAxisRectRatio);
+    rect->bottomRight->setTypeX(QCPItemPosition::ptPlotCoords);
+    rect->bottomRight->setTypeY(QCPItemPosition::ptAxisRectRatio);
+
+    rect->topLeft->setCoords(keyMin, 0);
+    rect->bottomRight->setCoords(keyMax, 1);
+
+    shadeRects.append(rect);
+    plot->replot();
+}
+
+void Plot::shadeClear()
+{
+    for(int i = 0; i < shadeRects.size(); i++)
+    {
+        plot->removeItem(shadeRects[i]);
+    }
+
+    shadeRects.clear();
+    plot->replot();
+}
+
 void Plot::markerAddAtKey(double key, double value, QString name, QColor color)
 {
     QCPItemText *textLabel;

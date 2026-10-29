@@ -62,6 +62,8 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     connect(energyControlWnd, &EnergyControlWnd::sigBatParamViewRequested, this, &DeviceWnd::sigBatParamViewRequested);
     connect(energyControlWnd, &EnergyControlWnd::sigBatParamCapacityChanged, this, &DeviceWnd::sigBatParamCapacityChanged);
     connect(energyControlWnd, &EnergyControlWnd::sigBatParamRelaxationChanged, this, &DeviceWnd::sigBatParamRelaxationChanged);
+    connect(energyControlWnd, &EnergyControlWnd::sigBatParamExtractionRunning, this, &DeviceWnd::sigBatParamExtractionRunning);
+    connect(energyControlWnd, &EnergyControlWnd::sigChargeMarkersEnabled, this, &DeviceWnd::sigChargeMarkersEnabled);
     connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveClear, this, &DeviceWnd::sigLoadWaveClear);
     connect(energyControlWnd, SIGNAL(sigChargingCurrentStatusChanged(bool)), this, SLOT(onChargingCurrentStatusChanged(bool)));
     connect(energyControlWnd, SIGNAL(sigChargingCurrentChanged(unsigned int)), this, SLOT(onChargingCurrentChanged(unsigned int)));
@@ -128,6 +130,7 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     connect(ui->refreshPusb, SIGNAL(clicked(bool)), this, SLOT(onRefreshAcquisiton()));
     connect(ui->ConsolePusb, SIGNAL(clicked(bool)), this, SLOT(onConsolePressed()));
     connect(ui->DataStatisticsPushb, SIGNAL(clicked(bool)), this, SLOT(onDataAnalyzerPressed()));
+    connect(ui->BatteryParamsPushb, &QPushButton::clicked, this, &DeviceWnd::sigBatParamViewRequested);
 
     connect(ui->samplingPeriodLine,     SIGNAL(returnPressed()),                    this, SLOT(onSamplingPeriodChanged()));
     connect(ui->streamServerInterfComb, SIGNAL(currentTextChanged(QString)),        this, SLOT(onInterfaceChanged(QString)));

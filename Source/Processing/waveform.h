@@ -39,6 +39,18 @@ typedef struct
     QString         markerPos;
 }waveform_chunk_t;
 
+typedef struct
+{
+    double          socHigh;
+    double          socLow;
+    double          accuracy;
+    double          amplitude;
+    double          pause;
+    double          relaxThreshold;
+    double          relaxWindow;
+    double          relaxFilter;
+}waveform_batregion_t;
+
 class Waveform
 {
 public:
@@ -79,6 +91,14 @@ public:
     unsigned int            amplitude;
     unsigned int            period;
     unsigned int            points;
+
+    bool                    batParam;
+    double                  batCapacity;
+    bool                    batRelaxAdaptive;
+    double                  batRelaxThreshold;
+    double                  batRelaxWindow;
+    double                  batRelaxFilter;
+    QList<waveform_batregion_t> batRegions;
 };
 
 class WaveformLibrary : public QObject

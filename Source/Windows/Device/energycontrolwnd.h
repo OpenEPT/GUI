@@ -14,6 +14,7 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QMessageBox>
+#include <QInputDialog>
 #include <QRadioButton>
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -30,6 +31,17 @@
 #define INDICATOR_WIDTH 30
 #define BUTTON_HEIGHT 28
 
+
+typedef struct {
+    double socHigh;
+    double socLow;
+    double accuracy;
+    double amplitude;
+    double pause;
+    double relaxThreshold;
+    double relaxWindow;
+    double relaxFilter;
+} batparams_region_t;
 
 enum LoadMode {
     LoadModeStatic = 0,
@@ -146,9 +158,11 @@ signals:
     void sigLoadWaveChanged(Waveform wave);
     void sigLoadWaveStatusChanged(bool start);
     void sigLoadWaveClear();
+    void sigBatParamExtractionRunning(bool running);
     void sigBatParamViewRequested();
     void sigBatParamCapacityChanged(double capacity);
     void sigBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, double filterMs);
+    void sigChargeMarkersEnabled(bool enabled);
 
     void sigChargingCurrentChanged(unsigned int newCurrent);
     void sigChargingTermVoltageChanged(float newVoltage);
@@ -173,6 +187,11 @@ private slots:
     void onCustomWaveDeleteFromLibrary();
     void onCustomWaveTableChanged();
     void onBatParamChanged();
+    void onBatParamAddRegion();
+    void onBatParamRemoveRegion();
+    void onBatParamClearRegions();
+    void onBatParamLibrarySelected(int index);
+    void onBatParamLibraryDelete();
 
     void onLoadStatusChanged();
     void onPPathStatusChanged();
@@ -215,6 +234,8 @@ private:
     QMap<QString, QTextEdit*> loadTextEdits;
 
     QMap<QString, QLineEdit*> chargerEntryEdits;
+    QComboBox *chargerTermCurrentCombo;
+    bool chargerTermCurrentChanged;
     QMap<QString, QTimeEdit*> chargerTimeEdits;
     QMap<QString, QPushButton*> chargerButtons;
     QMap<QString, bool> chargerEntryChanged;
@@ -246,10 +267,15 @@ private:
     QWidget *batParamWidget;                // for Battery parameter extraction mode
     QTableWidget *customWaveTable;
     QComboBox *customWaveLibraryCombo;
+    QComboBox *batParamLibraryCombo;
+    QPushButton *batParamLibraryDeleteButton;
     QLineEdit *customWaveNameEdit;
     QLabel   *stdWaveInfoLabel;
     QLabel   *customWaveInfoLabel;
     QTableWidget *batParamTable;
+    QPushButton  *batParamAddRegionButton;
+    QPushButton  *batParamRemoveRegionButton;
+    QPushButton  *batParamClearRegionButton;
     QPushButton  *batParamViewButton;
     QComboBox    *batParamRelaxCombo;
     QLabel   *batParamInfoLabel;
@@ -288,6 +314,8 @@ private:
     QTimer      *chdischDischargeRelaxTimer = nullptr;
     QTime        chdischDischargeRelaxRemaining;
     unsigned int chdischCurrentStepIndex;
+    int          chdischCyclesTotal;
+    int          chdischCyclesDone;
     bool         chdischStartStopStatus;
     ChDschCycleStep chdischCycleStartStep;
     ChDschCycleStep chdischCycleSteps[4];
@@ -301,11 +329,15 @@ private:
     Waveform     buildStandardWave();
     Waveform     buildCustomWave();
     Waveform     buildBatParamWave();
-    bool         batParamCompute(unsigned int *pulseDuration, int *repetitions, QString *error);
+    bool         batParamCompute(batparams_region_t region, unsigned int *pulseDuration, int *repetitions, QString *error);
+    batparams_region_t batParamRegion0();
     bool         batParamRelaxationEnabled();
     void         updateBatParamInfo();
     void         fillCustomWaveTable(Waveform wave);
     QTableWidget* createWaveTable(bool editable);
+    void         batParamRegionsInit();
+    void         batParamAddRegionRow(batparams_region_t region);
+    QVector<batparams_region_t> batParamRegionsGet();
     void         fillWaveTable(QTableWidget *table, Waveform wave);
     void         addWaveTableRow(QTableWidget *table, waveform_chunk_t chunk, int row);
     void         addCustomWaveTableRow(waveform_chunk_t chunk, int row);
@@ -313,6 +345,8 @@ private:
     QString      getCustomWaveTableText(int row, int column);
     void         refreshCustomWaveLibraryCombo();
     QString      getCustomWaveLibraryName(int index);
+    void         refreshBatParamLibraryCombo();
+    void         loadBatParamWaveToUi(Waveform wave);
     void         updateStdWaveInfo();
     void         updateCustomWaveInfo();
     QPushButton* createSmallButton(const QString& text, QHBoxLayout* layout);
@@ -341,10 +375,12 @@ private:
     bool         chdischDoneCurrentStep();
     LoadMode     chdischDischargeProfileGet();
     bool         chdischDischargeProfileValid();
+    bool         chdischDischargeIsBatParam();
     void         chdischDischargeStart();
     void         chdischDischargeStop();
     void         chdischRefreshLibraryCombo();
     bool         chdischMoveToNextStep();
+    void         chdischStartStep();
     void         chdischCycleCompleted();
 
 };

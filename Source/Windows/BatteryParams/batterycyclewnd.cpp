@@ -22,6 +22,8 @@ BatteryCycleWnd::BatteryCycleWnd(QWidget *parent) :
     setFont(defaultFont);
     setWindowTitle("Battery cycle");
 
+    fitSettings = BatteryParamsExtraction::settingsDefault();
+
     infoLabel = new QLabel(this);
     mainLayout->addWidget(infoLabel);
 
@@ -208,13 +210,24 @@ void BatteryCycleWnd::refreshMarkerEdits()
     pauseEndEdit->setText(QString::number(cycle.pauseEndKey / timeScale(), 'f', timeDecimals()));
 }
 
+void BatteryCycleWnd::setSettings(batteryparams_settings_t settings)
+{
+    fitSettings = settings;
+}
+
 void BatteryCycleWnd::onFitPoints()
 {
     if(!BatteryParamsExtraction::cyclePointsFit(&cycle)) return;
 
+    cycle.incomplete = false;
+
+    BatteryParamsExtraction::analyzeCycle(&cycle, fitSettings);
+
     refreshMarkerEdits();
     updateInfo();
     updatePlots();
+
+    emit sigCycleUpdated(cycle);
 }
 
 void BatteryCycleWnd::onRestore()
@@ -253,6 +266,8 @@ void BatteryCycleWnd::applyMarkers()
     cycle.deltaCurrent = cycle.pulseEndCurrent - cycle.pauseStartCurrent;
     cycle.resistanceValid = fabs(cycle.deltaCurrent) > 0.000001;
     cycle.resistance = cycle.resistanceValid ? cycle.deltaVoltage / (cycle.deltaCurrent / 1000.0) : 0;
+
+    BatteryParamsExtraction::analyzeCycle(&cycle, fitSettings);
 
     refreshMarkerEdits();
 
@@ -340,6 +355,7 @@ void BatteryCycleWnd::updatePlots()
     voltagePlot->markersAtKeyClear();
     currentPlot->markersAtKeyClear();
     voltagePlot->overlayClear();
+    voltagePlot->shadeClear();
 
     QVector<double> scaledKeys;
 
@@ -380,6 +396,22 @@ void BatteryCycleWnd::updatePlots()
         }
 
         voltagePlot->overlaySetData(cycle.fitVoltage, scaledFitKeys);
+
+        /*Shade the portion of the relaxation each time constant was peeled from:
+          the early part feeds the fast branch, the later part the slow branch*/
+        if(cycle.relaxationReached && (cycle.fastPortionEndKey > cycle.pauseStartKey))
+        {
+            double fastStart = cycle.pauseStartKey / timeScale();
+            double fastEnd = cycle.fastPortionEndKey / timeScale();
+            double slowEnd = (cycle.fitEndKey > 0 ? cycle.fitEndKey : cycle.relaxationKey) / timeScale();
+
+            voltagePlot->shadeKeyRange(fastStart, fastEnd, QColor(80, 140, 255, 45));
+
+            if((cycle.model == BATTERYPARAMS_MODEL_SECOND_ORDER) && (slowEnd > fastEnd))
+            {
+                voltagePlot->shadeKeyRange(fastEnd, slowEnd, QColor(255, 160, 60, 40));
+            }
+        }
     }
 
     if(!cycle.plotKeys.isEmpty())

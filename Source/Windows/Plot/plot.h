@@ -24,6 +24,8 @@ public:
     void        setData(QVector<double> data, QVector<double> keys);
     void        overlaySetData(QVector<double> data, QVector<double> keys, QColor color = Qt::red);
     void        overlayClear();
+    void        shadeKeyRange(double keyMin, double keyMax, QColor color);
+    void        shadeClear();
     void        markerAddAtKey(double key, double value, QString name, QColor color);
     void        markersAtKeyClear();
     void        applyStyle(QString fontFamily, int labelFontSize, int tickFontSize,
@@ -90,6 +92,7 @@ private:
     QCPGraph    *overlayGraph;
     QCPGraph    *keyMarkerGraph;
     QVector<QCPItemText *> keyMarkerText;
+    QVector<QCPItemRect *> shadeRects;
 
     double      trackWindowMs;
     bool        enableTracking;

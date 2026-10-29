@@ -22,6 +22,7 @@ public:
 
     void                setCycle(batteryparams_cycle_t aCycle);
     void                setPlotSettings(batteryparams_plot_settings_t settings);
+    void                setSettings(batteryparams_settings_t settings);
 
 signals:
     void                sigCycleUpdated(batteryparams_cycle_t cycle);
@@ -51,6 +52,7 @@ private:
     QStringList         markerNames;
 
     batteryparams_plot_settings_t plotSettings;
+    batteryparams_settings_t fitSettings;
     batteryparams_cycle_t cycle;
     batteryparams_cycle_t originalCycle;
 

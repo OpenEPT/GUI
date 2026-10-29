@@ -49,6 +49,8 @@ public slots:
     void                                onDetachClicked();
     void                                processingVolCurConDone(QVector<QVector<double> > vc, QVector<QVector<double>> cons);
     void                                processingEPDone(QVector<QPair<QString, int>> epData);
+    void                                onBatteryPointsStored(QVector<QPair<QString, double>> cycleMarkers);
+    void                                onBatterySettingsChanged(batteryparams_settings_t settings);
     void                                updateProgress(int percentage);
     void                                updateProgressText(QString text);
 
@@ -57,6 +59,8 @@ private:
     void                                createCurrentSubWin();
     void                                createConsumptionSubWin();
     void                                applyMarkersToPlots(QVector<QPair<QString, int>> markers);
+    void                                saveBatterySettings(const batteryparams_settings_t &settings);
+    bool                                loadBatterySettings(batteryparams_settings_t *settings);
     QVector<QPair<QString, QString>>    parseSummaryFile(const QString &filePath);
     QString                             getValueForKey(const QVector<QPair<QString, QString> > &parsedData, const QString &key);
 

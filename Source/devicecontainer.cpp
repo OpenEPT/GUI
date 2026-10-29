@@ -4,6 +4,9 @@
 
 #define DEVICECONTAINER_RELAX_SAMPLES_MAX      2000000
 #define DEVICECONTAINER_RELAX_CHECK_PERIOD     500.0
+#define DEVICECONTAINER_UV_WATCH_GRACE_MS      60000
+#define DEVICECONTAINER_UV_WATCH_POLL_MS       5000
+#define DEVICECONTAINER_UV_WATCH_POLLS         6
 #include <devicecontainer.h>
 #include "devicecontainer.h"
 
@@ -23,6 +26,14 @@ DeviceContainer::DeviceContainer(QObject *parent,
             this, &DeviceContainer::onBatParamCycleFinished);
     samplingPeriodMs = 0;
     uVoltageActive = false;
+    uVoltageThreshold = 0;
+    uvWatchActive = false;
+    uvWatchHandled = false;
+    uvWatchPhase = 0;
+    uvWatchPollsLeft = 0;
+    uvWatchTimer = new QTimer(this);
+    uvWatchTimer->setSingleShot(true);
+    connect(uvWatchTimer, &QTimer::timeout, this, &DeviceContainer::onUvWatchTimeout);
     oVoltageActive = false;
     oCurrentActive = false;
     batParamRelaxEnabled = false;
@@ -35,6 +46,18 @@ DeviceContainer::DeviceContainer(QObject *parent,
     batParamRelaxPauseActive = false;
     batParamRelaxRunning = false;
     batParamRelaxRestarting = false;
+    batParamExtractionRunning = false;
+
+    batParamUVFinal = false;
+    batParamLastSampleKey = 0;
+
+    chargeMarkersEnabled = false;
+    chargeMarkerActive = false;
+    chargeMarkerStartPlaced = false;
+    chargeMarkerCharge = 0;
+    chargeMarkerStartKey = 0;
+    chargeMarkerLastKey = 0;
+    chargeCycleCounter = 0;
     batteryParamsWnd = NULL;
     qRegisterMetaType<batteryparams_cycle_t>("batteryparams_cycle_t");
     log->assignLogWidget(deviceWnd->getLogWidget());
@@ -90,8 +113,10 @@ DeviceContainer::DeviceContainer(QObject *parent,
     connect(deviceWnd,  &DeviceWnd::sigBatParamViewRequested,                        this, &DeviceContainer::onDeviceWndBatParamViewRequested);
     connect(deviceWnd,  &DeviceWnd::sigBatParamCapacityChanged,                      this, &DeviceContainer::onDeviceWndBatParamCapacityChanged);
     connect(deviceWnd,  &DeviceWnd::sigBatParamRelaxationChanged,                    this, &DeviceContainer::onDeviceWndBatParamRelaxationChanged);
+    connect(deviceWnd,  &DeviceWnd::sigBatParamExtractionRunning,                    this, &DeviceContainer::onDeviceWndBatParamExtractionRunning);
     connect(deviceWnd,  &DeviceWnd::sigLoadWaveClear,                                this, &DeviceContainer::onDeviceWndLoadWaveClear);
     connect(deviceWnd,  SIGNAL(sigChargingCurrentStatusChanged(bool)),              this, SLOT(onDeviceWndChargingCurrentSetStatus(bool)));
+    connect(deviceWnd,  &DeviceWnd::sigChargeMarkersEnabled,                        this, &DeviceContainer::onDeviceWndChargeMarkersEnabled);
     connect(deviceWnd,  SIGNAL(sigChargingCurrentChanged(unsigned int)),            this, SLOT(onDeviceWndChargingCurrentSetValue(unsigned int)));
     connect(deviceWnd,  SIGNAL(sigChargingTermCurrentChanged(unsigned int)),        this, SLOT(onDeviceWndChargingTermCurrentSetValue(unsigned int)));
     connect(deviceWnd,  SIGNAL(sigChargingTermVoltageChanged(float)),               this, SLOT(onDeviceWndChargingTermVoltageSetValue(float)));
@@ -958,7 +983,32 @@ void DeviceContainer::onDeviceWndChargingCurrentSetValue(unsigned int current)
 
 void DeviceContainer::onDeviceWndChargingTermCurrentSetValue(unsigned int current)
 {
-    bool ok = device->setChargerTermCurrent(current);
+    int currentId;
+
+    switch(current)
+    {
+        case 0:
+            currentId = 0;
+            break;
+
+        case 5:
+            currentId = 1;
+            break;
+
+        case 10:
+            currentId = 2;
+            break;
+
+        case 20:
+            currentId = 3;
+            break;
+
+        default:
+            logResult(false, "", "Unable to set Charging termination current");
+            return;
+    }
+
+    bool ok = device->setChargerTermCurrent(currentId);
 
     logResult(ok,
               "Charging termination current successfully set: " + QString::number(current) + " [%]",
@@ -983,9 +1033,55 @@ void DeviceContainer::onDeviceWndChargingCurrentSetStatus(bool status)
     if(ok)
         deviceWnd->setChargingCurrentStatus(status);
 
+    if(chargeMarkersEnabled)
+    {
+        if(status)
+        {
+            chargeMarkerActive = true;
+            chargeMarkerStartPlaced = false;
+            chargeMarkerCharge = 0;
+        }
+        else if(chargeMarkerActive)
+        {
+            chargeMarkerActive = false;
+            if(chargeMarkerStartPlaced)
+            {
+                deviceWnd->plotConsumptionEBPWithName(0, chargeMarkerLastKey, "Charge End");
+                if(writeSamplesToFileEnabled) fileProcessing->appendEPQueued("Charge End", (int)chargeMarkerLastKey);
+                log->printLogMessage("Charge markers: " + QString::number(qAbs(chargeMarkerCharge), 'f', 3) +
+                                     " mAh charged into the battery", LOG_MESSAGE_TYPE_INFO);
+
+                batteryparams_charge_cycle_t chargeCycle;
+                chargeCycleCounter++;
+                chargeCycle.index = chargeCycleCounter;
+                chargeCycle.startKey = chargeMarkerStartKey;
+                chargeCycle.endKey = chargeMarkerLastKey;
+                chargeCycle.capacity = qAbs(chargeMarkerCharge);
+                chargeCyclesBuffer.append(chargeCycle);
+                if(batteryParamsWnd != NULL) batteryParamsWnd->onChargeCycleFinished(chargeCycle);
+            }
+        }
+    }
+
     logResult(ok,
               "Charger status successfully set: " + statusStr,
               "Unable to set Charger status");
+}
+
+void DeviceContainer::onDeviceWndChargeMarkersEnabled(bool enabled)
+{
+    chargeMarkersEnabled = enabled;
+    if(enabled)
+    {
+        chargeCyclesBuffer.clear();
+        chargeCycleCounter = 0;
+    }
+    else
+    {
+        chargeMarkerActive = false;
+        chargeMarkerStartPlaced = false;
+        chargeMarkerCharge = 0;
+    }
 }
 
 void DeviceContainer::onDeviceWndChDschSaveToFileChanged(bool saveToFile)
@@ -1104,9 +1200,30 @@ void DeviceContainer::onDeviceNewVoltageCurrentSamplesReceived(QVector<double> v
     deviceWnd->plotCurrentValues(current, currentKeys);
     batteryParamsExtraction->onNewSamplesReceived(voltage, current, voltageKeys, currentKeys);
 
+    if(!voltageKeys.isEmpty()) batParamLastSampleKey = voltageKeys.last();
+
+    if(uVoltageThreshold > 0 && !voltage.isEmpty())
+    {
+        double minVoltage = voltage[0];
+        for(int i = 1; i < voltage.size(); i++) if(voltage[i] < minVoltage) minVoltage = voltage[i];
+
+        if(minVoltage > uVoltageThreshold)
+        {
+            uvWatchHandled = false;
+        }
+        else if(!uVoltageActive && !uvWatchActive && !uvWatchHandled)
+        {
+            uvWatchActive = true;
+            uvWatchPhase = 0;
+            log->printLogMessage("Under voltage threshold reached in the measurement, waiting for the device to report under voltage...",
+                                 LOG_MESSAGE_TYPE_WARNING);
+            uvWatchTimer->start(DEVICECONTAINER_UV_WATCH_GRACE_MS);
+        }
+    }
+
     /*Averaged voltage belongs to a running battery parameters wave, outside of it
       there is nothing to relax and the trace would only clutter the plot*/
-    if(batParamRelaxRunning && (batParamRelaxFilter > 0))
+    if((batParamRelaxRunning || batParamUVFinal) && (batParamRelaxFilter > 0))
     {
         QVector<double> averaged;
 
@@ -1118,6 +1235,24 @@ void DeviceContainer::onDeviceNewVoltageCurrentSamplesReceived(QVector<double> v
     {
         batParamRelaxationSamplesProcess(voltage, voltageKeys);
     }
+    if(chargeMarkerActive)
+    {
+        for(int i = 0; i < current.size() && i < currentKeys.size(); i++)
+        {
+            if(!chargeMarkerStartPlaced)
+            {
+                chargeMarkerStartKey = currentKeys[i];
+                chargeMarkerLastKey = currentKeys[i];
+                chargeMarkerStartPlaced = true;
+                deviceWnd->plotConsumptionEBPWithName(0, chargeMarkerStartKey, "Charge Start");
+                if(writeSamplesToFileEnabled) fileProcessing->appendEPQueued("Charge Start", (int)chargeMarkerStartKey);
+                continue;
+            }
+            chargeMarkerCharge += current[i] * (currentKeys[i] - chargeMarkerLastKey) / 3600000.0;
+            chargeMarkerLastKey = currentKeys[i];
+        }
+    }
+
     if(writeSamplesToFileEnabled)
     {
         fileProcessing->appendSampleDataQueued(voltage, voltageKeys, current, currentKeys);
@@ -1190,6 +1325,10 @@ void DeviceContainer::onDeviceWndBatParamRelaxationChanged(bool enabled, double 
     settings.relaxationWindow = windowS;
     settings.relaxationFilter = filterMs;
 
+    /*The Load tab relaxation mode is the single source of truth: "Until dV/dt"
+      fits the RC model up to the relaxation point, "Fixed pause" up to the pause end*/
+    settings.fitEnd = enabled ? BATTERYPARAMS_FIT_END_RELAXATION : BATTERYPARAMS_FIT_END_PAUSE;
+
     batteryParamsExtraction->setSettings(settings);
 
     if(batteryParamsWnd != NULL) batteryParamsWnd->setSettings(settings);
@@ -1200,6 +1339,12 @@ void DeviceContainer::onDeviceWndBatParamRelaxationChanged(bool enabled, double 
                           " mV in " + QString::number(windowS) + " s, voltage averaged over " + QString::number(filterMs) +
                          " ms, runs until under voltage protection",
                          LOG_MESSAGE_TYPE_INFO);
+}
+
+void DeviceContainer::onDeviceWndBatParamExtractionRunning(bool running)
+{
+    batParamExtractionRunning = running;
+    if(batteryParamsWnd != NULL) batteryParamsWnd->setExtractionRunning(running);
 }
 
 void DeviceContainer::batParamAverageProcess(QVector<double> voltage, QVector<double> voltageKeys, QVector<double> *averaged)
@@ -1254,6 +1399,7 @@ void DeviceContainer::batParamRelaxationReset()
     batParamRelaxPauseActive = false;
     batParamRelaxRunning = false;
     batParamRelaxRestarting = false;
+    batParamUVFinal = false;
     batParamRelaxKeys.clear();
     batParamRelaxVoltage.clear();
 }
@@ -1287,7 +1433,7 @@ void DeviceContainer::batParamRelaxationSamplesProcess(QVector<double> voltage, 
 {
     int relaxPosition;
 
-    if(!batParamRelaxEnabled || !batParamRelaxRunning || !batParamRelaxPauseActive) return;
+    if(!batParamRelaxEnabled || !(batParamRelaxRunning || batParamUVFinal) || !batParamRelaxPauseActive) return;
     if(batParamRelaxThreshold <= 0 || batParamRelaxWindow <= 0) return;
 
     for(int i = 0; i < voltage.size() && i < voltageKeys.size(); i++)
@@ -1330,25 +1476,6 @@ void DeviceContainer::batParamRelaxationSamplesProcess(QVector<double> voltage, 
 void DeviceContainer::batParamRelaxationFinish(double key)
 {
     QString marker = BATTERYPARAMS_DEFAULT_PAUSE_END_MARKER;
-    double step = samplingPeriodMs;
-    double index;
-
-    /*Markers are addressed by the sample index while the collected keys are times,
-      so the step between two samples is needed to place the marker*/
-    if((step <= 0) && (batParamRelaxKeys.size() > 1))
-    {
-        step = batParamRelaxKeys[batParamRelaxKeys.size() - 1] - batParamRelaxKeys[batParamRelaxKeys.size() - 2];
-    }
-
-    if(step <= 0)
-    {
-        log->printLogMessage("Battery parameters: unknown sampling period, unable to place pause end marker", LOG_MESSAGE_TYPE_ERROR);
-        index = 0;
-    }
-    else
-    {
-        index = qRound(key / step);
-    }
 
     batParamRelaxPauseActive = false;
     batParamRelaxKeys.clear();
@@ -1358,9 +1485,19 @@ void DeviceContainer::batParamRelaxationFinish(double key)
     /*The device is stopped in the middle of the pause chunk, so it never sends the
       pause end marker. The marker is created here instead, at the moment the voltage
       settled, so that the extraction and the stored energy point file stay complete*/
-    deviceWnd->plotConsumptionEBPWithName(0, index, marker);
-    batteryParamsExtraction->onNewMarkerReceived(0, index, marker);
-    if(writeSamplesToFileEnabled) fileProcessing->appendEPQueued(marker, (int)index);
+    deviceWnd->plotConsumptionEBPWithName(0, key, marker);
+    batteryParamsExtraction->onNewMarkerReceived(0, key, marker);
+    if(writeSamplesToFileEnabled) fileProcessing->appendEPQueued(marker, (int)key);
+
+    if(batParamUVFinal)
+    {
+        batParamUVFinal = false;
+        batParamRelaxRunning = false;
+        deviceWnd->enableVoltageAveragePlot(false);
+        log->printLogMessage("Battery parameters: last cycle completed, battery relaxed after under voltage, monitoring stopped",
+                             LOG_MESSAGE_TYPE_INFO, LOG_MESSAGE_DEVICE_TYPE_DEVICE, LOG_MESSAGE_CATEGORY_ENERGY_POINT);
+        return;
+    }
 
     log->printLogMessage("Battery parameters: pass " + QString::number(batParamRelaxPassesDone + 1) + " relaxed, pause ended early",
                          LOG_MESSAGE_TYPE_INFO, LOG_MESSAGE_DEVICE_TYPE_DEVICE, LOG_MESSAGE_CATEGORY_ENERGY_POINT);
@@ -1583,6 +1720,40 @@ void DeviceContainer::onDeviceLoadCurrentObtained(int current)
 void DeviceContainer::onDeviceUVoltageObtained(bool state)
 {
     uVoltageActive = state;
+
+    if(state)
+    {
+        uvWatchActive = false;
+        uvWatchHandled = true;
+        uvWatchTimer->stop();
+    }
+
+    if(state && batParamRelaxEnabled && batParamRelaxRunning && !batParamUVFinal)
+    {
+        batParamUVFinal = true;
+
+        if(!batParamRelaxPauseActive)
+        {
+            double key = batParamLastSampleKey;
+
+            deviceWnd->plotConsumptionEBPWithName(0, key, BATTERYPARAMS_DEFAULT_PULSE_END_MARKER);
+            batteryParamsExtraction->onNewMarkerReceived(0, key, BATTERYPARAMS_DEFAULT_PULSE_END_MARKER);
+            if(writeSamplesToFileEnabled) fileProcessing->appendEPQueued(BATTERYPARAMS_DEFAULT_PULSE_END_MARKER, (int)key);
+
+            deviceWnd->plotConsumptionEBPWithName(0, key, BATTERYPARAMS_DEFAULT_PAUSE_START_MARKER);
+            batteryParamsExtraction->onNewMarkerReceived(0, key, BATTERYPARAMS_DEFAULT_PAUSE_START_MARKER);
+            if(writeSamplesToFileEnabled) fileProcessing->appendEPQueued(BATTERYPARAMS_DEFAULT_PAUSE_START_MARKER, (int)key);
+
+            batParamRelaxPauseActive = true;
+            batParamRelaxKeys.clear();
+            batParamRelaxVoltage.clear();
+            batParamRelaxCheckKey = 0;
+        }
+
+        log->printLogMessage("Battery parameters: last cycle, discharge stopped by under voltage, waiting for the battery to relax",
+                             LOG_MESSAGE_TYPE_INFO, LOG_MESSAGE_DEVICE_TYPE_DEVICE, LOG_MESSAGE_CATEGORY_ENERGY_POINT);
+    }
+
     if(state) deviceWnd->autoCalibrationLog("Under voltage protection tripped");
     bool ok = deviceWnd->setUVoltageIndication(state);
 
@@ -1654,8 +1825,58 @@ void DeviceContainer::onDeviceOCurrentObtained(bool state)
               "Unable to obtain Over Current protection state");
 }
 
+void DeviceContainer::onUvWatchTimeout()
+{
+    if(!uvWatchActive) return;
+
+    if(uVoltageActive)
+    {
+        uvWatchActive = false;
+        uvWatchHandled = true;
+        return;
+    }
+
+    if(uvWatchPhase == 0)
+    {
+        uvWatchPhase = 1;
+        uvWatchPollsLeft = DEVICECONTAINER_UV_WATCH_POLLS;
+        log->printLogMessage("Under voltage not reported in time, polling the device for the under voltage state...",
+                             LOG_MESSAGE_TYPE_WARNING);
+    }
+
+    /*Synchronous poll: getUVoltageStatus emits sigUVoltageObtained, which runs the
+      normal under voltage handling if the device reports it*/
+    device->getUVoltageStatus();
+
+    if(uVoltageActive)
+    {
+        uvWatchActive = false;
+        uvWatchHandled = true;
+        log->printLogMessage("Under voltage detected by polling and handled as a normal under voltage event",
+                             LOG_MESSAGE_TYPE_INFO);
+        return;
+    }
+
+    uvWatchPollsLeft--;
+
+    if(uvWatchPollsLeft <= 0)
+    {
+        uvWatchActive = false;
+        uvWatchHandled = true;
+        log->printLogMessage("Under voltage reached in the measurement but the device did not report it after several checks!",
+                             LOG_MESSAGE_TYPE_ERROR);
+        QMessageBox::warning(NULL, "Under voltage",
+                             "The measured voltage reached the under voltage threshold, but the device did not report under voltage after several checks.\n\nUnder voltage may have been reached but was not detected.");
+        return;
+    }
+
+    uvWatchTimer->start(DEVICECONTAINER_UV_WATCH_POLL_MS);
+}
+
 void DeviceContainer::onDeviceUVoltageValueObtained(float value)
 {
+    uVoltageThreshold = value;
+
     bool ok = deviceWnd->setUVoltageValue(value);
 
     logResult(ok,
@@ -1777,6 +1998,13 @@ void DeviceContainer::onDeviceWndBatParamCapacityChanged(double capacity)
 
 void DeviceContainer::onDeviceWndBatParamViewRequested()
 {
+    if(!batParamExtractionRunning)
+    {
+        QMessageBox::warning(NULL, "Battery parameters",
+                             "Unsupported mode.\n\nThe battery parameters view is available while the battery parameter extraction runs:\nLoad in \"Bat Param Extraction\" mode, or Charge/Discharge discharging in that mode.");
+        return;
+    }
+
     if(batteryParamsWnd == NULL)
     {
         batteryParamsWnd = new BatteryParamsWnd();
@@ -1791,6 +2019,8 @@ void DeviceContainer::onDeviceWndBatParamViewRequested()
         connect(batteryParamsWnd, &BatteryParamsWnd::sigSettingsChanged,
                 this, &DeviceContainer::onBatParamSettingsChanged);
 
+        batteryParamsWnd->setExtractionRunning(batParamExtractionRunning);
+
         /*Window is usually opened while the procedure already runs, so the cycles
           extracted before it existed are handed over*/
         QVector<batteryparams_cycle_t> collected = batteryParamsExtraction->getCycles();
@@ -1799,6 +2029,8 @@ void DeviceContainer::onDeviceWndBatParamViewRequested()
         {
             batteryParamsWnd->onCycleFinished(collected[i]);
         }
+
+        batteryParamsWnd->addChargeCycles(chargeCyclesBuffer);
     }
 
     batteryParamsWnd->show();
@@ -1812,7 +2044,7 @@ void DeviceContainer::onDeviceWndLoadWaveSetStatus(bool status)
 
     bool ok = device->setLoadWaveState(status);
 
-    if(ok)
+    if(ok && (status || !batParamUVFinal))
     {
         batParamRelaxationReset();
         batParamRelaxRunning = (status && batParamRelaxEnabled);
@@ -1826,6 +2058,7 @@ void DeviceContainer::onDeviceWndLoadWaveSetStatus(bool status)
         {
             batteryParamsWnd->setProfileName(consumptionProfileName);
             batteryParamsWnd->onClear();
+            batteryParamsWnd->addChargeCycles(chargeCyclesBuffer);
         }
     }
 
@@ -1842,6 +2075,7 @@ void DeviceContainer::onDeviceLoadWaveStopped()
     bool ok;
 
     if(batParamRelaxRestarting) return;
+    if(batParamUVFinal) return;
 
     if(batParamRelaxEnabled && batParamRelaxRunning)
     {
