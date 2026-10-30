@@ -160,6 +160,7 @@ signals:
     void sigLoadWaveClear();
     void sigBatParamExtractionRunning(bool running);
     void sigBatParamViewRequested();
+    void sigBatParamProcedureActive(bool active);
     void sigBatParamCapacityChanged(double capacity);
     void sigBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, double filterMs);
     void sigChargeMarkersEnabled(bool enabled);

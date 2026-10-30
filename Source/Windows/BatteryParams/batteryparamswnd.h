@@ -12,6 +12,7 @@
 #include <QVector>
 #include <QSet>
 #include <QPair>
+#include <QAtomicInt>
 
 #include "Processing/batteryparamsextraction.h"
 #include "batterycyclewnd.h"
@@ -32,6 +33,9 @@ public:
     void                setProfileName(QString name);
     void                setSettings(batteryparams_settings_t settings);
     void                setExtractionRunning(bool running);
+    void                setLiveStatus(double amplitude, double pauseMs, bool dvdt,
+                                      double socHigh, double socLow, double soc, QString nextText);
+    void                clearLiveStatus();
     void                addCycles(QVector<batteryparams_cycle_t> newCycles, QProgressDialog *progressDialog);
     void                addChargeCycles(QVector<batteryparams_charge_cycle_t> newCharges);
 
@@ -71,6 +75,7 @@ private slots:
 
 private:
     QLabel             *statusLabel;
+    QLabel             *liveStatusLabel;
     QPushButton        *settingsButton;
     QPushButton        *resistanceTrendButton;
     QPushButton        *capacitanceTrendButton;
@@ -112,6 +117,7 @@ private:
     QSet<int>           deletedCycleRows;
     QVector<double>     removedMarkerKeys;
     bool                fitInProgress;
+    QAtomicInt          analyzeCancel;
     QVector<batteryparams_cycle_t> pendingCycles;
     BatteryCycleWnd    *cycleWnd;
     QVector<int>        fittedPositions;

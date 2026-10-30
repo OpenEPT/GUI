@@ -204,6 +204,7 @@ signals:
     void            sigLoadWaveChanged(Waveform wave);
     void            sigLoadWaveStatusChanged(bool newState);
     void            sigBatParamViewRequested();
+    void            sigBatParamProcedureActive(bool active);
     void            sigBatParamCapacityChanged(double capacity);
     void            sigBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, double filterMs);
     void            sigBatParamExtractionRunning(bool running);

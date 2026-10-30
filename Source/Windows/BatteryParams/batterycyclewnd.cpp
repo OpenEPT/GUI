@@ -292,7 +292,7 @@ void BatteryCycleWnd::updateInfo()
                        "   |   R0 " + (cycle.resistanceValid ? QString::number(cycle.resistance * 1000.0, 'f', 2) + " mOhm" : "-") +
                        (moved ? "   |   markers moved, not saved" : ""));
 
-    if(!cycle.relaxationReached)
+    if(!cycle.relaxationReached && !cycle.modelValid)
     {
         modelLabel->setText("Relaxation not reached, RC model not calculated");
         modelLabel->setStyleSheet("color: rgb(170, 130, 0);");
@@ -306,8 +306,12 @@ void BatteryCycleWnd::updateInfo()
         return;
     }
 
+    QString modelPrefix = cycle.relaxationReached
+        ? ("Relaxed at " + QString::number(cycle.relaxationKey / timeScale(), 'f', 1) + " " + timeSuffix())
+        : "Fitted to pause end (relaxation not reached)";
+
     modelLabel->setStyleSheet("color: rgb(0, 120, 0);");
-    modelLabel->setText("Relaxed at " + QString::number(cycle.relaxationKey / timeScale(), 'f', 1) + " " + timeSuffix() + "   |   " +
+    modelLabel->setText(modelPrefix + "   |   " +
                         QString(cycle.model == BATTERYPARAMS_MODEL_SECOND_ORDER ? "2nd order" : "1st order") +
                         "   |   R1 " + QString::number(cycle.r1 * 1000.0, 'f', 2) + " mOhm" +
                         "   C1 " + QString::number(cycle.c1, 'f', 1) + " F" +
@@ -399,7 +403,7 @@ void BatteryCycleWnd::updatePlots()
 
         /*Shade the portion of the relaxation each time constant was peeled from:
           the early part feeds the fast branch, the later part the slow branch*/
-        if(cycle.relaxationReached && (cycle.fastPortionEndKey > cycle.pauseStartKey))
+        if((cycle.relaxationReached || cycle.modelValid) && (cycle.fastPortionEndKey > cycle.pauseStartKey))
         {
             double fastStart = cycle.pauseStartKey / timeScale();
             double fastEnd = cycle.fastPortionEndKey / timeScale();

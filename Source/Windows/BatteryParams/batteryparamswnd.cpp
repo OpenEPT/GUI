@@ -5,6 +5,7 @@
 #include <QCoreApplication>
 #include <QThread>
 #include <QtConcurrent/QtConcurrent>
+#include <QAtomicInt>
 #include <QFileDialog>
 #include <QProgressDialog>
 #include <QDialog>
@@ -46,6 +47,12 @@ BatteryParamsWnd::BatteryParamsWnd(QWidget *parent) :
     topLayout->addWidget(statusLabel);
     topLayout->addStretch();
     mainLayout->addLayout(topLayout);
+
+    liveStatusLabel = new QLabel(this);
+    liveStatusLabel->setStyleSheet("QLabel { background-color: #eef3fb; border: 1px solid #b7c7e0; border-radius: 4px; padding: 6px; }");
+    liveStatusLabel->setTextFormat(Qt::RichText);
+    liveStatusLabel->hide();
+    mainLayout->addWidget(liveStatusLabel);
 
     QHBoxLayout *settingsLayout = new QHBoxLayout();
 
@@ -272,7 +279,7 @@ void BatteryParamsWnd::fillCycleRow(int row, batteryparams_cycle_t cycle)
     cyclesTable->setItem(row, 4, createItem(QString::number(cycle.chargeTotal, 'f', 3)));
     cyclesTable->setItem(row, 5, createItem(cycle.socValid ? QString::number(cycle.socUsed, 'f', 2) : "-"));
     cyclesTable->setItem(row, 6, createItem(cycle.socValid ? QString::number(cycle.soc, 'f', 2) : "-"));
-    cyclesTable->setItem(row, 7, createItem(cycle.relaxationReached ? QString::number(cycle.ocv, 'f', 4) : "-"));
+    cyclesTable->setItem(row, 7, createItem((cycle.relaxationReached || cycle.modelValid) ? QString::number(cycle.ocv, 'f', 4) : "-"));
     cyclesTable->setItem(row, 8, createItem(QString::number(cycle.pulseEndVoltage, 'f', 4)));
     cyclesTable->setItem(row, 9, createItem(QString::number(cycle.pauseStartVoltage, 'f', 4)));
     cyclesTable->setItem(row, 10, createItem(QString::number(cycle.deltaVoltage * 1000.0, 'f', 2)));
@@ -294,7 +301,7 @@ void BatteryParamsWnd::fillCycleRow(int row, batteryparams_cycle_t cycle)
       could be fitted, yellow one where it did not, light red an incomplete cycle*/
     QColor rowColor;
     if(cycle.incomplete) rowColor = QColor(255, 210, 210);
-    else rowColor = cycle.relaxationReached ? QColor(226, 212, 240) : QColor(255, 245, 190);
+    else rowColor = (cycle.relaxationReached || cycle.modelValid) ? QColor(226, 212, 240) : QColor(255, 245, 190);
 
     for(int column = 0; column < BATTERYPARAMS_COLUMN_NO; column++)
     {
@@ -511,10 +518,13 @@ void BatteryParamsWnd::onFitCyclePoints()
 
     QVector<batteryparams_cycle_t> working = cycles;
     QVector<int> changed;
-    QProgressDialog progressDialog("Fitting cycle points...", QString(), 0, cycles.size(), this);
+    QProgressDialog progressDialog("Fitting cycle points...", "Cancel", 0, cycles.size(), this);
     batteryparams_settings_t usedSettings = settings;
     int cycleNo = cycles.size();
     int fittedNo = 0;
+
+    analyzeCancel.storeRelease(0);
+    QAtomicInt *cancelPtr = &analyzeCancel;
 
     /*Each cycle carries its own sample vectors, which are implicitly shared with the
       ones in "cycles". The parallel tasks write into them, so the shared data is
@@ -550,6 +560,8 @@ void BatteryParamsWnd::onFitCyclePoints()
             progressDialog.setValue(i);
             QApplication::processEvents();
 
+            if(progressDialog.wasCanceled()) { analyzeCancel.storeRelease(1); endFit(); return; }
+
             if(!BatteryParamsExtraction::cyclePointsFit(&working[i])) continue;
 
             working[i].incomplete = false;
@@ -571,8 +583,9 @@ void BatteryParamsWnd::onFitCyclePoints()
 
         /*Every cycle is fitted and analysed on its own entry of the working copy, so
           the tasks never touch the same data*/
-        QFuture<void> future = QtConcurrent::map(positions, [workingData, changedData, usedSettings](int position)
+        QFuture<void> future = QtConcurrent::map(positions, [workingData, changedData, usedSettings, cancelPtr](int position)
         {
+            if(cancelPtr->loadAcquire()) return;
             if(!BatteryParamsExtraction::cyclePointsFit(&workingData[position])) return;
 
             workingData[position].incomplete = false;
@@ -591,6 +604,15 @@ void BatteryParamsWnd::onFitCyclePoints()
             progressDialog.setValue(watcher.progressValue());
             QApplication::processEvents();
             QThread::msleep(20);
+
+            if(progressDialog.wasCanceled())
+            {
+                analyzeCancel.storeRelease(1);
+                future.cancel();
+                future.waitForFinished();
+                endFit();
+                return;
+            }
         }
     }
 
@@ -728,6 +750,13 @@ void BatteryParamsWnd::onFindNewStartPoint()
     /*Each cycle carries its own sample vectors, implicitly shared with the ones in
       "cycles". The tasks read them, so a fully detached copy is made here before the
       sweep starts so the workers never share a Qt container with the live cycles*/
+    QProgressDialog progressDialog("Preparing...", "Cancel", 0, cycleNo * pointNo, this);
+    progressDialog.setWindowModality(Qt::WindowModal);
+    progressDialog.setWindowTitle("Find new start point");
+    progressDialog.setMinimumDuration(0);
+    progressDialog.setValue(0);
+    QApplication::processEvents();
+
     QVector<batteryparams_cycle_t> work = cycles;
     for(int i = 0; i < work.size(); i++)
     {
@@ -738,17 +767,18 @@ void BatteryParamsWnd::onFindNewStartPoint()
         work[i].fitVoltage = QVector<double>(work[i].fitVoltage.constBegin(), work[i].fitVoltage.constEnd());
         work[i].relaxKeys = QVector<double>(work[i].relaxKeys.constBegin(), work[i].relaxKeys.constEnd());
         work[i].relaxVoltage = QVector<double>(work[i].relaxVoltage.constBegin(), work[i].relaxVoltage.constEnd());
+
+        if(progressDialog.wasCanceled()) { endFit(); return; }
     }
 
     bool parallel = parallelGet(cycleNo);
 
-    QProgressDialog progressDialog("Sweeping pause start...", "Cancel", 0, cycleNo, this);
-    progressDialog.setWindowModality(Qt::WindowModal);
-    progressDialog.setWindowTitle("Find new start point");
-    progressDialog.setMinimumDuration(0);
-    progressDialog.setValue(0);
-
     fitInProgress = true;
+
+    QAtomicInt progressCounter(0);
+    QAtomicInt cancelFlag(0);
+    QAtomicInt *progressPtr = &progressCounter;
+    QAtomicInt *cancelPtr = &cancelFlag;
 
     batteryparams_cycle_t *workData = work.data();
     QVector<double> *shiftData = shiftSeries.data();
@@ -767,6 +797,9 @@ void BatteryParamsWnd::onFindNewStartPoint()
 
         for(int p = 0; p < pointNo; p++)
         {
+            if(cancelPtr->loadAcquire()) return;
+            progressPtr->fetchAndAddOrdered(1);
+
             double targetKey = original.pauseStartKey + windowMs * (double)p / (double)(pointNo - 1);
             batteryparams_cycle_t working = original;
 
@@ -797,12 +830,11 @@ void BatteryParamsWnd::onFindNewStartPoint()
         for(int i = 0; i < cycleNo; i++)
         {
             progressDialog.setLabelText(QString("Sweeping cycle %1 of %2...").arg(i + 1).arg(cycleNo));
-            progressDialog.setValue(i);
+            sweepCycle(i);
+            progressDialog.setValue(progressCounter.loadAcquire());
             QApplication::processEvents();
 
-            if(progressDialog.wasCanceled()) { endFit(); return; }
-
-            sweepCycle(i);
+            if(progressDialog.wasCanceled()) { cancelFlag.storeRelease(1); endFit(); return; }
         }
     }
     else
@@ -816,14 +848,15 @@ void BatteryParamsWnd::onFindNewStartPoint()
 
         while(!watcher.isFinished())
         {
-            progressDialog.setLabelText(QString("Sweeping %1 cycles on %2 cores, %3 done...")
-                                        .arg(cycleNo).arg(QThread::idealThreadCount()).arg(watcher.progressValue()));
-            progressDialog.setValue(watcher.progressValue());
+            progressDialog.setLabelText(QString("Sweeping %1 cycles on %2 cores...")
+                                        .arg(cycleNo).arg(QThread::idealThreadCount()));
+            progressDialog.setValue(progressCounter.loadAcquire());
             QApplication::processEvents();
             QThread::msleep(20);
 
             if(progressDialog.wasCanceled())
             {
+                cancelFlag.storeRelease(1);
                 future.cancel();
                 future.waitForFinished();
                 endFit();
@@ -832,7 +865,7 @@ void BatteryParamsWnd::onFindNewStartPoint()
         }
     }
 
-    progressDialog.setValue(cycleNo);
+    progressDialog.setValue(cycleNo * pointNo);
 
     endFit();
 
@@ -946,7 +979,7 @@ void BatteryParamsWnd::onFindNewStartPoint()
     int toApply = 0;
     for(int i = 0; i < cycleNo; i++) if(found[i]) toApply++;
 
-    QProgressDialog applyProgress("Applying the new pause start and recalculating...", QString(), 0, toApply, this);
+    QProgressDialog applyProgress("Applying the new pause start and recalculating...", "Cancel", 0, toApply, this);
     applyProgress.setWindowModality(Qt::WindowModal);
     applyProgress.setWindowTitle("Find new start point");
     applyProgress.setMinimumDuration(0);
@@ -958,6 +991,8 @@ void BatteryParamsWnd::onFindNewStartPoint()
 
         applyProgress.setValue(processedNo++);
         QApplication::processEvents();
+
+        if(applyProgress.wasCanceled()) break;
 
         double key = (choice == 1) ? bestRmseKey[i] : bestVmaxKey[i];
         batteryparams_cycle_t working = cycles[i];
@@ -1233,6 +1268,31 @@ void BatteryParamsWnd::setExtractionRunning(bool running)
     extractionRunning = running;
     if(settingsDlg != NULL) settingsDlg->setExtractionRunning(running);
     updateFitPointsButtons();
+
+    if(!running) clearLiveStatus();
+}
+
+void BatteryParamsWnd::setLiveStatus(double amplitude, double pauseMs, bool dvdt,
+                                     double socHigh, double socLow, double soc, QString nextText)
+{
+    QString text;
+
+    text  = "<b>Active pass</b> &nbsp; ";
+    text += "SoC " + QString::number(soc, 'f', 1) + " % (region " +
+            QString::number(socHigh, 'f', 0) + "-" + QString::number(socLow, 'f', 0) + " %)";
+    text += " &nbsp;|&nbsp; amplitude " + QString::number(amplitude, 'f', 0) + " mA";
+    text += " &nbsp;|&nbsp; pause " + QString::number(pauseMs / 1000.0, 'f', 1) + " s";
+    text += " &nbsp;|&nbsp; pause ends on " + QString(dvdt ? "dV/dt (relaxation)" : "fixed duration");
+    text += "<br><b>Next</b> &nbsp; " + nextText;
+
+    liveStatusLabel->setText(text);
+    liveStatusLabel->show();
+}
+
+void BatteryParamsWnd::clearLiveStatus()
+{
+    liveStatusLabel->clear();
+    liveStatusLabel->hide();
 }
 
 void BatteryParamsWnd::updateSettingsLabel()
@@ -1307,6 +1367,9 @@ void BatteryParamsWnd::analyzeCycles(QVector<batteryparams_cycle_t> *target, QPr
 {
     int cycleNo = target->size();
 
+    analyzeCancel.storeRelease(0);
+    QAtomicInt *cancelPtr = &analyzeCancel;
+
     if(!parallel)
     {
         for(int i = 0; i < cycleNo; i++)
@@ -1317,6 +1380,8 @@ void BatteryParamsWnd::analyzeCycles(QVector<batteryparams_cycle_t> *target, QPr
                                              .arg(cycleNo).arg(i + 1));
                 progressDialog->setValue(i);
                 QApplication::processEvents();
+
+                if(progressDialog->wasCanceled()) { analyzeCancel.storeRelease(1); return; }
             }
 
             if((*target)[i].incomplete) continue;
@@ -1328,8 +1393,9 @@ void BatteryParamsWnd::analyzeCycles(QVector<batteryparams_cycle_t> *target, QPr
     }
 
     QFutureWatcher<void> watcher;
-    QFuture<void> future = QtConcurrent::map(*target, [usedSettings](batteryparams_cycle_t &cycle)
+    QFuture<void> future = QtConcurrent::map(*target, [usedSettings, cancelPtr](batteryparams_cycle_t &cycle)
     {
+        if(cancelPtr->loadAcquire()) return;
         if(cycle.incomplete) return;
         BatteryParamsExtraction::analyzeCycle(&cycle, usedSettings);
     });
@@ -1345,6 +1411,14 @@ void BatteryParamsWnd::analyzeCycles(QVector<batteryparams_cycle_t> *target, QPr
                                          .arg(QThread::idealThreadCount())
                                          .arg(watcher.progressValue()));
             progressDialog->setValue(watcher.progressValue());
+
+            if(progressDialog->wasCanceled())
+            {
+                analyzeCancel.storeRelease(1);
+                future.cancel();
+                future.waitForFinished();
+                return;
+            }
         }
         QApplication::processEvents();
         QThread::msleep(20);
@@ -1362,7 +1436,7 @@ void BatteryParamsWnd::recalculate()
     if(cycles.isEmpty()) return;
 
     QProgressDialog progressDialog(QString("%1 cycles detected\nRecalculating battery parameters...").arg(cycles.size()),
-                                   QString(), 0, cycles.size(), this);
+                                   "Cancel", 0, cycles.size(), this);
 
     progressDialog.setWindowModality(Qt::WindowModal);
     progressDialog.setMinimumDuration(0);
@@ -1587,7 +1661,7 @@ void BatteryParamsWnd::onFitQuality()
     parallel = parallelGet(firstOrder.size() * 2);
 
     QProgressDialog progressDialog(QString("%1 cycles detected\nFitting the first order model...").arg(firstOrder.size()),
-                                   QString(), 0, firstOrder.size(), this);
+                                   "Cancel", 0, firstOrder.size(), this);
 
     progressDialog.setWindowModality(Qt::WindowModal);
     progressDialog.setMinimumDuration(0);
@@ -1602,12 +1676,14 @@ void BatteryParamsWnd::onFitQuality()
     /*Both models are fitted over the same cycles, so their errors can be put
       side by side*/
     analyzeCycles(&firstOrder, &progressDialog, parallel, firstSettings);
+    if(analyzeCancel.loadAcquire()) { progressDialog.close(); return; }
 
     progressDialog.setLabelText(QString("%1 cycles detected\nFitting the second order model...").arg(secondOrder.size()));
     progressDialog.setValue(0);
     QApplication::processEvents();
 
     analyzeCycles(&secondOrder, &progressDialog, parallel, secondSettings);
+    if(analyzeCancel.loadAcquire()) { progressDialog.close(); return; }
 
     progressDialog.close();
 
@@ -1702,7 +1778,7 @@ void BatteryParamsWnd::onFitInterval()
     parallel = parallelGet(relaxationFit.size() * 2);
 
     QProgressDialog progressDialog(QString("%1 cycles detected\nFitting up to the relaxation point...").arg(relaxationFit.size()),
-                                   QString(), 0, relaxationFit.size(), this);
+                                   "Cancel", 0, relaxationFit.size(), this);
 
     progressDialog.setWindowModality(Qt::WindowModal);
     progressDialog.setMinimumDuration(0);
@@ -1715,12 +1791,14 @@ void BatteryParamsWnd::onFitInterval()
     QApplication::processEvents();
 
     analyzeCycles(&relaxationFit, &progressDialog, parallel, relaxationSettings);
+    if(analyzeCancel.loadAcquire()) { progressDialog.close(); return; }
 
     progressDialog.setLabelText(QString("%1 cycles detected\nFitting up to the end of the pause...").arg(pauseFit.size()));
     progressDialog.setValue(0);
     QApplication::processEvents();
 
     analyzeCycles(&pauseFit, &progressDialog, parallel, pauseSettings);
+    if(analyzeCancel.loadAcquire()) { progressDialog.close(); return; }
 
     progressDialog.close();
 
@@ -1808,7 +1886,7 @@ void BatteryParamsWnd::onSweepRequested(batteryfitinterval_sweep_t mode, double 
     parallel = parallelGet(source.size() * steps);
 
     QProgressDialog progressDialog(QString("Sweeping the relaxation criterion over %1 points...").arg(steps),
-                                   QString(), 0, steps + (compare ? 1 : 0), this);
+                                   "Cancel", 0, steps + (compare ? 1 : 0), this);
 
     progressDialog.setWindowModality(Qt::WindowModal);
     progressDialog.setMinimumDuration(0);
@@ -1822,6 +1900,8 @@ void BatteryParamsWnd::onSweepRequested(batteryfitinterval_sweep_t mode, double 
 
     for(int step = 0; step < steps; step++)
     {
+        if(progressDialog.wasCanceled()) { progressDialog.close(); return; }
+
         QVector<batteryparams_cycle_t> target = source;
         batteryparams_settings_t stepSettings = settings;
         double value = from + (to - from) * (double)step / (steps - 1);

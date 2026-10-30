@@ -294,28 +294,57 @@ bool BatteryParamsExtraction::analyzeCycle(batteryparams_cycle_t *cycle, battery
     relaxPosition = prvBATTERYPARAMS_RelaxationPositionGet(searchKeys, smoothedVoltage,
                                                            searchStart, searchEnd, threshold, window);
 
-    if(relaxPosition < 0) return false;
-
-    cycle->relaxationReached = true;
-    cycle->relaxationKey = searchKeys[relaxPosition];
-    cycle->relaxationVoltage = searchVoltage[relaxPosition];
-
-    /*Fit works on the plotted waveform, so the relaxation point is taken back to it*/
-    relaxPosition = pauseEnd;
-
-    for(int i = pauseStart; i <= pauseEnd; i++)
+    if(relaxPosition >= 0)
     {
-        if(cycle->plotKeys[i] >= cycle->relaxationKey)
+        cycle->relaxationReached = true;
+        cycle->relaxationKey = searchKeys[relaxPosition];
+        cycle->relaxationVoltage = searchVoltage[relaxPosition];
+
+        /*Fit works on the plotted waveform, so the relaxation point is taken back to it*/
+        relaxPosition = pauseEnd;
+
+        for(int i = pauseStart; i <= pauseEnd; i++)
         {
-            relaxPosition = i;
-            break;
+            if(cycle->plotKeys[i] >= cycle->relaxationKey)
+            {
+                relaxPosition = i;
+                break;
+            }
         }
+    }
+    else
+    {
+        /*Fitting up to the relaxation point needs it, but fitting over the whole
+          pause does not, so the model is still computed when the pause end is used*/
+        if(settings.fitEnd == BATTERYPARAMS_FIT_END_RELAXATION) return false;
+        relaxPosition = pauseEnd;
     }
 
     /*Open circuit voltage is taken at the end of the fit interval: the relaxation
-      point when the fit stops there, otherwise the end of the pause. This keeps the
-      parameters independent of the relaxation point when the whole pause is used*/
-    cycle->ocv = (settings.fitEnd == BATTERYPARAMS_FIT_END_RELAXATION) ? cycle->relaxationVoltage : cycle->plotVoltage[pauseEnd];
+      point when the fit stops there, otherwise the settled part of the pause. The
+      settled value is averaged over the last part of the pause instead of the single
+      last sample, so a noisy sample or the onset of the next pulse right after the
+      pause end does not pull it off. This keeps the parameters independent of the
+      relaxation point when the whole pause is used*/
+    if(settings.fitEnd == BATTERYPARAMS_FIT_END_RELAXATION)
+    {
+        cycle->ocv = cycle->relaxationVoltage;
+    }
+    else
+    {
+        int ocvStart = pauseStart + (int)((pauseEnd - pauseStart) * 0.8);
+        if(ocvStart < pauseStart) ocvStart = pauseStart;
+        if(ocvStart > pauseEnd) ocvStart = pauseEnd;
+
+        double ocvSum = 0;
+        int ocvNo = 0;
+        for(int i = ocvStart; i <= pauseEnd; i++)
+        {
+            ocvSum += cycle->plotVoltage[i];
+            ocvNo++;
+        }
+        cycle->ocv = (ocvNo > 0) ? (ocvSum / ocvNo) : cycle->plotVoltage[pauseEnd];
+    }
 
     /*Overpotential left on the RC branches when the pulse ends, decaying to zero
       as the cell relaxes towards its open circuit voltage*/

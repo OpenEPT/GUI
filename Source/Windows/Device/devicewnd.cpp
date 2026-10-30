@@ -60,6 +60,7 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveChanged, this, &DeviceWnd::onLoadWaveChanged);
     connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveStatusChanged, this, &DeviceWnd::onLoadWaveStatusChanged);
     connect(energyControlWnd, &EnergyControlWnd::sigBatParamViewRequested, this, &DeviceWnd::sigBatParamViewRequested);
+    connect(energyControlWnd, &EnergyControlWnd::sigBatParamProcedureActive, this, &DeviceWnd::sigBatParamProcedureActive);
     connect(energyControlWnd, &EnergyControlWnd::sigBatParamCapacityChanged, this, &DeviceWnd::sigBatParamCapacityChanged);
     connect(energyControlWnd, &EnergyControlWnd::sigBatParamRelaxationChanged, this, &DeviceWnd::sigBatParamRelaxationChanged);
     connect(energyControlWnd, &EnergyControlWnd::sigBatParamExtractionRunning, this, &DeviceWnd::sigBatParamExtractionRunning);

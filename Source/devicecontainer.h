@@ -61,6 +61,7 @@ public slots:
     void    onDeviceWndLoadWaveSet(Waveform wave);
     void    onDeviceWndLoadWaveSetStatus(bool status);
     void    onDeviceWndBatParamViewRequested();
+    void    onDeviceWndBatParamProcedureActive(bool active);
     void    onDeviceWndBatParamCapacityChanged(double capacity);
     void    onDeviceWndBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, double filterMs);
     void    onDeviceWndBatParamExtractionRunning(bool running);
@@ -181,6 +182,7 @@ private:
     bool                            batParamRelaxRunning;
     bool                            batParamRelaxRestarting;
     bool                            batParamExtractionRunning;
+    bool                            batParamProcedureActive;
 
     bool                            batParamUVFinal;
     double                          batParamLastSampleKey;
@@ -206,6 +208,23 @@ private:
     double                          batParamRelaxCheckKey;
     QVector<double>                 batParamRelaxKeys;
     QVector<double>                 batParamRelaxVoltage;
+
+    Waveform                        batParamBaseWave;
+    QList<waveform_batregion_t>     batParamRegions;
+    double                          batParamGuardMs;
+    double                          batParamSocStart;
+    double                          batParamDischargedmAh;
+    double                          batParamTrackLastKey;
+    int                             batParamCurrentRegion;
+    int                             batParamPendingRegion;
+
+    int                             batParamRegionForSoc(double soc);
+    Waveform                        batParamBuildRegionWave(int index);
+    void                            batParamRegionTrackInit(Waveform wave);
+    void                            batParamRegionTrackProcess(QVector<double> current, QVector<double> currentKeys);
+    void                            batParamApplyRegionRelax(int index);
+    void                            batParamUpdateLiveStatus();
+
     bool                            createSubDir(const QString &subDirName, QString &fullPath);
 
     void                            logResult(bool status, const QString& successMsg, const QString& errorMsg);

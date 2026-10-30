@@ -1826,6 +1826,7 @@ bool EnergyControlWnd::chdischStartStatusSet(bool status, ChDschState state)
         {
             batParamViewButton->setVisible(false);
             batParamViewButton->setEnabled(true);
+            emit sigBatParamProcedureActive(true);
         }
 
         chdischCycleSteps[chdischCurrentStepIndex].status = StepOngoing;
@@ -1875,6 +1876,7 @@ bool EnergyControlWnd::chdischStartStatusSet(bool status, ChDschState state)
 
         batParamViewButton->setEnabled(false);
         batParamViewButton->setVisible(false);
+        emit sigBatParamProcedureActive(false);
 
         if(chdischCurrentStepIndex < 4)
         {
@@ -2532,31 +2534,23 @@ QVector<batparams_region_t> EnergyControlWnd::batParamRegionsGet()
 
 void EnergyControlWnd::onBatParamAddRegion()
 {
-    batparams_region_t region;
     int rows = batParamTable->rowCount();
 
-    region.socHigh = (rows > 0 && batParamTable->item(rows - 1, 1)) ? batParamTable->item(rows - 1, 1)->text().toDouble() : 100;
-    region.socLow = 0;
+    if(rows == 0)
+    {
+        batParamRegionsInit();
+        return;
+    }
 
-    if(rows > 0)
-    {
-        batparams_region_t last = batParamRegionsGet().last();
-        region.accuracy = last.accuracy;
-        region.amplitude = last.amplitude;
-        region.pause = last.pause;
-        region.relaxThreshold = last.relaxThreshold;
-        region.relaxWindow = last.relaxWindow;
-        region.relaxFilter = last.relaxFilter;
-    }
-    else
-    {
-        region.accuracy = 1;
-        region.amplitude = 1000;
-        region.pause = 1000;
-        region.relaxThreshold = 5;
-        region.relaxWindow = 60;
-        region.relaxFilter = 1000;
-    }
+    /*A new region continues the chain below the last one, so its upper boundary is the
+      lower boundary of the last region and it reaches down to 0 %. The existing regions
+      are left untouched, the user then edits the new lower boundary*/
+    QVector<batparams_region_t> regions = batParamRegionsGet();
+    batparams_region_t last = regions.last();
+
+    batparams_region_t region = last;
+    region.socHigh = last.socLow;
+    region.socLow = 0;
 
     batParamAddRegionRow(region);
 }
