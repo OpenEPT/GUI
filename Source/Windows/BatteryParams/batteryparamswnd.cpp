@@ -23,9 +23,16 @@
 #include <QScrollArea>
 #include <QMenu>
 #include <QAction>
+#include <QToolBar>
+#include <QToolButton>
+#include <QSplitter>
+#include <QIcon>
+#include <QSize>
+#include <QMainWindow>
+#include <QDockWidget>
 #include <algorithm>
 
-#define BATTERYPARAMS_COLUMN_NO             22
+#define BATTERYPARAMS_COLUMN_NO             23
 #define BATTERYPARAMS_SETTINGS_EDIT_WIDTH   80
 #define BATTERYPARAMS_SETTINGS_ROW_HEIGHT   28
 #define BATTERYPARAMS_AUTO_RESIZE_ROW_NO    10
@@ -46,15 +53,11 @@ BatteryParamsWnd::BatteryParamsWnd(QWidget *parent) :
     statusLabel = new QLabel("Waiting for the first cycle...", this);
     topLayout->addWidget(statusLabel);
     topLayout->addStretch();
-    mainLayout->addLayout(topLayout);
 
     liveStatusLabel = new QLabel(this);
     liveStatusLabel->setStyleSheet("QLabel { background-color: #eef3fb; border: 1px solid #b7c7e0; border-radius: 4px; padding: 6px; }");
     liveStatusLabel->setTextFormat(Qt::RichText);
     liveStatusLabel->hide();
-    mainLayout->addWidget(liveStatusLabel);
-
-    QHBoxLayout *settingsLayout = new QHBoxLayout();
 
     settings = BatteryParamsExtraction::settingsDefault();
     parallelAnswer = -1;
@@ -71,111 +74,86 @@ BatteryParamsWnd::BatteryParamsWnd(QWidget *parent) :
     connectedToFitIntervalWnd = false;
     plotSettings = BATTERYPARAMSPLOT_SettingsDefault();
 
-    settingsButton = new QPushButton("Settings", this);
-    settingsButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    settingsButton->setToolTip("Battery capacity, initial state of charge, relaxation and extraction settings");
+    graphWnd = NULL;
+    graphResistance = NULL;
+    graphCapacitance = NULL;
+    graphOcv = NULL;
+    graphRelaxation = NULL;
+    analysisWnd = NULL;
 
-    statisticsButton = new QPushButton("Statistics", this);
-    statisticsButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    statisticsButton->setToolTip("Charge and discharge capacity and other summary figures");
+    QToolBar *toolBar = new QToolBar(this);
+    toolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    toolBar->setIconSize(QSize(20, 20));
+    toolBar->setMovable(false);
+    toolBar->setFloatable(false);
 
-    resistanceTrendButton = new QPushButton("R vs SoC", this);
-    resistanceTrendButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    resistanceTrendButton->setToolTip("Show R0, R1 and R2 against the state of charge");
+    configAction = toolBar->addAction(QIcon(":/images/NewSet/setting.png"), "Analysis configuration");
+    configAction->setToolTip("Battery capacity, initial state of charge, relaxation and extraction settings");
 
-    capacitanceTrendButton = new QPushButton("C vs SoC", this);
-    capacitanceTrendButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    capacitanceTrendButton->setToolTip("Show C1 and C2 against the state of charge");
+    statisticsAction = toolBar->addAction(QIcon(":/images/NewSet/analysis.png"), "Statistics");
+    statisticsAction->setToolTip("Charge and discharge capacity and other summary figures");
 
-    ocvTrendButton = new QPushButton("OCV vs SoC", this);
-    ocvTrendButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    ocvTrendButton->setToolTip("Show the open circuit voltage against the state of charge");
+    toolBar->addSeparator();
 
-    ocvAnalysisButton = new QPushButton("OCV analysis", this);
-    ocvAnalysisButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    ocvAnalysisButton->setToolTip("State of charge against the open circuit voltage, its sensitivity and the effect of measurement noise");
+    graphAction = toolBar->addAction(QIcon(":/images/NewSet/tracking_graph.png"), "Graph");
+    graphAction->setToolTip("R, C and OCV against the state of charge, each a zoomable and exportable plot");
 
-    fitQualityButton = new QPushButton("Estimation quality", this);
-    fitQualityButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    fitQualityButton->setToolTip("Compare how well the first and the second order model describe every cycle");
+    analysisAction = toolBar->addAction(QIcon(":/images/NewSet/process.png"), "Do Analysis");
+    analysisAction->setToolTip("OCV analysis, estimation quality, relaxation time and fit interval");
 
-    relaxationTimeButton = new QPushButton("Relaxation time", this);
-    relaxationTimeButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    relaxationTimeButton->setToolTip("Time every cycle needed from the beginning of the pause until the battery relaxed");
+    toolBar->addSeparator();
 
-    fitIntervalButton = new QPushButton("Fit interval", this);
-    fitIntervalButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    fitIntervalButton->setToolTip("Compare the parameters and the errors obtained by fitting up to the relaxation point and up to the end of the pause");
+    /*The cycle operations are grouped under one tool button with a drop down menu*/
+    QToolButton *cyclesButton = new QToolButton(this);
+    cyclesButton->setText("Cycles");
+    cyclesButton->setIcon(QIcon(":/images/NewSet/reload.png"));
+    cyclesButton->setPopupMode(QToolButton::InstantPopup);
+    cyclesButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    QMenu *cyclesMenu = new QMenu(cyclesButton);
 
-    fitPointsButton = new QPushButton("Fit cycle points", this);
-    fitPointsButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    fitPointsButton->setToolTip("Check every cycle and move Pulse End and Pause Start onto the settled levels around the current step.\nCycles that had to be corrected are opened for review");
+    fitPointsAction = cyclesMenu->addAction("Fit cycle points");
+    fitPointsAction->setToolTip("Check every cycle and move Pulse End and Pause Start onto the settled levels around the current step.\nCycles that had to be corrected are opened for review");
+    fitPointsSaveAction = cyclesMenu->addAction("Save new points");
+    fitPointsSaveAction->setToolTip("Keep the fitted points on every corrected cycle and clear the marks");
+    fitPointsRestoreAction = cyclesMenu->addAction("Restore old points");
+    fitPointsRestoreAction->setToolTip("Return every corrected cycle to the points reported by the device");
+    fitPointsFindStartAction = cyclesMenu->addAction("Find new start point");
+    fitPointsFindStartAction->setToolTip("Sweep the pause start of every cycle over a short window and show the\nminimum RMSE and the minimum maximum error reachable.\nThen apply the pause start by the chosen criterion to all cycles");
+    cyclesMenu->addSeparator();
+    recalcAction = cyclesMenu->addAction("Recalculate");
+    recalcAction->setToolTip("Force a fresh re-analysis of every cycle with the current settings and points");
 
-    fitPointsSaveButton = new QPushButton("Save new points", this);
-    fitPointsSaveButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    fitPointsSaveButton->setToolTip("Keep the fitted points on every corrected cycle and clear the marks");
+    cyclesButton->setMenu(cyclesMenu);
+    toolBar->addWidget(cyclesButton);
 
-    fitPointsRestoreButton = new QPushButton("Restore old points", this);
-    fitPointsRestoreButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    fitPointsRestoreButton->setToolTip("Return every corrected cycle to the points reported by the device");
+    /*Column visibility is a checkable menu, every column can be shown or hidden*/
+    QToolButton *columnsButton = new QToolButton(this);
+    columnsButton->setText("Columns");
+    columnsButton->setIcon(QIcon(":/images/NewSet/format.png"));
+    columnsButton->setPopupMode(QToolButton::InstantPopup);
+    columnsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    columnsMenu = new QMenu(columnsButton);
+    columnsButton->setMenu(columnsMenu);
+    toolBar->addWidget(columnsButton);
 
-    fitPointsFindStartButton = new QPushButton("Find new start point", this);
-    fitPointsFindStartButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    fitPointsFindStartButton->setToolTip("Sweep the pause start of every cycle over a short window and show the\nminimum RMSE and the minimum maximum error reachable.\nThen apply the pause start by the chosen criterion to all cycles");
-
-    recalculateButton = new QPushButton("Recalculate", this);
-    recalculateButton->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT);
-    recalculateButton->setToolTip("Force a fresh re-analysis of every cycle with the current settings and points");
+    mainLayout->addWidget(toolBar);
 
     settingsLabel = new QLabel(this);
     settingsLabel->setStyleSheet("color: gray;");
+    mainLayout->addWidget(settingsLabel);
 
-    settingsLayout->addWidget(settingsButton);
-    settingsLayout->addWidget(statisticsButton);
-    settingsLayout->addSpacing(15);
-    settingsLayout->addWidget(resistanceTrendButton);
-    settingsLayout->addWidget(capacitanceTrendButton);
-    settingsLayout->addWidget(ocvTrendButton);
-    settingsLayout->addWidget(ocvAnalysisButton);
-    settingsLayout->addWidget(fitQualityButton);
-    settingsLayout->addWidget(relaxationTimeButton);
-    settingsLayout->addWidget(fitIntervalButton);
-    settingsLayout->addSpacing(15);
-    settingsLayout->addWidget(fitPointsButton);
-    settingsLayout->addWidget(fitPointsSaveButton);
-    settingsLayout->addWidget(fitPointsRestoreButton);
-    settingsLayout->addWidget(fitPointsFindStartButton);
-    settingsLayout->addWidget(recalculateButton);
-    settingsLayout->addSpacing(15);
-    settingsLayout->addWidget(settingsLabel, 1);
+    mainLayout->addLayout(topLayout);
+    mainLayout->addWidget(liveStatusLabel);
 
-    QWidget *settingsBar = new QWidget(this);
-    settingsLayout->setContentsMargins(0, 0, 0, 0);
-    settingsBar->setLayout(settingsLayout);
-
-    QScrollArea *settingsScroll = new QScrollArea(this);
-    settingsScroll->setWidget(settingsBar);
-    settingsScroll->setWidgetResizable(true);
-    settingsScroll->setFrameShape(QFrame::NoFrame);
-    settingsScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    settingsScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    settingsScroll->setFixedHeight(BATTERYPARAMS_SETTINGS_ROW_HEIGHT + 18);
-    mainLayout->addWidget(settingsScroll);
-
-    connect(settingsButton, &QPushButton::clicked, this, &BatteryParamsWnd::onSettings);
-    connect(statisticsButton, &QPushButton::clicked, this, &BatteryParamsWnd::onStatistics);
-    connect(resistanceTrendButton, &QPushButton::clicked, this, &BatteryParamsWnd::onResistanceTrend);
-    connect(capacitanceTrendButton, &QPushButton::clicked, this, &BatteryParamsWnd::onCapacitanceTrend);
-    connect(ocvTrendButton, &QPushButton::clicked, this, &BatteryParamsWnd::onOcvTrend);
-    connect(ocvAnalysisButton, &QPushButton::clicked, this, &BatteryParamsWnd::onOcvAnalysis);
-    connect(fitQualityButton, &QPushButton::clicked, this, &BatteryParamsWnd::onFitQuality);
-    connect(relaxationTimeButton, &QPushButton::clicked, this, &BatteryParamsWnd::onRelaxationTime);
-    connect(fitIntervalButton, &QPushButton::clicked, this, &BatteryParamsWnd::onFitInterval);
-    connect(fitPointsButton, &QPushButton::clicked, this, &BatteryParamsWnd::onFitCyclePoints);
-    connect(fitPointsSaveButton, &QPushButton::clicked, this, &BatteryParamsWnd::onFitPointsSave);
-    connect(fitPointsRestoreButton, &QPushButton::clicked, this, &BatteryParamsWnd::onFitPointsRestore);
-    connect(fitPointsFindStartButton, &QPushButton::clicked, this, &BatteryParamsWnd::onFindNewStartPoint);
-    connect(recalculateButton, &QPushButton::clicked, this, &BatteryParamsWnd::recalculate);
+    connect(configAction, &QAction::triggered, this, &BatteryParamsWnd::onSettings);
+    connect(statisticsAction, &QAction::triggered, this, &BatteryParamsWnd::onStatistics);
+    connect(graphAction, &QAction::triggered, this, &BatteryParamsWnd::onGraph);
+    connect(analysisAction, &QAction::triggered, this, &BatteryParamsWnd::onAnalysisWindow);
+    connect(fitPointsAction, &QAction::triggered, this, &BatteryParamsWnd::onFitCyclePoints);
+    connect(fitPointsSaveAction, &QAction::triggered, this, &BatteryParamsWnd::onFitPointsSave);
+    connect(fitPointsRestoreAction, &QAction::triggered, this, &BatteryParamsWnd::onFitPointsRestore);
+    connect(fitPointsFindStartAction, &QAction::triggered, this, &BatteryParamsWnd::onFindNewStartPoint);
+    connect(recalcAction, &QAction::triggered, this, &BatteryParamsWnd::recalculate);
 
     updateSettingsLabel();
     updateFitPointsButtons();
@@ -186,10 +164,20 @@ BatteryParamsWnd::BatteryParamsWnd(QWidget *parent) :
            << "I pulse end [mA]" << "I pause start [mA]" << "dI [mA]"
            << "R0 [mOhm]"
            << "R1 [mOhm]" << "C1 [F]" << "R2 [mOhm]" << "C2 [F]"
-           << "RMSE [mV]" << "Max err [mV]" << "Rtotal [mOhm]";
+           << "RMSE [mV]" << "Max err [mV]" << "Rtotal [mOhm]" << "Status";
 
     cyclesTable = new QTableWidget(0, BATTERYPARAMS_COLUMN_NO, this);
     cyclesTable->setHorizontalHeaderLabels(header);
+
+    for(int i = 0; i < header.size(); i++)
+    {
+        QAction *columnAction = columnsMenu->addAction(header[i]);
+        columnAction->setCheckable(true);
+        columnAction->setChecked(true);
+        columnAction->setData(i);
+        columnActions.append(columnAction);
+        connect(columnAction, &QAction::toggled, this, &BatteryParamsWnd::onColumnToggled);
+    }
     cyclesTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     cyclesTable->horizontalHeader()->setSectionsMovable(true);
     cyclesTable->horizontalHeader()->setStretchLastSection(true);
@@ -287,15 +275,26 @@ void BatteryParamsWnd::fillCycleRow(int row, batteryparams_cycle_t cycle)
     cyclesTable->setItem(row, 12, createItem(QString::number(cycle.pauseStartCurrent, 'f', 2)));
     cyclesTable->setItem(row, 13, createItem(QString::number(cycle.deltaCurrent, 'f', 2)));
     cyclesTable->setItem(row, 14, createItem(cycle.resistanceValid ? QString::number(cycle.resistance * 1000.0, 'f', 2) : "-"));
-    cyclesTable->setItem(row, 15, createItem(cycle.modelValid ? QString::number(cycle.r1 * 1000.0, 'f', 2) : "-"));
-    cyclesTable->setItem(row, 16, createItem(cycle.modelValid ? QString::number(cycle.c1, 'f', 1) : "-"));
-    cyclesTable->setItem(row, 17, createItem((cycle.modelValid && (cycle.model == BATTERYPARAMS_MODEL_SECOND_ORDER)) ? QString::number(cycle.r2 * 1000.0, 'f', 2) : "-"));
-    cyclesTable->setItem(row, 18, createItem((cycle.modelValid && (cycle.model == BATTERYPARAMS_MODEL_SECOND_ORDER)) ? QString::number(cycle.c2, 'f', 1) : "-"));
+    cyclesTable->setItem(row, 15, createItem((cycle.modelValid && cycle.r1Valid) ? QString::number(cycle.r1 * 1000.0, 'f', 2) : "-"));
+    cyclesTable->setItem(row, 16, createItem((cycle.modelValid && cycle.r1Valid) ? QString::number(cycle.c1, 'f', 1) : "-"));
+    cyclesTable->setItem(row, 17, createItem((cycle.modelValid && cycle.r2Valid) ? QString::number(cycle.r2 * 1000.0, 'f', 2) : "-"));
+    cyclesTable->setItem(row, 18, createItem((cycle.modelValid && cycle.r2Valid) ? QString::number(cycle.c2, 'f', 1) : "-"));
     cyclesTable->setItem(row, 19, createItem(cycle.modelValid ? QString::number(cycle.fitRmse * 1000.0, 'f', 3) : "-"));
     cyclesTable->setItem(row, 20, createItem(cycle.modelValid ? QString::number(cycle.fitMaxError * 1000.0, 'f', 3) : "-"));
 
-    double rTotal = cycle.resistance + (cycle.modelValid ? cycle.r1 + ((cycle.model == BATTERYPARAMS_MODEL_SECOND_ORDER) ? cycle.r2 : 0.0) : 0.0);
+    double rTotal = cycle.resistance + (cycle.modelValid ? ((cycle.r1Valid ? cycle.r1 : 0.0) + (cycle.r2Valid ? cycle.r2 : 0.0)) : 0.0);
     cyclesTable->setItem(row, 21, createItem((cycle.resistanceValid && cycle.modelValid) ? QString::number(rTotal * 1000.0, 'f', 2) : "-"));
+
+    QString statusText = cycle.modelReason;
+    if(statusText.isEmpty()) statusText = cycle.modelValid ? "Second order model fitted (R0, R1, C1, R2, C2)" : "Model not fitted";
+    cyclesTable->setItem(row, 22, createItem(statusText));
+
+    /*The reason a parameter could not be determined is shown in the last column and
+      repeated as a tooltip on every cell, so it is visible wherever the row is read*/
+    for(int column = 0; column < BATTERYPARAMS_COLUMN_NO; column++)
+    {
+        if(cyclesTable->item(row, column) != NULL) cyclesTable->item(row, column)->setToolTip(statusText);
+    }
 
     /*Light purple marks a discharge cycle where the cell relaxed and the model
       could be fitted, yellow one where it did not, light red an incomplete cycle*/
@@ -331,6 +330,8 @@ void BatteryParamsWnd::updateSummary()
     double sum = 0;
     int validNo = 0;
     double totalCharge = 0;
+
+    if((graphWnd != NULL) && graphWnd->isVisible()) refreshGraphs();
 
     for(int i = 0; i < cycles.size(); i++)
     {
@@ -495,11 +496,11 @@ void BatteryParamsWnd::openCycleData(int row)
 
 void BatteryParamsWnd::updateFitPointsButtons()
 {
-    fitPointsButton->setEnabled(!extractionRunning);
-    recalculateButton->setEnabled(!extractionRunning);
-    fitPointsSaveButton->setEnabled(!extractionRunning && !fittedPositions.isEmpty());
-    fitPointsRestoreButton->setEnabled(!extractionRunning && !fittedPositions.isEmpty());
-    fitPointsFindStartButton->setEnabled(!extractionRunning && !cycles.isEmpty());
+    fitPointsAction->setEnabled(!extractionRunning);
+    recalcAction->setEnabled(!extractionRunning);
+    fitPointsSaveAction->setEnabled(!extractionRunning && !fittedPositions.isEmpty());
+    fitPointsRestoreAction->setEnabled(!extractionRunning && !fittedPositions.isEmpty());
+    fitPointsFindStartAction->setEnabled(!extractionRunning && !cycles.isEmpty());
 }
 
 void BatteryParamsWnd::endFit()
@@ -585,6 +586,7 @@ void BatteryParamsWnd::onFitCyclePoints()
           the tasks never touch the same data*/
         QFuture<void> future = QtConcurrent::map(positions, [workingData, changedData, usedSettings, cancelPtr](int position)
         {
+            BatteryParamsExtraction::nameCurrentThread(workingData[position].index);
             if(cancelPtr->loadAcquire()) return;
             if(!BatteryParamsExtraction::cyclePointsFit(&workingData[position])) return;
 
@@ -790,6 +792,7 @@ void BatteryParamsWnd::onFindNewStartPoint()
 
     auto sweepCycle = [=](int i)
     {
+        BatteryParamsExtraction::nameCurrentThread(workData[i].index);
         const batteryparams_cycle_t &original = workData[i];
         double minRmse = -1;
         double minVmax = -1;
@@ -1395,6 +1398,7 @@ void BatteryParamsWnd::analyzeCycles(QVector<batteryparams_cycle_t> *target, QPr
     QFutureWatcher<void> watcher;
     QFuture<void> future = QtConcurrent::map(*target, [usedSettings, cancelPtr](batteryparams_cycle_t &cycle)
     {
+        BatteryParamsExtraction::nameCurrentThread(cycle.index);
         if(cancelPtr->loadAcquire()) return;
         if(cycle.incomplete) return;
         BatteryParamsExtraction::analyzeCycle(&cycle, usedSettings);
@@ -1514,7 +1518,7 @@ void BatteryParamsWnd::trendShow(BatteryParamsTrendWnd **window, QString title, 
     (*window)->activateWindow();
 }
 
-void BatteryParamsWnd::onResistanceTrend()
+QVector<batteryparams_trend_t> BatteryParamsWnd::buildResistanceTrends()
 {
     QVector<batteryparams_trend_t> trends;
     batteryparams_trend_t r0 = trendCreate("R0", QColor(200, 60, 20));
@@ -1534,28 +1538,37 @@ void BatteryParamsWnd::onResistanceTrend()
 
         if(!cycles[i].modelValid) continue;
 
-        r1.soc.append(cycles[i].soc);
-        r1.value.append(cycles[i].r1 * 1000.0);
+        if(cycles[i].r1Valid)
+        {
+            r1.soc.append(cycles[i].soc);
+            r1.value.append(cycles[i].r1 * 1000.0);
+        }
 
         if(cycles[i].resistanceValid)
         {
-            double total = cycles[i].resistance + cycles[i].r1;
-            if(cycles[i].model == BATTERYPARAMS_MODEL_SECOND_ORDER) total += cycles[i].r2;
+            double total = cycles[i].resistance;
+            if(cycles[i].r1Valid) total += cycles[i].r1;
+            if(cycles[i].r2Valid) total += cycles[i].r2;
             rTotal.soc.append(cycles[i].soc);
             rTotal.value.append(total * 1000.0);
         }
 
-        if(cycles[i].model != BATTERYPARAMS_MODEL_SECOND_ORDER) continue;
+        if(!cycles[i].r2Valid) continue;
 
         r2.soc.append(cycles[i].soc);
         r2.value.append(cycles[i].r2 * 1000.0);
     }
 
     trends << r0 << r1 << r2 << rTotal;
-    trendShow(&resistanceTrendWnd, "Resistance vs SoC", "R [mOhm]", trends);
+    return trends;
 }
 
-void BatteryParamsWnd::onCapacitanceTrend()
+void BatteryParamsWnd::onResistanceTrend()
+{
+    trendShow(&resistanceTrendWnd, "Resistance vs SoC", "R [mOhm]", buildResistanceTrends());
+}
+
+QVector<batteryparams_trend_t> BatteryParamsWnd::buildCapacitanceTrends()
 {
     QVector<batteryparams_trend_t> trends;
     batteryparams_trend_t c1 = trendCreate("C1", QColor(30, 110, 200));
@@ -1566,20 +1579,28 @@ void BatteryParamsWnd::onCapacitanceTrend()
         if(!cycles[i].socValid) continue;
         if(!cycles[i].modelValid) continue;
 
-        c1.soc.append(cycles[i].soc);
-        c1.value.append(cycles[i].c1);
+        if(cycles[i].r1Valid)
+        {
+            c1.soc.append(cycles[i].soc);
+            c1.value.append(cycles[i].c1);
+        }
 
-        if(cycles[i].model != BATTERYPARAMS_MODEL_SECOND_ORDER) continue;
+        if(!cycles[i].r2Valid) continue;
 
         c2.soc.append(cycles[i].soc);
         c2.value.append(cycles[i].c2);
     }
 
     trends << c1 << c2;
-    trendShow(&capacitanceTrendWnd, "Capacitance vs SoC", "C [F]", trends);
+    return trends;
 }
 
-void BatteryParamsWnd::onOcvTrend()
+void BatteryParamsWnd::onCapacitanceTrend()
+{
+    trendShow(&capacitanceTrendWnd, "Capacitance vs SoC", "C [F]", buildCapacitanceTrends());
+}
+
+QVector<batteryparams_trend_t> BatteryParamsWnd::buildOcvTrends()
 {
     QVector<batteryparams_trend_t> trends;
     batteryparams_trend_t ocv = trendCreate("OCV", QColor(120, 60, 180));
@@ -1587,14 +1608,138 @@ void BatteryParamsWnd::onOcvTrend()
     for(int i = 0; i < cycles.size(); i++)
     {
         if(!cycles[i].socValid) continue;
-        if(!cycles[i].relaxationReached) continue;
+        /*OCV is available whenever the model was fitted, also when the fit stops at the
+          pause end without the relaxation being reached (the late, low SoC cycles)*/
+        if(!cycles[i].relaxationReached && !cycles[i].modelValid) continue;
 
         ocv.soc.append(cycles[i].soc);
         ocv.value.append(cycles[i].ocv);
     }
 
     trends << ocv;
-    trendShow(&ocvTrendWnd, "OCV vs SoC", "OCV [V]", trends);
+    return trends;
+}
+
+void BatteryParamsWnd::onOcvTrend()
+{
+    trendShow(&ocvTrendWnd, "OCV vs SoC", "OCV [V]", buildOcvTrends());
+}
+
+void BatteryParamsWnd::onGraph()
+{
+    if(graphWnd == NULL)
+    {
+        /*Each graph is its own dock widget, tabbed together, so they can be viewed one at
+          a time, torn off, floated or arranged side by side*/
+        QMainWindow *graphMain = new QMainWindow();
+        graphMain->setAttribute(Qt::WA_QuitOnClose, false);
+        graphMain->setWindowTitle(profileName.isEmpty() ? "Battery parameters graphs" : "Battery parameters graphs - " + profileName);
+        graphMain->setDockNestingEnabled(true);
+
+        graphResistance = new BatteryParamsTrendWnd();
+        graphCapacitance = new BatteryParamsTrendWnd();
+        graphOcv = new BatteryParamsTrendWnd();
+        graphRelaxation = new BatteryParamsTrendWnd();
+
+        BatteryParamsTrendWnd *widgets[4] = {graphResistance, graphCapacitance, graphOcv, graphRelaxation};
+        QString titles[4] = {"Resistance", "Capacitance", "OCV", "Relaxation time"};
+        QDockWidget *docks[4];
+
+        for(int i = 0; i < 4; i++)
+        {
+            docks[i] = new QDockWidget(titles[i], graphMain);
+            docks[i]->setWidget(widgets[i]);
+            docks[i]->setAllowedAreas(Qt::AllDockWidgetAreas);
+            docks[i]->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+            graphMain->addDockWidget(Qt::LeftDockWidgetArea, docks[i]);
+            if(i > 0) graphMain->tabifyDockWidget(docks[0], docks[i]);
+        }
+
+        docks[0]->raise();
+        graphMain->resize(900, 620);
+        graphWnd = graphMain;
+    }
+
+    refreshGraphs();
+
+    graphWnd->show();
+    graphWnd->raise();
+    graphWnd->activateWindow();
+}
+
+void BatteryParamsWnd::refreshGraphs()
+{
+    if(graphWnd == NULL) return;
+
+    graphResistance->setPlotSettings(plotSettings);
+    graphCapacitance->setPlotSettings(plotSettings);
+    graphOcv->setPlotSettings(plotSettings);
+    graphRelaxation->setPlotSettings(plotSettings);
+
+    graphResistance->setTrends("Resistance vs SoC", "R [mOhm]", buildResistanceTrends());
+    graphCapacitance->setTrends("Capacitance vs SoC", "C [F]", buildCapacitanceTrends());
+    graphOcv->setTrends("OCV vs SoC", "OCV [V]", buildOcvTrends());
+    graphRelaxation->setTrends("Relaxation time vs SoC", "t [s]", buildRelaxationTrends());
+}
+
+QVector<batteryparams_trend_t> BatteryParamsWnd::buildRelaxationTrends()
+{
+    QVector<batteryparams_trend_t> trends;
+    batteryparams_trend_t relaxation = trendCreate("Relaxation time", QColor(210, 120, 20));
+
+    for(int i = 0; i < cycles.size(); i++)
+    {
+        if(!cycles[i].socValid) continue;
+        if(!cycles[i].relaxationReached) continue;
+
+        relaxation.soc.append(cycles[i].soc);
+        relaxation.value.append((cycles[i].relaxationKey - cycles[i].pauseStartKey) / 1000.0);
+    }
+
+    trends << relaxation;
+    return trends;
+}
+
+void BatteryParamsWnd::onAnalysisWindow()
+{
+    if(analysisWnd == NULL)
+    {
+        analysisWnd = new QWidget();
+        analysisWnd->setAttribute(Qt::WA_QuitOnClose, false);
+        analysisWnd->setWindowTitle("Do Analysis");
+
+        QVBoxLayout *analysisLayout = new QVBoxLayout(analysisWnd);
+
+        QPushButton *ocvAnalysisButton = new QPushButton("OCV analysis", analysisWnd);
+        ocvAnalysisButton->setToolTip("State of charge against the open circuit voltage, its sensitivity and the effect of measurement noise");
+        QPushButton *fitQualityButton = new QPushButton("Estimation quality", analysisWnd);
+        fitQualityButton->setToolTip("Compare how well the first and the second order model describe every cycle");
+        QPushButton *fitIntervalButton = new QPushButton("Fit interval", analysisWnd);
+        fitIntervalButton->setToolTip("Compare the parameters and the errors obtained by fitting up to the relaxation point and up to the end of the pause");
+
+        analysisLayout->addWidget(ocvAnalysisButton);
+        analysisLayout->addWidget(fitQualityButton);
+        analysisLayout->addWidget(fitIntervalButton);
+        analysisLayout->addStretch();
+
+        connect(ocvAnalysisButton, &QPushButton::clicked, this, &BatteryParamsWnd::onOcvAnalysis);
+        connect(fitQualityButton, &QPushButton::clicked, this, &BatteryParamsWnd::onFitQuality);
+        connect(fitIntervalButton, &QPushButton::clicked, this, &BatteryParamsWnd::onFitInterval);
+
+        analysisWnd->resize(260, 180);
+    }
+
+    analysisWnd->show();
+    analysisWnd->raise();
+    analysisWnd->activateWindow();
+}
+
+void BatteryParamsWnd::onColumnToggled()
+{
+    for(int i = 0; i < columnActions.size(); i++)
+    {
+        cyclesTable->setColumnHidden(columnActions[i]->data().toInt(), !columnActions[i]->isChecked());
+    }
 }
 
 void BatteryParamsWnd::onOcvAnalysis()

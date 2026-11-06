@@ -12,6 +12,9 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
+#include <QtConcurrent/QtConcurrent>
+#include <QFuture>
+#include <QIcon>
 #include <QTabBar>
 
 DataAnalyzer::DataAnalyzer(QWidget *parent, QString aWsDirPath) :
@@ -169,10 +172,45 @@ void DataAnalyzer::realoadConsumptionProfiles()
     }
     else
     {
-        consumptionProfilesCB->addItems(consumptionProfilesName);
+        /*Each profile is tagged by its analysis type: a battery icon for a battery
+          profile, the OpenEPT logo for a consumption profile, and no icon for other*/
+        for(int i = 0; i < consumptionProfilesName.size(); i++)
+        {
+            QString type = profileAnalysisType(consumptionProfilesName[i]);
+
+            if(type == "Battery")
+                consumptionProfilesCB->addItem(QIcon(":/images/NewSet/battery.png"), consumptionProfilesName[i]);
+            else if(type == "Consumption")
+                consumptionProfilesCB->addItem(QIcon(":/images/main.png"), consumptionProfilesName[i]);
+            else
+                consumptionProfilesCB->addItem(consumptionProfilesName[i]);
+        }
+
         detectedProfilesLabe->setText("Select one consumption profile");
         consumptionProfilesCB->setEnabled(true);
     }
+}
+
+QString DataAnalyzer::profileAnalysisType(const QString &profilePath)
+{
+    QFile file(wsDirPath + "/" + profilePath + "/OpenEPT.txt");
+    QString type;
+
+    if(!file.open(QIODevice::ReadOnly | QIODevice::Text)) return type;
+
+    QTextStream in(&file);
+    while(!in.atEnd())
+    {
+        QString line = in.readLine().trimmed();
+        if(line.startsWith("Analysis Type:"))
+        {
+            type = line.section(':', 1).trimmed();
+            break;
+        }
+    }
+
+    file.close();
+    return type;
 }
 
 void DataAnalyzer::onRealoadConsumptionProfiles()
@@ -190,6 +228,7 @@ void DataAnalyzer::attachProfile(DataAnalyzerProfile *profile, QString title)
     QMdiSubWindow *subWindow = mdiArea->addSubWindow(profile);
 
     subWindow->setWindowTitle(title);
+    if(!profile->windowIcon().isNull()) subWindow->setWindowIcon(profile->windowIcon());
     subWindow->setAttribute(Qt::WA_DeleteOnClose);
     subWindow->showMaximized();
     mdiArea->setActiveSubWindow(subWindow);
@@ -217,6 +256,12 @@ void DataAnalyzer::onLoadConsumptionProfileData()
 
     profile = new DataAnalyzerProfile(wsDirPath, selectedConsumptionProfile);
     profiles.append(profile);
+
+    /*The tab icon follows the profile type: battery, OpenEPT for consumption, and the
+      default icon is kept for an other/untyped profile*/
+    QString profileType = profileAnalysisType(selectedConsumptionProfile);
+    if(profileType == "Battery") profile->setWindowIcon(QIcon(":/images/NewSet/battery.png"));
+    else if(profileType == "Consumption") profile->setWindowIcon(QIcon(":/images/main.png"));
 
     connect(profile, SIGNAL(sigDockStateToggleRequested()), this, SLOT(onProfileDockStateToggleRequested()));
     connect(profile, SIGNAL(destroyed(QObject*)), this, SLOT(onProfileDestroyed(QObject*)));
@@ -390,6 +435,7 @@ bool DataAnalyzerWorker::setLimits(int limitsNumber)
         consumptionDataProcessingStartPercentage = 55;
         epDataProcessingStartPercentage = 0;
         range = 45;
+        epEnabled = false;
         return true;
     }
     if(limitsNumber == 3 )
@@ -399,30 +445,63 @@ bool DataAnalyzerWorker::setLimits(int limitsNumber)
         consumptionDataProcessingStartPercentage = 40;
         epDataProcessingStartPercentage = 70;
         range = 30;
+        epEnabled = true;
         return true;
     }
+    return false;
+}
+
+void DataAnalyzerWorker::reportProgress(int which, int localPercent)
+{
+    if(which == 0) vcProgress.storeRelease(localPercent);
+    else if(which == 1) consProgress.storeRelease(localPercent);
+    else epProgress.storeRelease(localPercent);
+
+    int global;
+    if(epEnabled)
+        global = (vcProgress.loadAcquire() + consProgress.loadAcquire() + epProgress.loadAcquire()) / 3;
+    else
+        global = (vcProgress.loadAcquire() + consProgress.loadAcquire()) / 2;
+
+    emit progressUpdated(global);
 }
 
 void DataAnalyzerWorker::processVoltCurConData(const QString &wsDirPath, const QString &selectedConsumptionProfile)
 {
-    // Simulating heavy processing
-    qDebug() << "Processing started in thread:" << QThread::currentThread();
-
     QString voltageCurrentPath = wsDirPath + "/" + selectedConsumptionProfile + "/vc.csv";
     QString consPath = wsDirPath + "/" + selectedConsumptionProfile + "/cons.csv";
     QString epPath = wsDirPath + "/" + selectedConsumptionProfile + "/ep.csv";
 
-    emit progressUpdated(vcDataProcessingStartPercentage);
-    emit updateProgressText("Load Voltage and Current Data");
-    QVector<QVector<double> >           vcData = parseVCData(voltageCurrentPath);
+    vcProgress.storeRelease(0);
+    consProgress.storeRelease(0);
+    epProgress.storeRelease(0);
 
-    emit progressUpdated(consumptionDataProcessingStartPercentage);
-    emit updateProgressText("Load Consumption Data");
+    emit updateProgressText(epEnabled ? "Loading voltage, current, consumption and points"
+                                      : "Loading voltage, current and consumption");
+    emit progressUpdated(0);
 
-    QVector<QVector<double> >           consData = parseConsumptionData(consPath);
+    /*Voltage/current, consumption and the energy points are independent files, so they
+      are parsed concurrently instead of one after another*/
+    QFuture<QVector<QVector<double> > > vcFuture =
+        QtConcurrent::run(this, &DataAnalyzerWorker::parseVCData, voltageCurrentPath);
+    QFuture<QVector<QVector<double> > > consFuture =
+        QtConcurrent::run(this, &DataAnalyzerWorker::parseConsumptionData, consPath);
+    QFuture<QVector<QPair<QString, int> > > epFuture;
 
-    // Emit a signal when processing is complete
-    emit processingVolCurConFinished(vcData, consData);
+    if(epEnabled) epFuture = QtConcurrent::run(this, &DataAnalyzerWorker::parseEPFile, epPath);
+
+    vcFuture.waitForFinished();
+    consFuture.waitForFinished();
+
+    emit processingVolCurConFinished(vcFuture.result(), consFuture.result());
+
+    if(epEnabled)
+    {
+        epFuture.waitForFinished();
+        emit processingEPFinished(epFuture.result());
+    }
+
+    emit progressUpdated(100);
 }
 
 void DataAnalyzerWorker::processEPData(const QString &wsDirPath, const QString &selectedConsumptionProfile)
@@ -548,11 +627,11 @@ QVector<QVector<double> > DataAnalyzerWorker::parseVCData(const QString &filePat
         {
             skipped++;
         }
-        int percent = (int)((file.pos() * (qint64)range) / limit);
+        int percent = (int)((file.pos() * (qint64)100) / limit);
         if(percent != lastPercent)
         {
             lastPercent = percent;
-            emit progressUpdated(vcDataProcessingStartPercentage + percent);
+            reportProgress(0, percent);
         }
     }
     if(skipped > 0) qWarning() << "vc.csv: skipped" << skipped << "malformed lines";
@@ -598,11 +677,11 @@ QVector<QVector<double> > DataAnalyzerWorker::parseVCData(const QString &filePat
         {
             skipped++;
         }
-        int percent = (int)((file.pos() * (qint64)range) / limit);
+        int percent = (int)((file.pos() * (qint64)100) / limit);
         if(percent != lastPercent)
         {
             lastPercent = percent;
-            emit progressUpdated(consumptionDataProcessingStartPercentage + percent);
+            reportProgress(1, percent);
         }
     }
     if(skipped > 0) qWarning() << "cons.csv: skipped" << skipped << "malformed lines";
@@ -652,11 +731,11 @@ QVector<QPair<QString, int> > DataAnalyzerWorker::parseEPFile(const QString &fil
         {
             skipped++;
         }
-        int percent = (int)((file.pos() * (qint64)range) / limit);
+        int percent = (int)((file.pos() * (qint64)100) / limit);
         if(percent != lastPercent)
         {
             lastPercent = percent;
-            emit progressUpdated(epDataProcessingStartPercentage + percent);
+            reportProgress(2, percent);
         }
     }
     if(skipped > 0) qWarning() << "ep.csv: skipped" << skipped << "malformed lines";

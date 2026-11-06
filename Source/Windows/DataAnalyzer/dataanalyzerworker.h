@@ -5,6 +5,7 @@
 #include <QString>
 #include <QVector>
 #include <QPair>
+#include <QAtomicInt>
 
 class DataAnalyzerWorker : public QObject
 {
@@ -29,10 +30,16 @@ private:
     QVector<QVector<double>>            parseConsumptionData(const QString &filePath);
     QVector<QPair<QString, int>>        parseEPFile(const QString &filePath);
 
+    void    reportProgress(int which, int localPercent);
+
     int     vcDataProcessingStartPercentage;
     int     consumptionDataProcessingStartPercentage;
     int     epDataProcessingStartPercentage;
     double  range;
+    bool    epEnabled;
+    QAtomicInt vcProgress;
+    QAtomicInt consProgress;
+    QAtomicInt epProgress;
 };
 
 #endif // DATAANALYZERWORKER_H

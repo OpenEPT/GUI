@@ -49,6 +49,11 @@ DeviceContainer::DeviceContainer(QObject *parent,
     batParamExtractionRunning = false;
     batParamProcedureActive = false;
 
+    profileAnalysisType = "";
+    profileBatteryName = "";
+    profileBatteryCapacity = "";
+    profileTypeWritten = false;
+
     batParamUVFinal = false;
     batParamLastSampleKey = 0;
 
@@ -103,6 +108,7 @@ DeviceContainer::DeviceContainer(QObject *parent,
     connect(deviceWnd,  SIGNAL(sigConsumptionTypeChanged(QString)),                 this, SLOT(onDeviceWndConsumptionTypeChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigMeasurementTypeChanged(QString)),                 this, SLOT(onDeviceWndMeasurementTypeChanged(QString)));
     connect(deviceWnd,  SIGNAL(sigConsumptionProfileNameChanged(QString)),          this, SLOT(onDeviceWndConsumptionProfileNameChanged(QString)));
+    connect(deviceWnd,  SIGNAL(sigProfileAnalysisTypeChanged(QString,QString,QString)), this, SLOT(onDeviceWndProfileAnalysisTypeChanged(QString,QString,QString)));
     connect(deviceWnd,  SIGNAL(sigCalibrationUpdated()),                            this, SLOT(onDeviceWndCalibrationUpdated()));
     connect(deviceWnd,  SIGNAL(sigCalibrationStoreRequest()),                       this, SLOT(onDeviceWndCalibrationStoreRequest()));
     connect(deviceWnd,  SIGNAL(sigAutoCalApplyCalibration()),                       this, SLOT(onDeviceWndAutoCalApply()));
@@ -670,6 +676,34 @@ void DeviceContainer::onDeviceWndConsumptionProfileNameChanged(QString aConsumpt
     }
 }
 
+void DeviceContainer::onDeviceWndProfileAnalysisTypeChanged(QString analysisType, QString batteryName, QString batteryCapacity)
+{
+    /*The type is only remembered here and written at the end of the summary file after the
+      acquisition stop, so it keeps the structure: acquisition info, separator, then the
+      analysis type block*/
+    profileAnalysisType = analysisType;
+    profileBatteryName = batteryName;
+    profileBatteryCapacity = batteryCapacity;
+    profileTypeWritten = false;
+}
+
+void DeviceContainer::writeProfileAnalysisType()
+{
+    if(profileAnalysisType.isEmpty() || profileTypeWritten) return;
+
+    /*After a separator so the analysis type block stays apart from the acquisition info*/
+    fileProcessing->appendSummaryFile("-------");
+    fileProcessing->appendSummaryFile("Analysis Type: " + profileAnalysisType);
+
+    if(profileAnalysisType == "Battery")
+    {
+        fileProcessing->appendSummaryFile("Battery: " + profileBatteryName);
+        fileProcessing->appendSummaryFile("Battery capacity [mAh]: " + profileBatteryCapacity);
+    }
+
+    profileTypeWritten = true;
+}
+
 void DeviceContainer::onDeviceWndLoadStatusChanged(bool status)
 {
     bool ok = device->setLoadStatus(status);
@@ -845,6 +879,7 @@ void DeviceContainer::onDeviceWndAcquisitionStop()
         if(globalSaveToFileEnabled && (consumptionProfileNameExists == false))
         {
             fileProcessing->appendSummaryFile("Acquisiton stop: " + QDateTime::currentDateTime().toString());
+            writeProfileAnalysisType();
             consumptionProfileNameExists = true;
         }
         deviceWnd->setDeviceAcqState(DEVICE_ACQ_PAUSE);
@@ -863,6 +898,7 @@ void DeviceContainer::onDeviceWndAcquisitionPause()
           if(globalSaveToFileEnabled && (consumptionProfileNameExists == false))
         {
             fileProcessing->appendSummaryFile("Acquisiton stop: " + QDateTime::currentDateTime().toString());
+            writeProfileAnalysisType();
             consumptionProfileNameExists = true;
         }
         deviceWnd->setDeviceAcqState(DEVICE_ACQ_PAUSE);

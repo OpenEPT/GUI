@@ -2,10 +2,14 @@
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QtConcurrent/QtConcurrent>
+#include <QThread>
 #include <math.h>
 
-#define BATTERYCYCLE_PLOT_MIN_WIDTH     600
-#define BATTERYCYCLE_PLOT_MIN_HEIGHT    180
+#define BATTERYCYCLE_PLOT_MIN_WIDTH     500
+#define BATTERYCYCLE_PLOT_MIN_HEIGHT    140
 #define BATTERYCYCLE_EDIT_WIDTH         100
 #define BATTERYCYCLE_STEP_BUTTON_WIDTH  30
 #define BATTERYCYCLE_BUTTON_WIDTH       90
@@ -25,9 +29,13 @@ BatteryCycleWnd::BatteryCycleWnd(QWidget *parent) :
     fitSettings = BatteryParamsExtraction::settingsDefault();
 
     infoLabel = new QLabel(this);
+    infoLabel->setWordWrap(true);
+    infoLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     mainLayout->addWidget(infoLabel);
 
     modelLabel = new QLabel(this);
+    modelLabel->setWordWrap(true);
+    modelLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     mainLayout->addWidget(modelLabel);
 
     markerLayout->addLayout(createMarkerRow("Pulse Start", &pulseStartEdit));
@@ -74,13 +82,38 @@ BatteryCycleWnd::BatteryCycleWnd(QWidget *parent) :
     currentPlot->scatterAddGraph();
     mainLayout->addWidget(currentPlot, 1);
 
+    /*With both plots locked, panning or zooming the X axis of one follows on the other,
+      so the voltage and the current stay aligned in time*/
+    connect(voltagePlot, &Plot::sigXRangeChanged, this, [this](QCPRange range){ currentPlot->setXRangeSynced(range); });
+    connect(currentPlot, &Plot::sigXRangeChanged, this, [this](QCPRange range){ voltagePlot->setXRangeSynced(range); });
+
     connect(fitButton, &QPushButton::clicked, this, &BatteryCycleWnd::onFitPoints);
     connect(restoreButton, &QPushButton::clicked, this, &BatteryCycleWnd::onRestore);
     connect(saveButton, &QPushButton::clicked, this, &BatteryCycleWnd::onSave);
 
     plotSettings = BATTERYPARAMSPLOT_SettingsDefault();
 
-    resize(900, 650);
+    analysisEmit = false;
+    analysisGen = 0;
+    analysisRunGen = -1;
+    connect(&analysisWatcher, &QFutureWatcher<batteryparams_cycle_t>::finished,
+            this, &BatteryCycleWnd::onAnalysisFinished);
+
+    /*A normal top level window with minimize, maximize and close, so it can be resized
+      and maximized instead of opening larger than the screen*/
+    setWindowFlags(Qt::Window | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
+
+    int width = 900;
+    int height = 650;
+
+    if(QGuiApplication::primaryScreen() != NULL)
+    {
+        QRect available = QGuiApplication::primaryScreen()->availableGeometry();
+        if(width > available.width() - 40) width = available.width() - 40;
+        if(height > available.height() - 40) height = available.height() - 40;
+    }
+
+    resize(width, height);
 }
 
 int BatteryCycleWnd::keyPositionGet(QVector<double> keys, double key)
@@ -221,13 +254,9 @@ void BatteryCycleWnd::onFitPoints()
 
     cycle.incomplete = false;
 
-    BatteryParamsExtraction::analyzeCycle(&cycle, fitSettings);
-
     refreshMarkerEdits();
-    updateInfo();
-    updatePlots();
 
-    emit sigCycleUpdated(cycle);
+    runAnalysis(true);
 }
 
 void BatteryCycleWnd::onRestore()
@@ -267,12 +296,69 @@ void BatteryCycleWnd::applyMarkers()
     cycle.resistanceValid = fabs(cycle.deltaCurrent) > 0.000001;
     cycle.resistance = cycle.resistanceValid ? cycle.deltaVoltage / (cycle.deltaCurrent / 1000.0) : 0;
 
-    BatteryParamsExtraction::analyzeCycle(&cycle, fitSettings);
-
     refreshMarkerEdits();
 
+    runAnalysis(false);
+}
+
+void BatteryCycleWnd::runAnalysis(bool emitWhenDone)
+{
+    /*The fit runs in a worker thread so moving the points never blocks the window.
+      analyzeCycle only reads the sample vectors and writes the fit and average vectors,
+      so the large input vectors are shared through copy on write (no deep copy, the
+      worker never writes them) and only the output vectors are given fresh empty storage
+      so the worker never shares a written container with the one the GUI thread draws.
+      If the points are moved again while a fit is running, setFuture drops the old one
+      and only the newest result reaches the GUI*/
+    batteryparams_cycle_t snapshot = cycle;
+
+    snapshot.fitKeys = QVector<double>();
+    snapshot.fitVoltage = QVector<double>();
+    snapshot.avgKeys = QVector<double>();
+    snapshot.avgVoltage = QVector<double>();
+
+    analysisEmit = emitWhenDone;
+    analysisRunGen = ++analysisGen;
+
+    modelLabel->setText("Calculating...");
+    modelLabel->setStyleSheet("color: gray;");
+
+    int gen = analysisRunGen;
+    batteryparams_settings_t settings = fitSettings;
+
+    analysisWatcher.setFuture(QtConcurrent::run([this, snapshot, settings, gen]() mutable -> batteryparams_cycle_t
+    {
+        BatteryParamsExtraction::nameCurrentThread(snapshot.index);
+
+        /*Each stage reports its name. The label lives in the GUI thread, so the update is
+          posted there, and a stage from a superseded run is ignored by the generation*/
+        auto progress = [this, gen](const QString &step)
+        {
+            QMetaObject::invokeMethod(this, [this, gen, step]()
+            {
+                if(gen == analysisGen) modelLabel->setText("Calculating: " + step + "...");
+            }, Qt::QueuedConnection);
+        };
+
+        BatteryParamsExtraction::analyzeCycle(&snapshot, settings, progress);
+        return snapshot;
+    }));
+}
+
+void BatteryCycleWnd::onAnalysisFinished()
+{
+    if(!analysisWatcher.future().isResultReadyAt(0)) return;
+
+    /*A cycle opened in the meantime invalidates a result still coming from the old one*/
+    if(analysisRunGen != analysisGen) return;
+
+    cycle = analysisWatcher.result();
+
+    refreshMarkerEdits();
     updateInfo();
-    updatePlots();
+    updatePlots(true);
+
+    if(analysisEmit) emit sigCycleUpdated(cycle);
 }
 
 void BatteryCycleWnd::updateInfo()
@@ -292,16 +378,18 @@ void BatteryCycleWnd::updateInfo()
                        "   |   R0 " + (cycle.resistanceValid ? QString::number(cycle.resistance * 1000.0, 'f', 2) + " mOhm" : "-") +
                        (moved ? "   |   markers moved, not saved" : ""));
 
+    QString reasonSuffix = cycle.modelReason.isEmpty() ? QString() : ("   |   " + cycle.modelReason);
+
     if(!cycle.relaxationReached && !cycle.modelValid)
     {
-        modelLabel->setText("Relaxation not reached, RC model not calculated");
+        modelLabel->setText("Relaxation not reached, RC model not calculated" + reasonSuffix);
         modelLabel->setStyleSheet("color: rgb(170, 130, 0);");
         return;
     }
 
     if(!cycle.modelValid)
     {
-        modelLabel->setText("Relaxed at " + QString::number(cycle.relaxationKey / timeScale(), 'f', 1) + " " + timeSuffix() + ", RC model could not be fitted");
+        modelLabel->setText("Relaxed at " + QString::number(cycle.relaxationKey / timeScale(), 'f', 1) + " " + timeSuffix() + ", RC model could not be fitted" + reasonSuffix);
         modelLabel->setStyleSheet("color: rgb(170, 130, 0);");
         return;
     }
@@ -310,18 +398,25 @@ void BatteryCycleWnd::updateInfo()
         ? ("Relaxed at " + QString::number(cycle.relaxationKey / timeScale(), 'f', 1) + " " + timeSuffix())
         : "Fitted to pause end (relaxation not reached)";
 
+    QString fastText = cycle.r1Valid
+        ? ("   |   R1 " + QString::number(cycle.r1 * 1000.0, 'f', 2) + " mOhm" +
+           "   C1 " + QString::number(cycle.c1, 'f', 1) + " F" +
+           "   tau1 " + QString::number(cycle.tauFast, 'f', 2) + " s")
+        : "   |   R1 / C1 not determined";
+
+    QString slowText = cycle.r2Valid
+        ? ("   |   R2 " + QString::number(cycle.r2 * 1000.0, 'f', 2) + " mOhm" +
+           "   C2 " + QString::number(cycle.c2, 'f', 1) + " F" +
+           "   tau2 " + QString::number(cycle.tauSlow, 'f', 2) + " s")
+        : (cycle.model == BATTERYPARAMS_MODEL_SECOND_ORDER ? "   |   R2 / C2 not determined" : "");
+
     modelLabel->setStyleSheet("color: rgb(0, 120, 0);");
     modelLabel->setText(modelPrefix + "   |   " +
                         QString(cycle.model == BATTERYPARAMS_MODEL_SECOND_ORDER ? "2nd order" : "1st order") +
-                        "   |   R1 " + QString::number(cycle.r1 * 1000.0, 'f', 2) + " mOhm" +
-                        "   C1 " + QString::number(cycle.c1, 'f', 1) + " F" +
-                        "   tau1 " + QString::number(cycle.tauFast, 'f', 2) + " s" +
-                        (cycle.model == BATTERYPARAMS_MODEL_SECOND_ORDER ?
-                            "   |   R2 " + QString::number(cycle.r2 * 1000.0, 'f', 2) + " mOhm" +
-                            "   C2 " + QString::number(cycle.c2, 'f', 1) + " F" +
-                            "   tau2 " + QString::number(cycle.tauSlow, 'f', 2) + " s" : "") +
+                        fastText + slowText +
                         "   |   RMSE " + QString::number(cycle.fitRmse * 1000.0, 'f', 3) + " mV" +
-                        "   max " + QString::number(cycle.fitMaxError * 1000.0, 'f', 3) + " mV");
+                        "   max " + QString::number(cycle.fitMaxError * 1000.0, 'f', 3) + " mV" +
+                        reasonSuffix);
 
     saveButton->setEnabled(moved);
     restoreButton->setEnabled(moved);
@@ -352,14 +447,28 @@ void BatteryCycleWnd::setPlotSettings(batteryparams_plot_settings_t settings)
     }
 }
 
-void BatteryCycleWnd::updatePlots()
+void BatteryCycleWnd::updatePlots(bool keepView)
 {
+    /*When the view is kept, the current zoom is captured before the data is replaced and
+      restored afterwards, so a recalculation does not snap the plot back to the whole
+      cycle when the user has zoomed into a part of it*/
+    QCPRange keepVoltageX, keepVoltageY, keepCurrentX, keepCurrentY;
+
+    if(keepView)
+    {
+        keepVoltageX = voltagePlot->plotXRange();
+        keepVoltageY = voltagePlot->plotYRange();
+        keepCurrentX = currentPlot->plotXRange();
+        keepCurrentY = currentPlot->plotYRange();
+    }
+
     voltagePlot->scatterClearMarkers();
     currentPlot->scatterClearMarkers();
     voltagePlot->markersAtKeyClear();
     currentPlot->markersAtKeyClear();
     voltagePlot->overlayClear();
     voltagePlot->shadeClear();
+    voltagePlot->clearAverageData();
 
     QVector<double> scaledKeys;
 
@@ -371,8 +480,19 @@ void BatteryCycleWnd::updatePlots()
     voltagePlot->setXLabel("[" + timeSuffix() + "]");
     currentPlot->setXLabel("[" + timeSuffix() + "]");
 
-    voltagePlot->setData(cycle.plotVoltage, scaledKeys);
-    currentPlot->setData(cycle.plotCurrent, scaledKeys);
+    voltagePlot->setData(cycle.plotVoltage, scaledKeys, !keepView);
+    currentPlot->setData(cycle.plotCurrent, scaledKeys, !keepView);
+
+    /*Averaged pause voltage the RC fit actually used, shown so the effect of the fit
+      average window is visible. With a window of 1 it sits on top of the raw samples*/
+    if(!cycle.avgVoltage.isEmpty() && (cycle.avgVoltage.size() == cycle.avgKeys.size()))
+    {
+        QVector<double> scaledAvgKeys;
+        for(int i = 0; i < cycle.avgKeys.size(); i++) scaledAvgKeys.append(cycle.avgKeys[i] / timeScale());
+
+        voltagePlot->averageAddGraph();
+        voltagePlot->appendAverageData(cycle.avgVoltage, scaledAvgKeys);
+    }
 
     addMarker(voltagePlot, cycle.plotVoltage, cycle.pulseStartKey, "Pulse Start");
     addMarker(voltagePlot, cycle.plotVoltage, cycle.pulseEndKey, "Pulse End");
@@ -420,8 +540,18 @@ void BatteryCycleWnd::updatePlots()
 
     if(!cycle.plotKeys.isEmpty())
     {
-        voltagePlot->zoomToKeyRange(scaledKeys.first(), scaledKeys.last());
-        currentPlot->zoomToKeyRange(scaledKeys.first(), scaledKeys.last());
+        if(keepView)
+        {
+            voltagePlot->setXRange(keepVoltageX.lower, keepVoltageX.upper);
+            voltagePlot->setYRange(keepVoltageY.lower, keepVoltageY.upper);
+            currentPlot->setXRange(keepCurrentX.lower, keepCurrentX.upper);
+            currentPlot->setYRange(keepCurrentY.lower, keepCurrentY.upper);
+        }
+        else
+        {
+            voltagePlot->zoomToKeyRange(scaledKeys.first(), scaledKeys.last());
+            currentPlot->zoomToKeyRange(scaledKeys.first(), scaledKeys.last());
+        }
     }
 
     applyPlotStyle();
@@ -429,6 +559,9 @@ void BatteryCycleWnd::updatePlots()
 
 void BatteryCycleWnd::setCycle(batteryparams_cycle_t aCycle)
 {
+    /*Invalidate a fit still running for the previous cycle so its result is dropped*/
+    analysisGen++;
+
     cycle = aCycle;
     originalCycle = aCycle;
 

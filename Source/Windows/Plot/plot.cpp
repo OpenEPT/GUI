@@ -495,17 +495,93 @@ void Plot::markersAtKeyClear()
     plot->replot();
 }
 
-void        Plot::setData(QVector<double> data, QVector<double> keys)
+void        Plot::setData(QVector<double> data, QVector<double> keys, bool rescale)
 {
     xData = keys;
     yData = data;
     if(replotActive)
     {
         plot->graph(0)->setData(xData, yData, true);
-        plot->rescaleAxes(true);
+        if(rescale) plot->rescaleAxes(true);
         plot->replot();
     }
 }
+QCPGraph*   Plot::seriesAdd(QString name, QColor color, QVector<double> keys, QVector<double> values)
+{
+    /*The default main graph carries no trend data here, so it is kept out of the legend*/
+    if(extraSeries.isEmpty()) plot->graph(0)->removeFromLegend();
+
+    QCPGraph *graph = plot->addGraph();
+
+    graph->setName(name);
+    graph->setPen(QPen(color, 2));
+    graph->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssCircle, color, color, 7));
+    graph->setData(keys, values, true);
+
+    extraSeries.append(graph);
+
+    plot->legend->setVisible(true);
+    seriesRescale();
+
+    return graph;
+}
+
+void        Plot::seriesClear()
+{
+    for(int i = 0; i < extraSeries.size(); i++) plot->removeGraph(extraSeries[i]);
+    extraSeries.clear();
+    plot->replot();
+}
+
+void        Plot::seriesSetVisible(QCPGraph *graph, bool visible)
+{
+    if(graph == NULL) return;
+
+    graph->setVisible(visible);
+    if(visible) graph->addToLegend();
+    else graph->removeFromLegend();
+
+    seriesRescale();
+}
+
+void        Plot::seriesRescale()
+{
+    bool first = true;
+
+    plot->xAxis->rescale();
+
+    for(int i = 0; i < extraSeries.size(); i++)
+    {
+        if(!extraSeries[i]->visible()) continue;
+        extraSeries[i]->rescaleValueAxis(!first);
+        first = false;
+    }
+
+    /*A small margin so the extreme points are not clipped at the axis border*/
+    QCPRange xRange = plot->xAxis->range();
+    plot->xAxis->setRange(xRange.lower - xRange.size() * 0.03, xRange.upper + xRange.size() * 0.03);
+
+    if(!first)
+    {
+        QCPRange yRange = plot->yAxis->range();
+        plot->yAxis->setRange(yRange.lower - yRange.size() * 0.08, yRange.upper + yRange.size() * 0.08);
+    }
+
+    plot->replot();
+}
+
+void        Plot::setXReversed(bool reversed)
+{
+    plot->xAxis->setRangeReversed(reversed);
+    plot->replot();
+}
+
+void        Plot::legendSetVisible(bool visible)
+{
+    plot->legend->setVisible(visible);
+    plot->replot();
+}
+
 void        Plot::appendData(QVector<double> data, QVector<double> keys)
 {
     if(keys.isEmpty() || keys.size() != data.size()) return;
@@ -553,6 +629,14 @@ void        Plot::setXRange(double min, double max)
 {
     plot->xAxis->setRange(min, max);
     plot->replot();
+}
+QCPRange    Plot::plotXRange()
+{
+    return plot->xAxis->range();
+}
+QCPRange    Plot::plotYRange()
+{
+    return plot->yAxis->range();
 }
 void        Plot::setXLabel(QString label)
 {

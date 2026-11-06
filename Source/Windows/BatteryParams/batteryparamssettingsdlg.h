@@ -38,6 +38,8 @@ private:
     QComboBox                  *fitEndCombo;
     QLineEdit                  *tauGridPointsEdit;
     QLineEdit                  *tauSeparationEdit;
+    QLineEdit                  *ocvWindowEdit;
+    QLineEdit                  *fitAverageWindowEdit;
 
     QFontComboBox              *plotFontCombo;
     QLineEdit                  *plotLabelSizeEdit;

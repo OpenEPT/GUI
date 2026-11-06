@@ -63,6 +63,7 @@ private:
     QStringList                         listConsumptionProfiles();
     void                                listConsumptionProfilesInDir(QDir dir, QString relativePath, QStringList& profiles, int depth);
     void                                realoadConsumptionProfiles();
+    QString                             profileAnalysisType(const QString &profilePath);
     QMdiSubWindow*                      subWindowFor(DataAnalyzerProfile *profile);
     void                                attachProfile(DataAnalyzerProfile *profile, QString title);
     void                                toggleProfileDockState(DataAnalyzerProfile *profile);

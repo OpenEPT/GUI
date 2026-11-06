@@ -9,6 +9,9 @@
 #include <QPushButton>
 #include <QTableWidget>
 #include <QTabWidget>
+#include <QAction>
+#include <QMenu>
+#include <QToolBar>
 #include <QVector>
 #include <QSet>
 #include <QPair>
@@ -55,6 +58,9 @@ private slots:
     void                onStatistics();
     void                onStoreNewPoints();
     void                onSettings();
+    void                onGraph();
+    void                onAnalysisWindow();
+    void                onColumnToggled();
     void                onResistanceTrend();
     void                onCapacitanceTrend();
     void                onOcvTrend();
@@ -76,19 +82,27 @@ private slots:
 private:
     QLabel             *statusLabel;
     QLabel             *liveStatusLabel;
-    QPushButton        *settingsButton;
-    QPushButton        *resistanceTrendButton;
-    QPushButton        *capacitanceTrendButton;
-    QPushButton        *ocvTrendButton;
-    QPushButton        *ocvAnalysisButton;
-    QPushButton        *fitQualityButton;
-    QPushButton        *relaxationTimeButton;
-    QPushButton        *fitIntervalButton;
-    QPushButton        *fitPointsButton;
-    QPushButton        *fitPointsSaveButton;
-    QPushButton        *fitPointsRestoreButton;
-    QPushButton        *fitPointsFindStartButton;
-    QPushButton        *recalculateButton;
+
+    QAction            *configAction;
+    QAction            *statisticsAction;
+    QAction            *graphAction;
+    QAction            *analysisAction;
+    QAction            *fitPointsAction;
+    QAction            *fitPointsSaveAction;
+    QAction            *fitPointsRestoreAction;
+    QAction            *fitPointsFindStartAction;
+    QAction            *recalcAction;
+    QMenu              *columnsMenu;
+    QVector<QAction*>   columnActions;
+
+    QWidget                  *graphWnd;
+    BatteryParamsTrendWnd    *graphResistance;
+    BatteryParamsTrendWnd    *graphCapacitance;
+    BatteryParamsTrendWnd    *graphOcv;
+    BatteryParamsTrendWnd    *graphRelaxation;
+
+    QWidget            *analysisWnd;
+
     QLabel             *settingsLabel;
 
     BatteryParamsSettingsDlg *settingsDlg;
@@ -105,7 +119,6 @@ private:
     batteryparams_plot_settings_t plotSettings;
     int                       parallelAnswer;
     QLabel             *summaryLabel;
-    QPushButton        *statisticsButton;
     QTabWidget         *cycleTabs;
     QTableWidget       *cyclesTable;
     QTableWidget       *chargeCyclesTable;
@@ -124,6 +137,11 @@ private:
     QVector<batteryparams_cycle_t> fittedOriginals;
 
     void                updateFitPointsButtons();
+    void                refreshGraphs();
+    QVector<batteryparams_trend_t> buildResistanceTrends();
+    QVector<batteryparams_trend_t> buildCapacitanceTrends();
+    QVector<batteryparams_trend_t> buildOcvTrends();
+    QVector<batteryparams_trend_t> buildRelaxationTrends();
     bool                connectedToCycleWnd;
     bool                connectedToFitIntervalWnd;
 

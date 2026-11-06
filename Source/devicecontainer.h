@@ -50,6 +50,7 @@ public slots:
     void    onDeviceWndEPEnable(bool aEpEnabled);
     void    onDeviceWndMaxNumberOfBuffersChanged(unsigned int maxNumber);
     void    onDeviceWndConsumptionProfileNameChanged(QString aConsumptionProfileName);
+    void    onDeviceWndProfileAnalysisTypeChanged(QString analysisType, QString batteryName, QString batteryCapacity);
 
     void    onDeviceWndLoadStatusChanged(bool status);
     void    onDeviceWndPPathStatusChanged(bool status);
@@ -184,6 +185,11 @@ private:
     bool                            batParamExtractionRunning;
     bool                            batParamProcedureActive;
 
+    QString                         profileAnalysisType;
+    QString                         profileBatteryName;
+    QString                         profileBatteryCapacity;
+    bool                            profileTypeWritten;
+
     bool                            batParamUVFinal;
     double                          batParamLastSampleKey;
 
@@ -225,6 +231,7 @@ private:
     void                            batParamApplyRegionRelax(int index);
     void                            batParamUpdateLiveStatus();
 
+    void                            writeProfileAnalysisType();
     bool                            createSubDir(const QString &subDirName, QString &fullPath);
 
     void                            logResult(bool status, const QString& successMsg, const QString& errorMsg);

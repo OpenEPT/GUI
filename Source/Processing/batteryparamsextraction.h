@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QString>
+#include <functional>
 #include <QVector>
 
 #define BATTERYPARAMS_DEFAULT_PULSE_START_MARKER    "Pulse Start"
@@ -26,6 +27,9 @@
 #define BATTERYPARAMS_START_SWEEP_MAX_STEPS         40
 #define BATTERYPARAMS_INITIAL_SOC_DEFAULT           100.0
 #define BATTERYPARAMS_CYCLE_PLOT_STEP_WINDOW        50.0
+#define BATTERYPARAMS_OCV_WINDOW_DEFAULT            10
+#define BATTERYPARAMS_FIT_AVERAGE_WINDOW_DEFAULT    1
+#define BATTERYPARAMS_FIT_MAX_POINTS                4000
 
 typedef enum
 {
@@ -51,6 +55,8 @@ typedef struct
     double                  capacity;
     double                  initialSoc;
     int                     plotDecimation;
+    int                     ocvWindow;          /*points averaged for the open circuit voltage*/
+    int                     fitAverageWindow;   /*points averaged before the RC fit, 1 keeps raw*/
 }batteryparams_settings_t;
 
 typedef struct
@@ -88,6 +94,7 @@ typedef struct
 
     batteryparams_model_t model;
     bool            modelValid;
+    QString         modelReason;
     double          tauFast;
     double          tauSlow;
     double          fastPortionEndKey;
@@ -96,6 +103,8 @@ typedef struct
     double          c1;
     double          r2;
     double          c2;
+    bool            r1Valid;
+    bool            r2Valid;
     double          fitRmse;
     double          fitMaxError;
 
@@ -108,6 +117,9 @@ typedef struct
     QVector<double> plotKeys;
     QVector<double> plotVoltage;
     QVector<double> plotCurrent;
+
+    QVector<double> avgKeys;
+    QVector<double> avgVoltage;
 }batteryparams_cycle_t;
 
 Q_DECLARE_METATYPE(batteryparams_cycle_t);
@@ -137,7 +149,9 @@ public:
     batteryparams_settings_t getSettings();
 
     static batteryparams_settings_t settingsDefault();
-    static bool             analyzeCycle(batteryparams_cycle_t *cycle, batteryparams_settings_t settings);
+    static void             nameCurrentThread(unsigned int cycleIndex);
+    static bool             analyzeCycle(batteryparams_cycle_t *cycle, batteryparams_settings_t settings,
+                                         const std::function<void(const QString&)> &progress = std::function<void(const QString&)>());
     static int              relaxationPositionGet(const QVector<double> &keys, const QVector<double> &voltage,
                                                   int start, int end, double threshold, double window);
     static bool             cyclePointsFit(batteryparams_cycle_t *cycle);

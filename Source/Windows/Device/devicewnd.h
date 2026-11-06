@@ -190,6 +190,7 @@ signals:
     void            sigStopAcquisition();
     void            sigRefreshAcquisition();
     void            sigConsumptionProfileNameChanged(QString newName);
+    void            sigProfileAnalysisTypeChanged(QString analysisType, QString batteryName, QString batteryCapacity);
     void            sigNewControlMessageRcvd(const QString &response);
     void            sigAdvConfigurationReqested();
     void            sigAdvConfigurationChanged(QVariant newConfig);

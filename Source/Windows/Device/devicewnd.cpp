@@ -1,6 +1,7 @@
 #include "devicewnd.h"
 #include "ui_devicewnd.h"
 #include "Windows/Console/consolewnd.h"
+#include "Windows/Device/profiletypedialog.h"
 #include <QFileDialog>
 #include <QNetworkInterface>
 #include <QOpenGLWidget>
@@ -181,7 +182,14 @@ void DeviceWnd::onCalibrationStoreRequest()
 
 void DeviceWnd::onSetConsumptionName()
 {
-    emit sigConsumptionProfileNameChanged(ui->consNameLine->text());
+    QString name = ui->consNameLine->text().trimmed();
+    if(name.isEmpty()) return;
+
+    ProfileTypeDialog dialog(this);
+    if(dialog.exec() != QDialog::Accepted) return;
+
+    emit sigConsumptionProfileNameChanged(name);
+    emit sigProfileAnalysisTypeChanged(dialog.analysisType(), dialog.batteryName(), dialog.batteryCapacity());
 }
 
 void DeviceWnd::onInterfaceChanged(QString interfaceInfo)
