@@ -40,6 +40,7 @@ signals:
 public slots:
     void                                onGenerateStatistics();
     void                                onBatteryAnalyzer();
+    void                                onEditProfileType();
     void                                onStatisticsProgress(int percentage, QString text);
     void                                onStatisticsFinished(QVector<dataanalyzer_segment_stat_t> stats, QVector<dataanalyzer_point_marker_t> points, dataanalyzer_segment_stat_t total, QStringList warnings);
     void                                onStatisticsSegmentSelected(QString name, int startIndex, int endIndex);
@@ -49,6 +50,8 @@ public slots:
     void                                onDetachClicked();
     void                                processingVolCurConDone(QVector<QVector<double> > vc, QVector<QVector<double>> cons);
     void                                processingEPDone(QVector<QPair<QString, int>> epData);
+    void                                onBatteryPointsStored(QVector<QPair<QString, double>> cycleMarkers);
+    void                                onBatterySettingsChanged(batteryparams_settings_t settings);
     void                                updateProgress(int percentage);
     void                                updateProgressText(QString text);
 
@@ -57,8 +60,11 @@ private:
     void                                createCurrentSubWin();
     void                                createConsumptionSubWin();
     void                                applyMarkersToPlots(QVector<QPair<QString, int>> markers);
+    void                                saveBatterySettings(const batteryparams_settings_t &settings);
+    bool                                loadBatterySettings(batteryparams_settings_t *settings);
     QVector<QPair<QString, QString>>    parseSummaryFile(const QString &filePath);
     QString                             getValueForKey(const QVector<QPair<QString, QString> > &parsedData, const QString &key);
+    void                                setDeclaredCapacity(double capacity);
 
     QMainWindow                         *mainWindow;
     QToolBar                            *plotsToolBar;

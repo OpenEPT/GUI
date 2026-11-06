@@ -1,4 +1,5 @@
 #include "dataanalyzerprofile.h"
+#include "Windows/Device/profiletypedialog.h"
 
 #include <QVBoxLayout>
 #include <QDockWidget>
@@ -10,6 +11,9 @@
 #include <QApplication>
 #include <QDir>
 #include <QProgressDialog>
+#include <QJsonObject>
+#include <QJsonDocument>
+#include <algorithm>
 
 #define PLOT_MINIMUM_SIZE_HEIGHT 100
 #define PLOT_MINIMUM_SIZE_WIDTH 500
@@ -30,17 +34,40 @@ DataAnalyzerProfile::DataAnalyzerProfile(QString aWsDirPath, QString aProfileNam
     progressDialog = NULL;
     statisticsProgressDialog = NULL;
 
+    QString analysisType = getValueForKey(parseSummaryFile(wsDirPath + "/" + profileName + "/OpenEPT.txt"), "Analysis Type");
+    bool isBattery = (analysisType == "Battery");
+    bool isConsumption = (analysisType == "Consumption");
+    bool typed = isBattery || isConsumption;
+
     plotsToolBar = new QToolBar(this);
     plotsToolBar->setIconSize(QSize(24, 24));
+
+    /*Save and the profile type (gear) stay on the left*/
     QAction *saveAllPlotsAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/save.png")), "Save all plots");
     saveAllPlotsAction->setToolTip("Save Voltage, Current and Consumption plots (current view) to a folder");
     connect(saveAllPlotsAction, SIGNAL(triggered(bool)), this, SLOT(onSaveAllPlots()));
-    QAction *genStatisticsAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/analysis.png")), "Gen statistics");
+
+    QAction *profileTypeAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/setting.png")), "Profile type");
+    profileTypeAction->setToolTip("Edit the analysis type of this profile (Battery / Consumption / Other) and the battery name and capacity");
+    connect(profileTypeAction, SIGNAL(triggered(bool)), this, SLOT(onEditProfileType()));
+
+    /*Spacer pushes the analysis specific icon to the right*/
+    QWidget *toolBarSpacer = new QWidget(plotsToolBar);
+    toolBarSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    plotsToolBar->addWidget(toolBarSpacer);
+
+    /*Only the icon matching the profile type is shown: the battery analyzer for a battery
+      profile, the consumption statistics for a consumption profile, both for an untyped one*/
+    QAction *genStatisticsAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/main.png")), "Gen statistics");
     genStatisticsAction->setToolTip("Generate consumption statistics for segments between \"<name> Start\" and \"<name> Stop\" markers");
+    genStatisticsAction->setVisible(!typed || isConsumption);
     connect(genStatisticsAction, SIGNAL(triggered(bool)), this, SLOT(onGenerateStatistics()));
-    QAction *batteryAnalyzerAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/loadProfiler.png")), "Battery analyzer");
+
+    QAction *batteryAnalyzerAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/battery.png")), "Battery analyzer");
     batteryAnalyzerAction->setToolTip("Extract battery parameters from \"Pulse Start / Pulse End / Pause Start / Pause End\" marker cycles");
+    batteryAnalyzerAction->setVisible(!typed || isBattery);
     connect(batteryAnalyzerAction, SIGNAL(triggered(bool)), this, SLOT(onBatteryAnalyzer()));
+
     detachAction = plotsToolBar->addAction(QIcon(QPixmap(":/images/NewSet/expand.png")), "Attach");
     detachAction->setToolTip("Show this profile back as a tab of the Data Analyzer");
     detachAction->setVisible(false);
@@ -250,14 +277,199 @@ void DataAnalyzerProfile::processingVolCurConDone(QVector<QVector<double> > vc, 
 
     graphLoad = true;
 
-    if(epEnabledFlag)
-    {
-        emit processEPRequest(wsDirPath, profileName);
-    }
-    else
+    /*The energy points are parsed in parallel with the voltage, current and consumption,
+      so they are not requested again here. When they are enabled the EP finished handler
+      closes the dialog, otherwise it is closed now*/
+    if(!epEnabledFlag)
     {
         if(progressDialog) progressDialog->close();
     }
+}
+
+void DataAnalyzerProfile::saveBatterySettings(const batteryparams_settings_t &settings)
+{
+    QJsonObject obj;
+    obj["relaxationThreshold"] = settings.relaxationThreshold;
+    obj["relaxationWindow"] = settings.relaxationWindow;
+    obj["relaxationFilter"] = settings.relaxationFilter;
+    obj["model"] = (int)settings.model;
+    obj["fitEnd"] = (int)settings.fitEnd;
+    obj["tauGridPoints"] = settings.tauGridPoints;
+    obj["tauSeparation"] = settings.tauSeparation;
+    obj["capacity"] = settings.capacity;
+    obj["initialSoc"] = settings.initialSoc;
+    obj["plotDecimation"] = settings.plotDecimation;
+    obj["ocvWindow"] = settings.ocvWindow;
+    obj["fitAverageWindow"] = settings.fitAverageWindow;
+
+    QFile file(wsDirPath + "/" + profileName + "/batteryparams.json");
+    if(file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    {
+        file.write(QJsonDocument(obj).toJson(QJsonDocument::Indented));
+        file.close();
+    }
+}
+
+bool DataAnalyzerProfile::loadBatterySettings(batteryparams_settings_t *settings)
+{
+    if(settings == NULL) return false;
+
+    QFile file(wsDirPath + "/" + profileName + "/batteryparams.json");
+    if(!file.open(QIODevice::ReadOnly)) return false;
+
+    QByteArray data = file.readAll();
+    file.close();
+
+    QJsonParseError error;
+    QJsonDocument doc = QJsonDocument::fromJson(data, &error);
+    if(error.error != QJsonParseError::NoError || !doc.isObject()) return false;
+
+    QJsonObject obj = doc.object();
+    batteryparams_settings_t loaded = BatteryParamsExtraction::settingsDefault();
+
+    loaded.relaxationThreshold = obj.value("relaxationThreshold").toDouble(loaded.relaxationThreshold);
+    loaded.relaxationWindow = obj.value("relaxationWindow").toDouble(loaded.relaxationWindow);
+    loaded.relaxationFilter = obj.value("relaxationFilter").toDouble(loaded.relaxationFilter);
+    loaded.model = (batteryparams_model_t)obj.value("model").toInt((int)loaded.model);
+    loaded.fitEnd = (batteryparams_fit_end_t)obj.value("fitEnd").toInt((int)loaded.fitEnd);
+    loaded.tauGridPoints = obj.value("tauGridPoints").toInt(loaded.tauGridPoints);
+    loaded.tauSeparation = obj.value("tauSeparation").toDouble(loaded.tauSeparation);
+    loaded.capacity = obj.value("capacity").toDouble(loaded.capacity);
+    loaded.initialSoc = obj.value("initialSoc").toDouble(loaded.initialSoc);
+    loaded.plotDecimation = obj.value("plotDecimation").toInt(loaded.plotDecimation);
+    loaded.ocvWindow = obj.value("ocvWindow").toInt(loaded.ocvWindow);
+    loaded.fitAverageWindow = obj.value("fitAverageWindow").toInt(loaded.fitAverageWindow);
+
+    *settings = loaded;
+    return true;
+}
+
+void DataAnalyzerProfile::onBatterySettingsChanged(batteryparams_settings_t settings)
+{
+    saveBatterySettings(settings);
+
+    /*Keep the declared capacity in the profile in sync with the one used for the analysis*/
+    if(settings.capacity > 0) setDeclaredCapacity(settings.capacity);
+}
+
+void DataAnalyzerProfile::setDeclaredCapacity(double capacity)
+{
+    QString summaryPath = wsDirPath + "/" + profileName + "/OpenEPT.txt";
+    QFile file(summaryPath);
+    QStringList lines;
+
+    if(file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        QTextStream in(&file);
+        while(!in.atEnd()) lines << in.readLine();
+        file.close();
+    }
+
+    QString capacityLine = "Battery capacity [mAh]: " + QString::number(capacity);
+    bool replaced = false;
+
+    for(int i = 0; i < lines.size(); i++)
+    {
+        if(lines[i].trimmed().startsWith("Battery capacity [mAh]:"))
+        {
+            lines[i] = capacityLine;
+            replaced = true;
+            break;
+        }
+    }
+
+    /*If the profile had no declared capacity yet, it is added together with the type block*/
+    if(!replaced)
+    {
+        bool hasType = false;
+        for(int i = 0; i < lines.size(); i++)
+            if(lines[i].trimmed().startsWith("Analysis Type:")) { hasType = true; break; }
+
+        while(!lines.isEmpty() && lines.last().trimmed().isEmpty()) lines.removeLast();
+
+        if(!hasType)
+        {
+            lines << "-------";
+            lines << "Analysis Type: Battery";
+        }
+        lines << capacityLine;
+    }
+
+    if(file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+    {
+        QTextStream out(&file);
+        for(const QString &line : lines) out << line << "\n";
+        file.close();
+    }
+}
+
+void DataAnalyzerProfile::onBatteryPointsStored(QVector<QPair<QString, double>> cycleMarkers)
+{
+    /*Every pulse/pause marker is replaced with the current set reported by the
+      battery parameters window, so moved points, newly completed cycles and removed
+      cycles are all reflected. Markers that do not belong to a cycle (for example the
+      charge markers) are kept as they were*/
+    QVector<QPair<QString, int>> rebuilt;
+
+    for(int i = 0; i < loadedMarkers.size(); i++)
+    {
+        QString name = loadedMarkers[i].first.trimmed();
+        if(name == BATTERYPARAMS_DEFAULT_PULSE_START_MARKER ||
+           name == BATTERYPARAMS_DEFAULT_PULSE_END_MARKER ||
+           name == BATTERYPARAMS_DEFAULT_PAUSE_START_MARKER ||
+           name == BATTERYPARAMS_DEFAULT_PAUSE_END_MARKER) continue;
+        rebuilt.append(loadedMarkers[i]);
+    }
+
+    for(int i = 0; i < cycleMarkers.size(); i++)
+        rebuilt.append(qMakePair(cycleMarkers[i].first, (int)qRound(cycleMarkers[i].second)));
+
+    std::sort(rebuilt.begin(), rebuilt.end(), [](const QPair<QString, int> &a, const QPair<QString, int> &b){
+        return a.second < b.second;
+    });
+
+    loadedMarkers = rebuilt;
+
+    QString epPath = wsDirPath + "/" + profileName + "/ep.csv";
+    QStringList headerLines;
+    QFile in(epPath);
+
+    if(in.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        while(!in.atEnd())
+        {
+            QString line = QString::fromUtf8(in.readLine());
+            QString trimmed = line.trimmed();
+            int comma = trimmed.lastIndexOf(',');
+            bool isData = false;
+
+            if(comma >= 0)
+            {
+                bool ok;
+                trimmed.mid(comma + 1).trimmed().toInt(&ok);
+                isData = ok;
+            }
+
+            if(isData) break;
+
+            while(line.endsWith('\n') || line.endsWith('\r')) line.chop(1);
+            headerLines.append(line);
+        }
+        in.close();
+    }
+
+    if(headerLines.isEmpty()) headerLines.append("Energy point info");
+
+    QFile out(epPath);
+    if(out.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+    {
+        QTextStream ts(&out);
+        for(int i = 0; i < headerLines.size(); i++) ts << headerLines[i] << "\n";
+        for(int i = 0; i < loadedMarkers.size(); i++) ts << loadedMarkers[i].first << "," << loadedMarkers[i].second << "\n";
+        out.close();
+    }
+
+    applyMarkersToPlots(loadedMarkers);
 }
 
 void DataAnalyzerProfile::processingEPDone(QVector<QPair<QString, int> > epData)
@@ -351,23 +563,31 @@ void DataAnalyzerProfile::onBatteryAnalyzer()
     }
 
     /*Capacity is stored with the profile, so the offline analysis can show the
-      used state of charge the same way the live one does*/
+      used state of charge the same way the live one does. If a saved battery
+      parameters configuration exists for this profile, it is used as is so the
+      capacity, relaxation and extraction settings do not have to be set again*/
     {
         QVector<QPair<QString, QString>> summaryInfo = parseSummaryFile(wsDirPath + "/" + profileName + "/OpenEPT.txt");
         double capacity = getValueForKey(summaryInfo, "Battery capacity [mAh]").toDouble();
         batteryparams_settings_t settings = extraction.getSettings();
 
-        if(capacity > 0)
-        {
-            settings.capacity = capacity;
-            extraction.setSettings(settings);
-        }
+        batteryparams_settings_t saved;
+        if(loadBatterySettings(&saved)) settings = saved;
+
+        /*The declared capacity from the profile is the single source of truth, so it wins
+          over the saved value. Editing it in the battery params settings writes it back to
+          the profile, so the two stay in sync*/
+        if(capacity > 0) settings.capacity = capacity;
+
+        extraction.setSettings(settings);
     }
 
     if(batteryParamsWnd == NULL)
     {
         batteryParamsWnd = new BatteryParamsWnd();
         batteryParamsWnd->setAttribute(Qt::WA_QuitOnClose, false);
+        connect(batteryParamsWnd, &BatteryParamsWnd::sigPointsStored, this, &DataAnalyzerProfile::onBatteryPointsStored);
+        connect(batteryParamsWnd, &BatteryParamsWnd::sigSettingsChanged, this, &DataAnalyzerProfile::onBatterySettingsChanged);
     }
 
     batteryParamsWnd->setProfileName(profileName);
@@ -400,6 +620,8 @@ void DataAnalyzerProfile::onBatteryAnalyzer()
     progressDialog.setValue(0);
     QApplication::processEvents();
 
+    extraction.onReset();
+    extraction.setCaptureIncomplete(true);
     extraction.onNewSamplesReceived(loadedVoltage, loadedCurrent, loadedVoltageKeys, loadedCurrentKeys);
 
     progressDialog.setValue(1);
@@ -423,6 +645,8 @@ void DataAnalyzerProfile::onBatteryAnalyzer()
         QApplication::processEvents();
     }
 
+    extraction.flushIncompleteCycle();
+
     cycleNo = extraction.getCycles().size();
 
     if(cycleNo == 0)
@@ -438,6 +662,45 @@ void DataAnalyzerProfile::onBatteryAnalyzer()
     batteryParamsWnd->addCycles(extraction.getCycles(), &progressDialog);
 
     progressDialog.close();
+
+    {
+        QVector<batteryparams_charge_cycle_t> chargeCycles;
+        unsigned int chargeIndex = 0;
+        double chargeStartKey = -1;
+
+        for(int i = 0; i < loadedMarkers.size(); i++)
+        {
+            QString name = loadedMarkers[i].first.trimmed();
+
+            if(name == "Charge Start")
+            {
+                chargeStartKey = loadedMarkers[i].second;
+            }
+            else if(name == "Charge End" && chargeStartKey >= 0)
+            {
+                double chargeEndKey = loadedMarkers[i].second;
+                double capacity = 0;
+
+                for(int s = 1; s < loadedCurrentKeys.size() && s < loadedCurrent.size(); s++)
+                {
+                    if(loadedCurrentKeys[s] < chargeStartKey) continue;
+                    if(loadedCurrentKeys[s] > chargeEndKey) break;
+                    capacity += loadedCurrent[s] * (loadedCurrentKeys[s] - loadedCurrentKeys[s - 1]) / 3600000.0;
+                }
+
+                batteryparams_charge_cycle_t chargeCycle;
+                chargeIndex++;
+                chargeCycle.index = chargeIndex;
+                chargeCycle.startKey = chargeStartKey;
+                chargeCycle.endKey = chargeEndKey;
+                chargeCycle.capacity = qAbs(capacity);
+                chargeCycles.append(chargeCycle);
+                chargeStartKey = -1;
+            }
+        }
+
+        if(!chargeCycles.isEmpty()) batteryParamsWnd->addChargeCycles(chargeCycles);
+    }
 
     batteryParamsWnd->show();
     batteryParamsWnd->raise();
@@ -572,6 +835,86 @@ void DataAnalyzerProfile::onSaveAllPlots()
     if(!failed.isEmpty())
     {
         QMessageBox::warning(this, "Save plots", "Unable to save:\n" + failed.join("\n"));
+    }
+}
+
+void DataAnalyzerProfile::onEditProfileType()
+{
+    QString summaryPath = wsDirPath + "/" + profileName + "/OpenEPT.txt";
+    QVector<QPair<QString, QString>> info = parseSummaryFile(summaryPath);
+
+    ProfileTypeDialog dialog(this);
+    dialog.setValues(getValueForKey(info, "Analysis Type"),
+                     getValueForKey(info, "Battery"),
+                     getValueForKey(info, "Battery capacity [mAh]"));
+
+    if(dialog.exec() != QDialog::Accepted) return;
+
+    QFile file(summaryPath);
+    QStringList lines;
+
+    if(file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        QTextStream in(&file);
+        while(!in.atEnd()) lines << in.readLine();
+        file.close();
+    }
+
+    /*Only the existing analysis type block (its separator and its lines) is dropped, the
+      acquisition info and its header separator above are left untouched, then a fresh block
+      is appended below*/
+    int blockStart = -1;
+    for(int i = 0; i < lines.size(); i++)
+    {
+        if(lines[i].trimmed().startsWith("Analysis Type:")) { blockStart = i; break; }
+    }
+
+    QStringList kept = lines;
+    if(blockStart >= 0)
+    {
+        /*Include the separator line right before the block if there is one*/
+        QString before = (blockStart > 0) ? lines[blockStart - 1].trimmed() : QString();
+        if(!before.isEmpty() && (before.count('-') == before.size())) blockStart--;
+
+        while(kept.size() > blockStart) kept.removeLast();
+    }
+
+    while(!kept.isEmpty() && kept.last().trimmed().isEmpty()) kept.removeLast();
+
+    kept << "-------";
+    kept << "Analysis Type: " + dialog.analysisType();
+    if(dialog.analysisType() == "Battery")
+    {
+        kept << "Battery: " + dialog.batteryName();
+        kept << "Battery capacity [mAh]: " + dialog.batteryCapacity();
+    }
+
+    if(file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+    {
+        QTextStream out(&file);
+        for(const QString &line : kept) out << line << "\n";
+        file.close();
+
+        /*The declared capacity is kept in sync with the battery parameters settings*/
+        if(dialog.analysisType() == "Battery")
+        {
+            bool ok;
+            double capacity = dialog.batteryCapacity().toDouble(&ok);
+            if(ok && (capacity > 0))
+            {
+                batteryparams_settings_t settings;
+                if(!loadBatterySettings(&settings)) settings = BatteryParamsExtraction::settingsDefault();
+                settings.capacity = capacity;
+                saveBatterySettings(settings);
+                if(batteryParamsWnd != NULL) batteryParamsWnd->setSettings(settings);
+            }
+        }
+
+        QMessageBox::information(this, "Profile type", "Profile type updated");
+    }
+    else
+    {
+        QMessageBox::warning(this, "Profile type", "Unable to write OpenEPT.txt");
     }
 }
 

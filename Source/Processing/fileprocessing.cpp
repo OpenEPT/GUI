@@ -164,6 +164,7 @@ bool FileProcessing::appendSummaryFile(QString content)
 
 bool FileProcessing::appendSampleData(QVector<double>* voltage, QVector<double>* voltageKeys, QVector<double>* current, QVector<double>* currentKeys)
 {
+    if(samplesFile == NULL) return false;
     if(!samplesFile->isOpen())
     {
         if(!samplesFile->open(QIODevice::WriteOnly | QIODevice::Text| QIODevice::Append)) return false;
@@ -172,10 +173,10 @@ bool FileProcessing::appendSampleData(QVector<double>* voltage, QVector<double>*
     //TODO: Check QVectors sizes;
     for(unsigned int i = 0; i < voltage->size(); i++)
     {
-        out << QString::asprintf("%1.5f", voltage->at(i))      <<  ",";
-        out << QString::asprintf("%1.7f", voltageKeys->at(i))      << ",";
-        out << QString::asprintf("%1.5f", current->at(i))      << ",";
-        out << QString::asprintf("%1.7f", currentKeys->at(i))      << "\n";
+        out << QString::asprintf("%1.5f", voltage->at(i))           <<  ",";
+        out << QString::asprintf("%1.7f", voltageKeys->at(i))       << ",";
+        out << QString::asprintf("%1.5f", current->at(i))           << ",";
+        out << QString::asprintf("%1.7f", currentKeys->at(i))       << "\n";
     }
     samplesFile->close();
     return true;
@@ -183,6 +184,7 @@ bool FileProcessing::appendSampleData(QVector<double>* voltage, QVector<double>*
 
 bool FileProcessing::appendConsumptionData(QVector<double> *consumption, QVector<double> *consumptionKeys)
 {
+    if(consumptionFile == NULL) return false;
     if(!consumptionFile->isOpen())
     {
         if(!consumptionFile->open(QIODevice::WriteOnly | QIODevice::Text| QIODevice::Append)) return false;
@@ -200,6 +202,7 @@ bool FileProcessing::appendConsumptionData(QVector<double> *consumption, QVector
 
 bool FileProcessing::appendEPData(QString name, int key)
 {
+    if(epFile == NULL) return false;
     if(!epFile->isOpen())
     {
         if(!epFile->open(QIODevice::WriteOnly | QIODevice::Text| QIODevice::Append)) return false;

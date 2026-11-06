@@ -25,6 +25,8 @@ public:
     void                        setPlotSettings(batteryparams_plot_settings_t settings);
     batteryparams_plot_settings_t getPlotSettings();
 
+    void                        setExtractionRunning(bool running);
+
 private:
     QLineEdit                  *capacityEdit;
     QLineEdit                  *initialSocEdit;
@@ -35,8 +37,9 @@ private:
     QComboBox                  *modelCombo;
     QComboBox                  *fitEndCombo;
     QLineEdit                  *tauGridPointsEdit;
-    QLineEdit                  *tauRefinementEdit;
     QLineEdit                  *tauSeparationEdit;
+    QLineEdit                  *ocvWindowEdit;
+    QLineEdit                  *fitAverageWindowEdit;
 
     QFontComboBox              *plotFontCombo;
     QLineEdit                  *plotLabelSizeEdit;

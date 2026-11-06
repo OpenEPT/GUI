@@ -1,12 +1,6 @@
 #include "batteryparamstrendwnd.h"
 
-#include <QFileDialog>
-#include <QHBoxLayout>
-#include <QMessageBox>
-#include <QPushButton>
 #include <QVBoxLayout>
-
-#define BATTERYPARAMSTREND_MARKER_SIZE      7
 
 BatteryParamsTrendWnd::BatteryParamsTrendWnd(QWidget *parent) :
     QWidget(parent)
@@ -14,7 +8,6 @@ BatteryParamsTrendWnd::BatteryParamsTrendWnd(QWidget *parent) :
     QFont defaultFont("Arial", 10);
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     QHBoxLayout *controlLayout = new QHBoxLayout();
-    QPushButton *saveButton = new QPushButton("Save image", this);
 
     setFont(defaultFont);
     setWindowTitle("Battery parameters trend");
@@ -22,20 +15,12 @@ BatteryParamsTrendWnd::BatteryParamsTrendWnd(QWidget *parent) :
     seriesLayout = new QHBoxLayout();
     controlLayout->addLayout(seriesLayout);
     controlLayout->addStretch();
-    controlLayout->addWidget(saveButton);
     mainLayout->addLayout(controlLayout);
 
-    plot = new QCustomPlot(this);
-    plot->setInteraction(QCP::iRangeDrag, true);
-    plot->setInteraction(QCP::iRangeZoom, true);
-    plot->legend->setVisible(true);
-    plot->legend->setFont(defaultFont);
-    plot->axisRect()->insetLayout()->setInsetAlignment(0, Qt::AlignTop | Qt::AlignRight);
-    plot->xAxis->setLabel("SoC [%]");
-    plot->xAxis->setRangeReversed(true);
+    plot = new Plot(400, 220, false, this);
+    plot->setXLabel("SoC [%]");
+    plot->setXReversed(true);
     mainLayout->addWidget(plot, 1);
-
-    connect(saveButton, &QPushButton::clicked, this, &BatteryParamsTrendWnd::onSaveImage);
 
     plotSettings = BATTERYPARAMSPLOT_SettingsDefault();
 
@@ -52,20 +37,19 @@ void BatteryParamsTrendWnd::setTrends(QString title, QString yLabel, QVector<bat
         seriesCheckBoxes[i]->deleteLater();
     }
     seriesCheckBoxes.clear();
-    plot->clearGraphs();
+    seriesGraphs.clear();
+    plot->seriesClear();
 
-    plot->yAxis->setLabel(yLabel);
+    plot->setTitle(title);
+    plot->setYLabel(yLabel);
+    plot->setXReversed(true);
 
     for(int i = 0; i < trends.size(); i++)
     {
-        QCPGraph *graph = plot->addGraph();
+        QCPGraph *graph = plot->seriesAdd(trends[i].name, trends[i].color, trends[i].soc, trends[i].value);
         QCheckBox *checkBox = new QCheckBox(trends[i].name, this);
 
-        graph->setName(trends[i].name);
-        graph->setPen(QPen(trends[i].color, 2));
-        graph->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssCircle, trends[i].color,
-                                               trends[i].color, BATTERYPARAMSTREND_MARKER_SIZE));
-        graph->setData(trends[i].soc, trends[i].value, true);
+        seriesGraphs.append(graph);
 
         checkBox->setChecked(true);
         checkBox->setStyleSheet("color: " + trends[i].color.name() + ";");
@@ -75,50 +59,20 @@ void BatteryParamsTrendWnd::setTrends(QString title, QString yLabel, QVector<bat
         connect(checkBox, &QCheckBox::toggled, this, &BatteryParamsTrendWnd::onSeriesToggled);
     }
 
-    rescale();
+    plot->seriesRescale();
 }
 
 void BatteryParamsTrendWnd::setPlotSettings(batteryparams_plot_settings_t settings)
 {
     plotSettings = settings;
-    BATTERYPARAMSPLOT_Apply(plot, plotSettings);
+    plot->applyStyle(plotSettings.fontFamily, plotSettings.labelFontSize, plotSettings.tickFontSize,
+                     plotSettings.lineWidth, plotSettings.gridVisible, plotSettings.minorGridVisible);
 }
 
 void BatteryParamsTrendWnd::onSeriesToggled()
 {
-    for(int i = 0; i < seriesCheckBoxes.size() && i < plot->graphCount(); i++)
+    for(int i = 0; i < seriesCheckBoxes.size() && i < seriesGraphs.size(); i++)
     {
-        plot->graph(i)->setVisible(seriesCheckBoxes[i]->isChecked());
-        plot->graph(i)->removeFromLegend();
-        if(seriesCheckBoxes[i]->isChecked()) plot->graph(i)->addToLegend();
+        plot->seriesSetVisible(seriesGraphs[i], seriesCheckBoxes[i]->isChecked());
     }
-
-    rescale();
-}
-
-void BatteryParamsTrendWnd::rescale()
-{
-    bool firstVisible = true;
-
-    plot->xAxis->rescale();
-
-    for(int i = 0; i < plot->graphCount(); i++)
-    {
-        if(!plot->graph(i)->visible()) continue;
-        plot->graph(i)->rescaleValueAxis(!firstVisible);
-        firstVisible = false;
-    }
-
-    if(!firstVisible)
-    {
-        QCPRange range = plot->yAxis->range();
-        plot->yAxis->setRange(range.lower - range.size() * 0.1, range.upper + range.size() * 0.1);
-    }
-
-    plot->replot();
-}
-
-void BatteryParamsTrendWnd::onSaveImage()
-{
-    BATTERYPARAMSPLOT_Save(plot, this, windowTitle().toLower().replace(' ', '_'));
 }

@@ -50,5 +50,6 @@
         <file>images/NewSet/import.png</file>
         <file>images/NewSet/lock.png</file>
         <file>images/NewSet/delete.png</file>
+        <file>images/NewSet/battery.png</file>
     </qresource>
 </RCC>

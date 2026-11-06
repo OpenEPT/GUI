@@ -70,6 +70,7 @@ SOURCES += \
     Windows/Device/configurationwnd.cpp \
     Windows/Device/datastatistics.cpp \
     Windows/Device/devicewnd.cpp \
+    Windows/Device/profiletypedialog.cpp \
     Windows/Device/energycontrolwnd.cpp \
     Windows/Plot/plot.cpp \
     Windows/Plot/plotdockwidget.cpp \
@@ -126,6 +127,7 @@ HEADERS += \
     Windows/Device/configurationwnd.h \
     Windows/Device/datastatistics.h \
     Windows/Device/devicewnd.h \
+    Windows/Device/profiletypedialog.h \
     Windows/Device/energycontrolwnd.h \
     Windows/Plot/plot.h \
     Windows/Plot/plotdockwidget.h \

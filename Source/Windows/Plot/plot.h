@@ -21,9 +21,17 @@ public:
     void        clearAverageData();
     void        scatterAddDataWithName(double value, double keys, QString name);
     void        scatterReplotDataWithName();
-    void        setData(QVector<double> data, QVector<double> keys);
+    void        setData(QVector<double> data, QVector<double> keys, bool rescale = true);
+    QCPGraph*   seriesAdd(QString name, QColor color, QVector<double> keys, QVector<double> values);
+    void        seriesClear();
+    void        seriesSetVisible(QCPGraph *graph, bool visible);
+    void        seriesRescale();
+    void        setXReversed(bool reversed);
+    void        legendSetVisible(bool visible);
     void        overlaySetData(QVector<double> data, QVector<double> keys, QColor color = Qt::red);
     void        overlayClear();
+    void        shadeKeyRange(double keyMin, double keyMax, QColor color);
+    void        shadeClear();
     void        markerAddAtKey(double key, double value, QString name, QColor color);
     void        markersAtKeyClear();
     void        applyStyle(QString fontFamily, int labelFontSize, int tickFontSize,
@@ -34,6 +42,8 @@ public:
     void        setYRange(double min, double max);
     void        setYLabel(QString label);
     void        setXRange(double min, double max);
+    QCPRange    plotXRange();
+    QCPRange    plotYRange();
     void        setXRangeSynced(QCPRange range);
     void        zoomToKeyRange(double min, double max);
     bool        isAxisLocked();
@@ -88,8 +98,10 @@ private:
     QVector<QString> epDataName;
     QVector<QCPItemText *> textData;
     QCPGraph    *overlayGraph;
+    QVector<QCPGraph*> extraSeries;
     QCPGraph    *keyMarkerGraph;
     QVector<QCPItemText *> keyMarkerText;
+    QVector<QCPItemRect *> shadeRects;
 
     double      trackWindowMs;
     bool        enableTracking;

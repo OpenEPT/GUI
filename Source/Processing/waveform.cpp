@@ -18,6 +18,12 @@ Waveform::Waveform()
     amplitude = 0;
     period = 0;
     points = 0;
+    batParam = false;
+    batCapacity = 0;
+    batRelaxAdaptive = false;
+    batRelaxThreshold = 0;
+    batRelaxWindow = 0;
+    batRelaxFilter = 0;
 }
 
 bool Waveform::isValid()
@@ -367,6 +373,31 @@ QJsonObject Waveform::toJson()
     obj["amplitude"] = (int)amplitude;
     obj["period"] = (int)period;
     obj["points"] = (int)points;
+    obj["batParam"] = batParam;
+    if(batParam)
+    {
+        obj["batCapacity"] = batCapacity;
+        obj["batRelaxAdaptive"] = batRelaxAdaptive;
+        obj["batRelaxThreshold"] = batRelaxThreshold;
+        obj["batRelaxWindow"] = batRelaxWindow;
+        obj["batRelaxFilter"] = batRelaxFilter;
+
+        QJsonArray regionsArray;
+        for(int i = 0; i < batRegions.size(); i++)
+        {
+            QJsonObject regionObj;
+            regionObj["socHigh"] = batRegions[i].socHigh;
+            regionObj["socLow"] = batRegions[i].socLow;
+            regionObj["accuracy"] = batRegions[i].accuracy;
+            regionObj["amplitude"] = batRegions[i].amplitude;
+            regionObj["pause"] = batRegions[i].pause;
+            regionObj["relaxThreshold"] = batRegions[i].relaxThreshold;
+            regionObj["relaxWindow"] = batRegions[i].relaxWindow;
+            regionObj["relaxFilter"] = batRegions[i].relaxFilter;
+            regionsArray.append(regionObj);
+        }
+        obj["batRegions"] = regionsArray;
+    }
     for(int i = 0; i < chunks.size(); i++)
     {
         QJsonObject chunkObj;
@@ -395,6 +426,30 @@ bool Waveform::fromJson(QJsonObject obj)
     amplitude = obj["amplitude"].toInt();
     period = obj["period"].toInt();
     points = obj["points"].toInt();
+    batParam = obj["batParam"].toBool(false);
+    batCapacity = obj["batCapacity"].toDouble(0);
+    batRelaxAdaptive = obj["batRelaxAdaptive"].toBool(false);
+    batRelaxThreshold = obj["batRelaxThreshold"].toDouble(0);
+    batRelaxWindow = obj["batRelaxWindow"].toDouble(0);
+    batRelaxFilter = obj["batRelaxFilter"].toDouble(0);
+    batRegions.clear();
+    {
+        QJsonArray regionsArray = obj["batRegions"].toArray();
+        for(int i = 0; i < regionsArray.size(); i++)
+        {
+            QJsonObject regionObj = regionsArray[i].toObject();
+            waveform_batregion_t region;
+            region.socHigh = regionObj["socHigh"].toDouble(0);
+            region.socLow = regionObj["socLow"].toDouble(0);
+            region.accuracy = regionObj["accuracy"].toDouble(0);
+            region.amplitude = regionObj["amplitude"].toDouble(0);
+            region.pause = regionObj["pause"].toDouble(0);
+            region.relaxThreshold = regionObj["relaxThreshold"].toDouble(0);
+            region.relaxWindow = regionObj["relaxWindow"].toDouble(0);
+            region.relaxFilter = regionObj["relaxFilter"].toDouble(0);
+            batRegions.append(region);
+        }
+    }
     chunks.clear();
     for(int i = 0; i < chunksArray.size(); i++)
     {

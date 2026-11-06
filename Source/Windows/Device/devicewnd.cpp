@@ -1,6 +1,7 @@
 #include "devicewnd.h"
 #include "ui_devicewnd.h"
 #include "Windows/Console/consolewnd.h"
+#include "Windows/Device/profiletypedialog.h"
 #include <QFileDialog>
 #include <QNetworkInterface>
 #include <QOpenGLWidget>
@@ -60,8 +61,11 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveChanged, this, &DeviceWnd::onLoadWaveChanged);
     connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveStatusChanged, this, &DeviceWnd::onLoadWaveStatusChanged);
     connect(energyControlWnd, &EnergyControlWnd::sigBatParamViewRequested, this, &DeviceWnd::sigBatParamViewRequested);
+    connect(energyControlWnd, &EnergyControlWnd::sigBatParamProcedureActive, this, &DeviceWnd::sigBatParamProcedureActive);
     connect(energyControlWnd, &EnergyControlWnd::sigBatParamCapacityChanged, this, &DeviceWnd::sigBatParamCapacityChanged);
     connect(energyControlWnd, &EnergyControlWnd::sigBatParamRelaxationChanged, this, &DeviceWnd::sigBatParamRelaxationChanged);
+    connect(energyControlWnd, &EnergyControlWnd::sigBatParamExtractionRunning, this, &DeviceWnd::sigBatParamExtractionRunning);
+    connect(energyControlWnd, &EnergyControlWnd::sigChargeMarkersEnabled, this, &DeviceWnd::sigChargeMarkersEnabled);
     connect(energyControlWnd, &EnergyControlWnd::sigLoadWaveClear, this, &DeviceWnd::sigLoadWaveClear);
     connect(energyControlWnd, SIGNAL(sigChargingCurrentStatusChanged(bool)), this, SLOT(onChargingCurrentStatusChanged(bool)));
     connect(energyControlWnd, SIGNAL(sigChargingCurrentChanged(unsigned int)), this, SLOT(onChargingCurrentChanged(unsigned int)));
@@ -128,6 +132,7 @@ DeviceWnd::DeviceWnd(QWidget *parent) :
     connect(ui->refreshPusb, SIGNAL(clicked(bool)), this, SLOT(onRefreshAcquisiton()));
     connect(ui->ConsolePusb, SIGNAL(clicked(bool)), this, SLOT(onConsolePressed()));
     connect(ui->DataStatisticsPushb, SIGNAL(clicked(bool)), this, SLOT(onDataAnalyzerPressed()));
+    connect(ui->BatteryParamsPushb, &QPushButton::clicked, this, &DeviceWnd::sigBatParamViewRequested);
 
     connect(ui->samplingPeriodLine,     SIGNAL(returnPressed()),                    this, SLOT(onSamplingPeriodChanged()));
     connect(ui->streamServerInterfComb, SIGNAL(currentTextChanged(QString)),        this, SLOT(onInterfaceChanged(QString)));
@@ -177,7 +182,14 @@ void DeviceWnd::onCalibrationStoreRequest()
 
 void DeviceWnd::onSetConsumptionName()
 {
-    emit sigConsumptionProfileNameChanged(ui->consNameLine->text());
+    QString name = ui->consNameLine->text().trimmed();
+    if(name.isEmpty()) return;
+
+    ProfileTypeDialog dialog(this);
+    if(dialog.exec() != QDialog::Accepted) return;
+
+    emit sigConsumptionProfileNameChanged(name);
+    emit sigProfileAnalysisTypeChanged(dialog.analysisType(), dialog.batteryName(), dialog.batteryCapacity());
 }
 
 void DeviceWnd::onInterfaceChanged(QString interfaceInfo)

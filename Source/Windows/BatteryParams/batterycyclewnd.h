@@ -8,6 +8,7 @@
 #include <QWidget>
 #include <QVector>
 #include <QStringList>
+#include <QFutureWatcher>
 
 #include "Processing/batteryparamsextraction.h"
 #include "Windows/BatteryParams/batteryparamsplotsettings.h"
@@ -22,6 +23,7 @@ public:
 
     void                setCycle(batteryparams_cycle_t aCycle);
     void                setPlotSettings(batteryparams_plot_settings_t settings);
+    void                setSettings(batteryparams_settings_t settings);
 
 signals:
     void                sigCycleUpdated(batteryparams_cycle_t cycle);
@@ -33,6 +35,7 @@ private slots:
     void                onFitPoints();
     void                onRestore();
     void                onSave();
+    void                onAnalysisFinished();
 
 private:
     QLabel             *infoLabel;
@@ -51,9 +54,16 @@ private:
     QStringList         markerNames;
 
     batteryparams_plot_settings_t plotSettings;
+    batteryparams_settings_t fitSettings;
     batteryparams_cycle_t cycle;
     batteryparams_cycle_t originalCycle;
 
+    QFutureWatcher<batteryparams_cycle_t> analysisWatcher;
+    bool                analysisEmit;
+    int                 analysisGen;
+    int                 analysisRunGen;
+
+    void                runAnalysis(bool emitWhenDone);
     void                addMarker(Plot *plot, QVector<double> values, double key, QString name);
     int                 keyPositionGet(QVector<double> keys, double key);
     QHBoxLayout*        createMarkerRow(QString name, QLineEdit **edit);
@@ -66,7 +76,7 @@ private:
     QString             timeSuffix();
     int                 timeDecimals();
     void                updateInfo();
-    void                updatePlots();
+    void                updatePlots(bool keepView = false);
 };
 
 #endif // BATTERYCYCLEWND_H

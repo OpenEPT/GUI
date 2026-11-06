@@ -3,11 +3,13 @@
 
 #include <QCheckBox>
 #include <QColor>
+#include <QHBoxLayout>
 #include <QString>
 #include <QVector>
 #include <QWidget>
 
 #include "Chart/qcustomplot.h"
+#include "Windows/Plot/plot.h"
 #include "batteryparamsplotsettings.h"
 
 typedef struct
@@ -30,15 +32,13 @@ public:
 
 private slots:
     void                onSeriesToggled();
-    void                onSaveImage();
 
 private:
-    QCustomPlot        *plot;
+    Plot               *plot;
     QHBoxLayout        *seriesLayout;
     QVector<QCheckBox*> seriesCheckBoxes;
+    QVector<QCPGraph*>  seriesGraphs;
     batteryparams_plot_settings_t plotSettings;
-
-    void                rescale();
 };
 
 #endif // BATTERYPARAMSTRENDWND_H

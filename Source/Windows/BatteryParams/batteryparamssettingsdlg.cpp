@@ -66,10 +66,15 @@ BatteryParamsSettingsDlg::BatteryParamsSettingsDlg(QWidget *parent) :
 
     tauGridPointsEdit = createEntry(extractionLayout, 2, "Tau search points", "",
                                     "Number of candidate time constants tried per decade of the search range.\nMore points give a finer fit and take longer");
-    tauRefinementEdit = createEntry(extractionLayout, 3, "Tau refinement steps", "",
-                                    "How many times the search range is narrowed around the best result");
-    tauSeparationEdit = createEntry(extractionLayout, 4, "Tau separation", "x",
+    tauSeparationEdit = createEntry(extractionLayout, 3, "Tau separation", "x",
                                     "Smallest allowed ratio between the slow and the fast time constant.\nBranches closer than this describe the same effect");
+    fitAverageWindowEdit = createEntry(extractionLayout, 4, "Fit average window", "pts",
+                                       "Points averaged over the pause before the RC model is fitted.\n"
+                                       "1 fits the raw samples, 10 fits a 10 point moving average.\n"
+                                       "The average spans the whole pause and stays aligned with the pause start and pause end");
+    ocvWindowEdit = createEntry(extractionLayout, 5, "OCV window", "pts",
+                                "Points averaged at the end of the fit interval (relaxation point or pause end) to obtain the open circuit voltage.\n"
+                                "1 uses the single last point");
 
     QTabWidget *tabWidget = new QTabWidget(this);
     QWidget *analysisTab = new QWidget(this);
@@ -140,6 +145,16 @@ BatteryParamsSettingsDlg::BatteryParamsSettingsDlg(QWidget *parent) :
     setPlotSettings(BATTERYPARAMSPLOT_SettingsDefault());
 }
 
+void BatteryParamsSettingsDlg::setExtractionRunning(bool running)
+{
+    bool editable = !running;
+
+    relaxationThresholdEdit->setEnabled(editable);
+    relaxationWindowEdit->setEnabled(editable);
+    relaxationFilterEdit->setEnabled(editable);
+    fitEndCombo->setEnabled(editable);
+}
+
 QLineEdit* BatteryParamsSettingsDlg::createEntry(QGridLayout *layout, int row, QString name, QString unit, QString tooltip)
 {
     QLabel *label = new QLabel(name, this);
@@ -168,8 +183,9 @@ void BatteryParamsSettingsDlg::setSettings(batteryparams_settings_t settings)
     modelCombo->setCurrentIndex(settings.model == BATTERYPARAMS_MODEL_FIRST_ORDER ? 0 : 1);
     fitEndCombo->setCurrentIndex(settings.fitEnd == BATTERYPARAMS_FIT_END_RELAXATION ? 0 : 1);
     tauGridPointsEdit->setText(QString::number(settings.tauGridPoints));
-    tauRefinementEdit->setText(QString::number(settings.tauRefinementNo));
     tauSeparationEdit->setText(QString::number(settings.tauSeparation));
+    fitAverageWindowEdit->setText(QString::number(settings.fitAverageWindow));
+    ocvWindowEdit->setText(QString::number(settings.ocvWindow));
 }
 
 void BatteryParamsSettingsDlg::setPlotSettings(batteryparams_plot_settings_t settings)
@@ -222,8 +238,9 @@ batteryparams_settings_t BatteryParamsSettingsDlg::getSettings()
     if(relaxationFilterEdit->text().toDouble() >= 0) settings.relaxationFilter = relaxationFilterEdit->text().toDouble();
     if(plotDecimationEdit->text().toInt() > 0) settings.plotDecimation = plotDecimationEdit->text().toInt();
     if(tauGridPointsEdit->text().toInt() > 1) settings.tauGridPoints = tauGridPointsEdit->text().toInt();
-    if(tauRefinementEdit->text().toInt() > 0) settings.tauRefinementNo = tauRefinementEdit->text().toInt();
     if(tauSeparationEdit->text().toDouble() > 1) settings.tauSeparation = tauSeparationEdit->text().toDouble();
+    if(fitAverageWindowEdit->text().toInt() > 0) settings.fitAverageWindow = fitAverageWindowEdit->text().toInt();
+    if(ocvWindowEdit->text().toInt() > 0) settings.ocvWindow = ocvWindowEdit->text().toInt();
 
     settings.model = (modelCombo->currentIndex() == 0) ? BATTERYPARAMS_MODEL_FIRST_ORDER : BATTERYPARAMS_MODEL_SECOND_ORDER;
     settings.fitEnd = (fitEndCombo->currentIndex() == 0) ? BATTERYPARAMS_FIT_END_RELAXATION : BATTERYPARAMS_FIT_END_PAUSE;

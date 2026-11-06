@@ -50,6 +50,7 @@ public slots:
     void    onDeviceWndEPEnable(bool aEpEnabled);
     void    onDeviceWndMaxNumberOfBuffersChanged(unsigned int maxNumber);
     void    onDeviceWndConsumptionProfileNameChanged(QString aConsumptionProfileName);
+    void    onDeviceWndProfileAnalysisTypeChanged(QString analysisType, QString batteryName, QString batteryCapacity);
 
     void    onDeviceWndLoadStatusChanged(bool status);
     void    onDeviceWndPPathStatusChanged(bool status);
@@ -61,8 +62,10 @@ public slots:
     void    onDeviceWndLoadWaveSet(Waveform wave);
     void    onDeviceWndLoadWaveSetStatus(bool status);
     void    onDeviceWndBatParamViewRequested();
+    void    onDeviceWndBatParamProcedureActive(bool active);
     void    onDeviceWndBatParamCapacityChanged(double capacity);
     void    onDeviceWndBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, double filterMs);
+    void    onDeviceWndBatParamExtractionRunning(bool running);
     void    onBatParamCycleFinished(batteryparams_cycle_t cycle);
     void    onBatParamSettingsChanged(batteryparams_settings_t settings);
     void    onDeviceWndLoadWaveClear();
@@ -71,6 +74,7 @@ public slots:
     void    onDeviceWndChargingTermCurrentSetValue(unsigned int current);
     void    onDeviceWndChargingTermVoltageSetValue(float voltage);
     void    onDeviceWndChargingCurrentSetStatus(bool status);
+    void    onDeviceWndChargeMarkersEnabled(bool enabled);
     void    onDeviceWndChDschSaveToFileChanged(bool saveToFile);
     void    onDeviceWndGetBDContent();
     void    onDeviceWndSetBDContent(QByteArray content);
@@ -98,6 +102,7 @@ public slots:
     void    onDeviceOVoltageObtained(bool state);
     void    onDeviceOCurrentObtained(bool state);
     void    onDeviceUVoltageValueObtained(float value);
+    void    onUvWatchTimeout();
     void    onDeviceOVoltageValueObtained(float value);
     void    onDeviceOCurrentValueObtained(int value);
     void    onDeviceBDSizeObtained(int value);
@@ -177,13 +182,56 @@ private:
     bool                            batParamRelaxPauseActive;
     bool                            batParamRelaxRunning;
     bool                            batParamRelaxRestarting;
+    bool                            batParamExtractionRunning;
+    bool                            batParamProcedureActive;
+
+    QString                         profileAnalysisType;
+    QString                         profileBatteryName;
+    QString                         profileBatteryCapacity;
+    bool                            profileTypeWritten;
+
+    bool                            batParamUVFinal;
+    double                          batParamLastSampleKey;
+
+    bool                            chargeMarkersEnabled;
+    bool                            chargeMarkerActive;
+    bool                            chargeMarkerStartPlaced;
+    double                          chargeMarkerCharge;
+    double                          chargeMarkerStartKey;
+    double                          chargeMarkerLastKey;
+    QVector<batteryparams_charge_cycle_t> chargeCyclesBuffer;
+    unsigned int                    chargeCycleCounter;
     double                          samplingPeriodMs;
     bool                            uVoltageActive;
+    float                           uVoltageThreshold;
+    bool                            uvWatchActive;
+    bool                            uvWatchHandled;
+    int                             uvWatchPhase;
+    int                             uvWatchPollsLeft;
+    QTimer                          *uvWatchTimer;
     bool                            oVoltageActive;
     bool                            oCurrentActive;
     double                          batParamRelaxCheckKey;
     QVector<double>                 batParamRelaxKeys;
     QVector<double>                 batParamRelaxVoltage;
+
+    Waveform                        batParamBaseWave;
+    QList<waveform_batregion_t>     batParamRegions;
+    double                          batParamGuardMs;
+    double                          batParamSocStart;
+    double                          batParamDischargedmAh;
+    double                          batParamTrackLastKey;
+    int                             batParamCurrentRegion;
+    int                             batParamPendingRegion;
+
+    int                             batParamRegionForSoc(double soc);
+    Waveform                        batParamBuildRegionWave(int index);
+    void                            batParamRegionTrackInit(Waveform wave);
+    void                            batParamRegionTrackProcess(QVector<double> current, QVector<double> currentKeys);
+    void                            batParamApplyRegionRelax(int index);
+    void                            batParamUpdateLiveStatus();
+
+    void                            writeProfileAnalysisType();
     bool                            createSubDir(const QString &subDirName, QString &fullPath);
 
     void                            logResult(bool status, const QString& successMsg, const QString& errorMsg);

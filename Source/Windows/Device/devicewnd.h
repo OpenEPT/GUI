@@ -190,6 +190,7 @@ signals:
     void            sigStopAcquisition();
     void            sigRefreshAcquisition();
     void            sigConsumptionProfileNameChanged(QString newName);
+    void            sigProfileAnalysisTypeChanged(QString analysisType, QString batteryName, QString batteryCapacity);
     void            sigNewControlMessageRcvd(const QString &response);
     void            sigAdvConfigurationReqested();
     void            sigAdvConfigurationChanged(QVariant newConfig);
@@ -204,8 +205,11 @@ signals:
     void            sigLoadWaveChanged(Waveform wave);
     void            sigLoadWaveStatusChanged(bool newState);
     void            sigBatParamViewRequested();
+    void            sigBatParamProcedureActive(bool active);
     void            sigBatParamCapacityChanged(double capacity);
     void            sigBatParamRelaxationChanged(bool enabled, double thresholdMv, double windowS, double filterMs);
+    void            sigBatParamExtractionRunning(bool running);
+    void            sigChargeMarkersEnabled(bool enabled);
     void            sigLoadWaveClear();
     void            sigChargingCurrentChanged(unsigned int current);
     void            sigChargingTermCurrentChanged(unsigned int current);
